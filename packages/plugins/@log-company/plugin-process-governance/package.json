@@ -1,0 +1,19 @@
+{
+  "name": "@log-company/plugin-process-governance",
+  "displayName": "Process governance",
+  "description": "Server-side governance rules for customs processes.",
+  "version": "2.0.60",
+  "main": "dist/server/index.js",
+  "peerDependencies": {
+    "@nocobase/client": "2.x",
+    "@nocobase/database": "2.x",
+    "@nocobase/server": "2.x",
+    "@nocobase/test": "2.x"
+  },
+  "nocobase": {
+    "supportedVersions": [
+      "2.x"
+    ],
+    "editionLevel": 0
+  }
+}

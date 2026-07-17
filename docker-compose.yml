@@ -1,0 +1,72 @@
+name: log_company
+
+networks:
+  nocobase:
+    driver: bridge
+
+services:
+  app:
+    image: nocobase/nocobase:2.0.60-full
+    restart: always
+    networks:
+      - nocobase
+    depends_on:
+      - postgres
+      - minio
+    environment:
+      # Application key, used to generate user tokens, etc.
+      # If APP_KEY is changed, old tokens will become invalid
+      # Can be any random string, and ensure it is not leaked
+      - APP_KEY=your-secret-key
+      # Database type, supports postgres, mysql, mariadb
+      - DB_DIALECT=postgres
+      # Database host, can be replaced with an existing database server IP
+      - DB_HOST=postgres
+      # Database port
+      - DB_PORT=5432
+      # Database name
+      - DB_DATABASE=nocobase
+      # Database user
+      - DB_USER=nocobase
+      # Database password
+      - DB_PASSWORD=nocobase
+      # Timezone, please change it to your local timezone, e.g., America/New_York
+      - TZ=Etc/UTC
+      - PLUGIN_PACKAGE_PREFIX=@nocobase/plugin-,@nocobase/preset-,@log-company/plugin-
+      - PROCESS_DOCUMENTS_MINIO_ENDPOINT=${PROCESS_DOCUMENTS_MINIO_ENDPOINT:-http://minio:9000}
+      - PROCESS_DOCUMENTS_MINIO_REGION=${PROCESS_DOCUMENTS_MINIO_REGION:-us-east-1}
+      - PROCESS_DOCUMENTS_MINIO_BUCKET=${PROCESS_DOCUMENTS_MINIO_BUCKET:-log-company-process-documents}
+      - PROCESS_DOCUMENTS_MINIO_ACCESS_KEY=${PROCESS_DOCUMENTS_MINIO_ACCESS_KEY:-log_company_process_documents}
+      - PROCESS_DOCUMENTS_MINIO_SECRET_KEY=${PROCESS_DOCUMENTS_MINIO_SECRET_KEY:-log_company_process_documents_secret}
+
+    volumes:
+      - ./storage:/app/nocobase/storage
+    ports:
+      - '13000:80'
+    # init: true
+
+  # If you use an existing database service, you can skip starting postgres
+  postgres:
+    image: postgres:16
+    restart: always
+    command: postgres -c wal_level=logical
+    environment:
+      POSTGRES_USER: nocobase
+      POSTGRES_DB: nocobase
+      POSTGRES_PASSWORD: nocobase
+    volumes:
+      - ./storage/db/postgres:/var/lib/postgresql/data
+    networks:
+      - nocobase
+
+  minio:
+    image: minio/minio:RELEASE.2025-05-24T17-08-30Z
+    restart: always
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${PROCESS_DOCUMENTS_MINIO_ACCESS_KEY:-log_company_process_documents}
+      MINIO_ROOT_PASSWORD: ${PROCESS_DOCUMENTS_MINIO_SECRET_KEY:-log_company_process_documents_secret}
+    volumes:
+      - ./storage/minio:/data
+    networks:
+      - nocobase
