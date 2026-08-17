@@ -11,7 +11,7 @@ import fg from 'fast-glob';
 import path from 'path';
 import ts from 'typescript';
 
-import { ROOT_PATH } from './constant';
+import { PACKAGES_PATH, ROOT_PATH } from './constant';
 
 const INCLUDE_PATTERNS = ['**/*.{ts,tsx}'];
 const EXCLUDE_PATTERNS = [
@@ -47,11 +47,30 @@ function loadCompilerOptions(): ts.CompilerOptions {
     undefined,
     configPath,
   );
-  const options: ts.CompilerOptions = {
-    ...parsedConfig.options,
-  };
-  delete options.paths;
-  return options;
+  return parsedConfig.options;
+}
+
+function isPathInside(parentPath: string, candidatePath: string): boolean {
+  const relativePath = path.relative(parentPath, candidatePath);
+  return (
+    relativePath === '' ||
+    (!relativePath.startsWith(`..${path.sep}`) && relativePath !== '..' && !path.isAbsolute(relativePath))
+  );
+}
+
+function isWorkspaceDependencyRootDirDiagnostic(diagnostic: ts.Diagnostic, packagePath: string): boolean {
+  if (diagnostic.code !== 6059) {
+    return false;
+  }
+
+  const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
+  const fileMatch = message.match(/^File '([^']+)' is not under 'rootDir'/);
+  if (!fileMatch) {
+    return false;
+  }
+
+  const referencedFile = path.resolve(fileMatch[1]);
+  return isPathInside(PACKAGES_PATH, referencedFile) && !isPathInside(packagePath, referencedFile);
 }
 
 export const buildDeclaration = async (cwd: string, targetDir: string) => {
@@ -78,8 +97,19 @@ export const buildDeclaration = async (cwd: string, targetDir: string) => {
   } satisfies ts.CompilerOptions;
 
   const program = ts.createProgram(files, compilerOptions);
-  const emitResult = program.emit(undefined, undefined, undefined, true);
-  const diagnostics = ts.getPreEmitDiagnostics(program).concat(emitResult.diagnostics);
+  const diagnostics = ts
+    .getPreEmitDiagnostics(program)
+    .filter((diagnostic) => !diagnostic.file || isPathInside(srcPath, path.resolve(diagnostic.file.fileName)))
+    .filter((diagnostic) => !isWorkspaceDependencyRootDirDiagnostic(diagnostic, cwd));
+
+  for (const file of files) {
+    const sourceFile = program.getSourceFile(file);
+    if (!sourceFile) {
+      throw new Error(`Failed to load ${file} while building declarations for ${cwd}`);
+    }
+    const emitResult = program.emit(sourceFile, undefined, undefined, true);
+    diagnostics.push(...emitResult.diagnostics);
+  }
 
   if (diagnostics.length) {
     const details = ts.formatDiagnosticsWithColorAndContext(diagnostics, diagnosticHost);
