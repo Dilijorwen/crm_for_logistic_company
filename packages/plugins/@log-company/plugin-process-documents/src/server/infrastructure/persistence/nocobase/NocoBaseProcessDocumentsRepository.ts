@@ -1,3 +1,12 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import type { Plugin } from '@nocobase/server';
 import type { Transaction } from '@nocobase/database';
 import type { DocumentScope } from '../../../domain/documents/DocumentScope';
@@ -204,6 +213,20 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
     return rows.map((row) => this.mapDocument(row));
   }
 
+  async listDocumentsByProcessId(
+    processId: string,
+    transaction?: TransactionContext,
+  ): Promise<ProcessDocumentRecord[]> {
+    const [rows] = (await this.plugin.db.sequelize.query(
+      `select * from ${DOCUMENTS_COLLECTION} where process_id = :processId order by id asc`,
+      {
+        replacements: { processId },
+        transaction: this.asTransaction(transaction),
+      },
+    )) as [DocumentRow[], unknown];
+    return rows.map((row) => this.mapDocument(row));
+  }
+
   async createFolder(input: CreateFolderRecordInput, transaction?: TransactionContext): Promise<DocumentFolderRecord> {
     const now = new Date();
     const processId = input.scope.mode === 'process' ? input.scope.processId : null;
@@ -283,6 +306,20 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
   async deleteDocument(id: string, transaction?: TransactionContext): Promise<void> {
     await this.plugin.db.sequelize.query(`delete from ${DOCUMENTS_COLLECTION} where id = :id`, {
       replacements: { id },
+      transaction: this.asTransaction(transaction),
+    });
+  }
+
+  async deleteDocumentsByProcessId(processId: string, transaction?: TransactionContext): Promise<void> {
+    await this.plugin.db.sequelize.query(`delete from ${DOCUMENTS_COLLECTION} where process_id = :processId`, {
+      replacements: { processId },
+      transaction: this.asTransaction(transaction),
+    });
+  }
+
+  async deleteFoldersByProcessId(processId: string, transaction?: TransactionContext): Promise<void> {
+    await this.plugin.db.sequelize.query(`delete from ${FOLDERS_COLLECTION} where process_id = :processId`, {
+      replacements: { processId },
       transaction: this.asTransaction(transaction),
     });
   }

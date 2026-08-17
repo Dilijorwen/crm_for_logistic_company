@@ -1,8 +1,18 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import type { Plugin } from '@nocobase/server';
 import { AttachDraftDocumentsToProcess } from '../application/AttachDraftDocumentsToProcess';
 import { CreateProcessDocumentFolder } from '../application/CreateProcessDocumentFolder';
 import { DeleteProcessDocument } from '../application/DeleteProcessDocument';
 import { DeleteProcessDocumentFolder } from '../application/DeleteProcessDocumentFolder';
+import { DeleteProcessDocumentsForProcess } from '../application/DeleteProcessDocumentsForProcess';
 import { DocumentFolderService } from '../application/DocumentFolderService';
 import { DocumentScopeService } from '../application/DocumentScopeService';
 import { DownloadProcessDocument } from '../application/DownloadProcessDocument';
@@ -31,6 +41,7 @@ export class ProcessDocumentsModule {
     const access = new NocoBaseProcessDocumentAccess(this.plugin);
     const scopeService = new DocumentScopeService(repository, access);
     const folderService = new DocumentFolderService(repository, scopeService, identifierGenerator);
+    const deleteProcessDocuments = new DeleteProcessDocumentsForProcess(repository, storage, logger);
 
     const actions = {
       list: new ListProcessDocuments(repository, scopeService),
@@ -58,6 +69,7 @@ export class ProcessDocumentsModule {
       repository,
       storage,
       actions.attachDraftDocuments,
+      deleteProcessDocuments,
       new ValidateDocumentFolderPlacement(repository, scopeService),
       new ValidateProcessDocumentPlacement(scopeService),
       logger,

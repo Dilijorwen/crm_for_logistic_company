@@ -1,3 +1,12 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import crypto from 'crypto';
 import fs from 'fs';
 import http from 'http';
@@ -8,6 +17,7 @@ type RequestOptions = {
   method: string;
   key?: string;
   bucketOnly?: boolean;
+  query?: Record<string, string>;
   body?: Buffer | NodeJS.ReadableStream;
   contentLength?: number;
   contentType?: string;
@@ -51,6 +61,33 @@ function encodePathSegment(value: string) {
 
 function encodeS3Path(key: string) {
   return key.split('/').map(encodePathSegment).join('/');
+}
+
+function encodeQuery(parameters: Record<string, string> | undefined): string {
+  return Object.entries(parameters || {})
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${encodePathSegment(key)}=${encodePathSegment(value)}`)
+    .join('&');
+}
+
+function decodeXmlEntities(value: string): string {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+function xmlValues(xml: string, tagName: string): string[] {
+  const values: string[] = [];
+  const expression = new RegExp(`<${tagName}>([\\s\\S]*?)</${tagName}>`, 'g');
+  let match = expression.exec(xml);
+  while (match) {
+    values.push(match[1]);
+    match = expression.exec(xml);
+  }
+  return values;
 }
 
 export async function sha256File(filePath: string) {
@@ -98,6 +135,36 @@ export class MinioS3Client {
     return this.request({ method: 'GET', key, payloadHash: sha256(Buffer.alloc(0)) });
   }
 
+  async listObjects(prefix: string): Promise<string[]> {
+    const keys: string[] = [];
+    let continuationToken: string | undefined;
+
+    do {
+      const query: Record<string, string> = {
+        'encoding-type': 'url',
+        'list-type': '2',
+        prefix,
+      };
+      if (continuationToken) {
+        query['continuation-token'] = continuationToken;
+      }
+      const response = await this.request({ method: 'GET', bucketOnly: true, query });
+      if (!('body' in response)) {
+        throw new MinioRequestError('MinIO did not return an object list.');
+      }
+      keys.push(...xmlValues(response.body, 'Key').map((value) => decodeURIComponent(decodeXmlEntities(value))));
+
+      const isTruncated = xmlValues(response.body, 'IsTruncated')[0] === 'true';
+      const nextToken = xmlValues(response.body, 'NextContinuationToken')[0];
+      if (isTruncated && !nextToken) {
+        throw new MinioRequestError('MinIO returned a truncated object list without a continuation token.');
+      }
+      continuationToken = isTruncated ? decodeXmlEntities(nextToken) : undefined;
+    } while (continuationToken);
+
+    return keys;
+  }
+
   async deleteObject(key: string) {
     try {
       await this.request({ method: 'DELETE', key, body: Buffer.alloc(0) });
@@ -110,7 +177,13 @@ export class MinioS3Client {
     }
   }
 
-  private buildAuth(method: string, canonicalUri: string, headers: Record<string, string>, payloadHash: string) {
+  private buildAuth(
+    method: string,
+    canonicalUri: string,
+    canonicalQuery: string,
+    headers: Record<string, string>,
+    payloadHash: string,
+  ) {
     const amzDate = headers['x-amz-date'];
     const dateStamp = amzDate.slice(0, 8);
     const signedHeaders = Object.keys(headers).sort().join(';');
@@ -118,7 +191,9 @@ export class MinioS3Client {
       .sort()
       .map((key) => `${key}:${headers[key].trim()}\n`)
       .join('');
-    const canonicalRequest = [method, canonicalUri, '', canonicalHeaders, signedHeaders, payloadHash].join('\n');
+    const canonicalRequest = [method, canonicalUri, canonicalQuery, canonicalHeaders, signedHeaders, payloadHash].join(
+      '\n',
+    );
     const credentialScope = `${dateStamp}/${this.config.region}/s3/aws4_request`;
     const stringToSign = ['AWS4-HMAC-SHA256', amzDate, credentialScope, sha256(canonicalRequest)].join('\n');
     const dateKey = hmac(`AWS4${this.config.secretKey}`, dateStamp);
@@ -137,6 +212,7 @@ export class MinioS3Client {
     const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
     const bucketPath = `/${encodePathSegment(this.config.bucket)}`;
     const canonicalUri = options.bucketOnly ? bucketPath : `${bucketPath}/${encodeS3Path(options.key || '')}`;
+    const canonicalQuery = encodeQuery(options.query);
     const headers: Record<string, string> = {
       host: this.endpoint.host,
       'x-amz-content-sha256': payloadHash,
@@ -152,7 +228,7 @@ export class MinioS3Client {
       headers['content-length'] = String(options.body.length);
     }
 
-    headers.authorization = this.buildAuth(method, canonicalUri, headers, payloadHash);
+    headers.authorization = this.buildAuth(method, canonicalUri, canonicalQuery, headers, payloadHash);
 
     return new Promise((resolve, reject) => {
       const transport = this.endpoint.protocol === 'https:' ? https : http;
@@ -161,11 +237,17 @@ export class MinioS3Client {
           method,
           hostname: this.endpoint.hostname,
           port: this.endpoint.port || (this.endpoint.protocol === 'https:' ? 443 : 80),
-          path: canonicalUri,
+          path: canonicalQuery ? `${canonicalUri}?${canonicalQuery}` : canonicalUri,
           headers,
         },
         (response) => {
-          if (method === 'GET' && response.statusCode && response.statusCode >= 200 && response.statusCode < 300) {
+          if (
+            method === 'GET' &&
+            !options.bucketOnly &&
+            response.statusCode &&
+            response.statusCode >= 200 &&
+            response.statusCode < 300
+          ) {
             resolve(response);
             return;
           }

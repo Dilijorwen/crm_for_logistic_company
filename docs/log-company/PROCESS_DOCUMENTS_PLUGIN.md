@@ -18,17 +18,15 @@
 
 ## Пути
 
-- Исходники: `/Users/daniil/log_company/packages/plugins/@log-company/plugin-process-documents`
-- Tarball: `/Users/daniil/log_company/storage/tar/@log-company/plugin-process-documents-2.0.60.tgz`
-- Установленный плагин: `/Users/daniil/log_company/storage/plugins/@log-company/plugin-process-documents`
-- Данные MinIO: `/Users/daniil/log_company/storage/minio`
-- Backup перед изменениями:
-  - `/Users/daniil/log_company/backups/docker-compose-20260707-171146.yml`
-  - `/Users/daniil/log_company/backups/nocobase-20260707-171146.sql.gz`
+- Исходники: `packages/plugins/@log-company/plugin-process-documents`
+- Tarball: `storage/tar/@log-company/plugin-process-documents-2.0.60.tgz`
+- Установленный runtime-плагин: `storage/plugins/@log-company/plugin-process-documents` (не редактировать вручную)
+- Данные MinIO: `storage/minio`
+- Резервные копии: `backups/`
 
 ## Docker и MinIO
 
-В `/Users/daniil/log_company/docker-compose.yml` добавлен сервис `minio`:
+В `docker-compose.yml` добавлен сервис `minio`:
 
 - image: `minio/minio:RELEASE.2025-05-24T17-08-30Z`
 - доступен только внутри Docker-сети `nocobase`
@@ -42,7 +40,7 @@ Bucket создаётся серверным плагином при старт�
 log-company-process-documents
 ```
 
-Переменные в `/Users/daniil/log_company/.env`:
+Переменные в `.env`:
 
 ```dotenv
 PROCESS_DOCUMENTS_MINIO_ENDPOINT=http://minio:9000
@@ -198,8 +196,8 @@ GET /api/processDocuments:download?documentId=...
 Удаление файла:
 
 1. Проверяет право на изменение процесса и destroy документа.
-2. Удаляет объект из MinIO через hook `process_documents.beforeDestroy`.
-3. Удаляет запись `process_documents`.
+2. Удаляет запись `process_documents`.
+3. После успешного commit удаляет объект из MinIO.
 4. Если объект в MinIO уже отсутствует, запись CRM удаляется, а факт пишется в лог.
 
 ### Папка
@@ -212,7 +210,19 @@ GET /api/processDocuments:download?documentId=...
 4. Удаляет документы, затем папки от глубоких к верхним.
 5. Удаление выполняется в транзакции.
 
-Если удаление объекта MinIO завершится ошибкой, hook пробрасывает ошибку и транзакция не должна удалить CRM-структуру молча.
+Если удаление объекта MinIO завершится ошибкой, ошибка и ключ объекта записываются в серверный лог.
+
+### Процесс
+
+При удалении `customs_processes` плагин автоматически:
+
+1. Находит все записи `process_documents` удаляемого процесса, включая документы, которые были загружены как draft.
+2. Получает объекты из MinIO по префиксу `processes/{process_id}/`, чтобы удалить также файлы без записи в `process_documents`.
+3. Удаляет записи документов и папок процесса в транзакции удаления процесса.
+4. Регистрирует удаление соответствующих объектов MinIO через `transaction.afterCommit`.
+5. Если удаление процесса выполнялось без транзакции, удаляет объекты MinIO сразу после очистки записей.
+
+Таким образом, откат удаления процесса не удаляет физические файлы. Отсутствующий объект MinIO считается уже удалённым и фиксируется в логе предупреждением.
 
 ## Целостность
 
@@ -260,6 +270,10 @@ GET /api/processDocuments:download?documentId=...
 
 В форму создания процесса добавлен тот же блок документов. В реальном layout он находится под цепочкой `BlockGridModel -> ChildPageTabModel -> ChildPageModel -> AddNewActionModel`, поэтому клиент определяет create-контекст не только через `formBlockContext`, но и через подъём по `model.parentId` через `flowEngine`.
 
+Во вложенных popup route fallback выбирает правый сегмент `filterbytk`, относящийся к текущему процессу,
+а не левый сегмент родительской записи. Разбор маршрута централизован в
+`@log-company/plugin-process-governance` и переиспользуется блоками документов, обсуждения и дерева процесса.
+
 В интерфейсе:
 
 - один компактный блок `Документы`;
@@ -287,30 +301,9 @@ GET /api/processDocuments:download?documentId=...
 ## Сборка и обновление
 
 ```bash
-cd /Users/daniil/log_company/packages/plugins/@log-company/plugin-process-documents
-
-npx esbuild src/server/index.ts \
-  --bundle --platform=node --format=cjs \
-  --external:@nocobase/server \
-  --external:@nocobase/database \
-  --external:@nocobase/actions \
-  --external:@nocobase/utils \
-  --outfile=dist/server/index.js
-
-npx esbuild src/server/plugin.ts \
-  --bundle --platform=node --format=cjs \
-  --external:@nocobase/server \
-  --external:@nocobase/database \
-  --external:@nocobase/actions \
-  --external:@nocobase/utils \
-  --outfile=dist/server/plugin.js
-
-npm pack --pack-destination /Users/daniil/log_company/storage/tar
-mv -f /Users/daniil/log_company/storage/tar/log-company-plugin-process-documents-2.0.60.tgz \
-  /Users/daniil/log_company/storage/tar/@log-company/plugin-process-documents-2.0.60.tgz
-
-cd /Users/daniil/log_company
-docker compose exec -T app ./node_modules/.bin/nocobase pm add \
+corepack yarn build @log-company/plugin-process-documents
+corepack yarn tar @log-company/plugin-process-documents
+docker compose exec -T app ./node_modules/.bin/nocobase pm update \
   /app/nocobase/storage/tar/@log-company/plugin-process-documents-2.0.60.tgz
 docker compose restart app
 ```
@@ -322,7 +315,6 @@ Client bundle находится в `dist/client/index.js`. При измене�
 Отключить плагин:
 
 ```bash
-cd /Users/daniil/log_company
 docker compose exec -T app ./node_modules/.bin/nocobase pm disable @log-company/plugin-process-documents
 docker compose restart app
 ```
@@ -330,7 +322,6 @@ docker compose restart app
 Удалить плагин из NocoBase:
 
 ```bash
-cd /Users/daniil/log_company
 docker compose exec -T app ./node_modules/.bin/nocobase pm remove @log-company/plugin-process-documents
 docker compose restart app
 ```
@@ -366,7 +357,13 @@ API и сервер:
 - Цикл папок вернул `Нельзя создать цикл в структуре папок.`
 - Удаление файла удалило запись CRM и объект MinIO.
 - Рекурсивное удаление папки удалило вложенные папки, файлы и MinIO-объекты.
-- После очистки тестов: `process_document_folders = 0`, `process_documents = 0`, файлов в MinIO по `processes/` нет.
+- Проверка 2026-07-22: серверные тесты подтверждают очистку записей и отложенное до commit удаление MinIO-объектов при удалении процесса.
+- Проверка 2026-07-30: добавлен отдельный regression-тест удаления одного документа; он подтверждает, что после
+  успешного удаления metadata вызывается удаление соответствующего `storage_key` из MinIO.
+- Проверка 2026-07-22: установленный MinIO-клиент получил 4 объекта без строк `process_documents` по префиксу `processes/372081949605888/`.
+- После обновления plugin manager приложение запустилось без новых ошибок `process-documents`.
+- После очистки тестов 2026-07-08: `process_document_folders = 0`, `process_documents = 0`, файлов в MinIO по `processes/` не оставалось.
+- Найденные 2026-07-22 исторические данные удалённого процесса (4 папки, 24 документа и их MinIO-объекты) во время проверки не удалялись; новый hook применяется к последующим удалениям процессов.
 
 Браузер:
 
@@ -375,11 +372,9 @@ API и сервер:
 - Меню кнопки `Загрузить` содержит варианты `Файлы` и `Папку`.
 - После очистки показывает `Документов пока нет`.
 - На странице без `filterByTk` вкладка блокируется сообщением `Сначала сохраните процесс, чтобы открыть документы.`
-- В браузере загружен bundle `@log-company/plugin-process-documents/dist/client/index.js?hash=d491c7fd`.
-- До финальной клиентской правки browser-проверка формы создания показывала старое сообщение при загруженном bundle `?hash=9b84ae1f`.
+- Проверка 2026-08-11 на вложенном popup китайца `370463144542208` и процесса `379173154324480`:
+  `processDocuments:list` получил `processId = 379173154324480`, вернул HTTP 200 и показал пустое состояние без ошибки поиска процесса.
 - Причина найдена в клиентском определении create-контекста: блок поднимался только по `model.parent`, но в реальном popup цепочка доступна через `model.parentId` и `flowEngine.getModel(parentId, true)`.
-- После правки установлен новый client bundle с hash файла `0ea4a6458e791518a96de8f1f702c3e2d8ed2dde80d4f50d03f6ecf1f5e76456`.
-- In-app browser после перезапуска зависал на reload/goto, поэтому финальная проверка прикрепления документов в Add new подтверждена через API, БД и контейнерные hashes.
 
 Docker:
 
@@ -388,14 +383,6 @@ Docker:
 - `processDocuments:list` снова работает.
 - Bucket `log-company-process-documents` сохранился.
 - Новых ошибок плагина после готовности приложения в логах нет.
-
-Установленные hashes после финальной сборки:
-
-```text
-tarball: 2a330db19490525313e525b7c311d56375d88f98d4118f893dfb44e0b3d767dc
-server bundle: a854d6b7591c89e00a24d3d8df38fd0cdb62861e74ace21b3ac356b3140eaa81
-client bundle: 0ea4a6458e791518a96de8f1f702c3e2d8ed2dde80d4f50d03f6ecf1f5e76456
-```
 
 ## Ограничения первой версии
 

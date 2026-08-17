@@ -1,3 +1,12 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import type { DocumentStorage, StoreDocumentInput } from '../../../application/ports/DocumentStorage';
 import { MinioS3Client, type MinioS3Config } from './MinioS3Client';
 
@@ -23,6 +32,10 @@ export class MinioDocumentStorage implements DocumentStorage {
 
   open(key: string): Promise<unknown> {
     return this.client.getObject(key);
+  }
+
+  listKeys(prefix: string): Promise<string[]> {
+    return this.client.listObjects(prefix);
   }
 
   delete(key: string): Promise<boolean> {

@@ -1,5 +1,15 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import type { Plugin } from '@nocobase/server';
 import { AttachDraftDocumentsToProcess } from '../../application/AttachDraftDocumentsToProcess';
+import { DeleteProcessDocumentsForProcess } from '../../application/DeleteProcessDocumentsForProcess';
 import { ValidateDocumentFolderPlacement } from '../../application/ValidateDocumentFolderPlacement';
 import { ValidateProcessDocumentPlacement } from '../../application/ValidateProcessDocumentPlacement';
 import type { ApplicationLogger, DocumentStorage } from '../../application/ports/DocumentStorage';
@@ -21,9 +31,7 @@ interface NocoBaseModel {
 }
 
 interface HookOptions {
-  transaction?: TransactionContext & {
-    afterCommit?(callback: () => void | Promise<void>): void;
-  };
+  transaction?: TransactionContext;
   context?: {
     state?: {
       currentRoles?: unknown[];
@@ -42,6 +50,7 @@ export class ProcessDocumentsHooks {
     private readonly repository: ProcessDocumentsRepository,
     private readonly storage: DocumentStorage,
     private readonly attachDraftDocuments: AttachDraftDocumentsToProcess,
+    private readonly deleteProcessDocuments: DeleteProcessDocumentsForProcess,
     private readonly validateFolderPlacement: ValidateDocumentFolderPlacement,
     private readonly validateDocumentPlacement: ValidateProcessDocumentPlacement,
     private readonly logger: ApplicationLogger,
@@ -60,6 +69,14 @@ export class ProcessDocumentsHooks {
         });
       },
     );
+
+    this.plugin.db.on(`${PROCESS_COLLECTION}.afterDestroy`, async (model: NocoBaseModel, options: HookOptions) => {
+      const processId = parseIdentifier(model.get('id'));
+      if (!processId) {
+        return;
+      }
+      await this.deleteProcessDocuments.execute({ processId, transaction: options.transaction });
+    });
 
     this.plugin.db.on(`${FOLDERS_COLLECTION}.beforeSave`, async (model: NocoBaseModel, options: HookOptions) => {
       const previous = await this.previousFolder(model, options.transaction);

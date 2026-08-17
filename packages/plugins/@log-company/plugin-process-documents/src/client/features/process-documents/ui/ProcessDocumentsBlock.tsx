@@ -1,3 +1,12 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import {
   DeleteOutlined,
   DownOutlined,
@@ -20,6 +29,7 @@ import {
   useFormBlockContext,
   useRecord,
 } from '@nocobase/client';
+import { getInnermostRouteFilterByTk } from '@log-company/plugin-process-governance/client';
 import { observer } from '@formily/react';
 import { Alert, Button, Dropdown, Empty, Modal, Spin, Tooltip, message, theme as antdTheme } from 'antd';
 import dayjs from 'dayjs';
@@ -29,6 +39,10 @@ import { ensureProcessDocumentsDraftToken } from '../model/draftToken';
 const PROCESS_COLLECTION = 'customs_processes';
 
 type ProcessResourceKey = string | number;
+
+const directoryInputProps: React.InputHTMLAttributes<HTMLInputElement> & { webkitdirectory: string } = {
+  webkitdirectory: 'true',
+};
 
 type ProcessDocumentsModelContext = {
   collection?: unknown;
@@ -232,37 +246,6 @@ function isProcessCreatePopupModel(model: unknown) {
   return false;
 }
 
-function getRouteFilterByTk() {
-  if (typeof window === 'undefined') {
-    return undefined;
-  }
-
-  const paramsList = [window.location.search, window.location.hash.split('?')[1]]
-    .filter(Boolean)
-    .map((query) => new URLSearchParams(query.replace(/^\?/, '')));
-
-  for (const params of paramsList) {
-    const value = params.get('filterByTk') || params.get('filterByTk[]') || params.get('id');
-    const normalized = normalizeFilterByTk(value);
-    if (!isEmptyResourceKey(normalized)) {
-      return normalized;
-    }
-  }
-
-  const pathSegments = window.location.pathname.split('/').filter(Boolean);
-  for (let index = 0; index < pathSegments.length - 1; index += 1) {
-    const segment = pathSegments[index].toLowerCase();
-    if (segment === 'filterbytk' || segment === 'filter-by-tk' || segment === 'filterbytk[]') {
-      const normalized = normalizeFilterByTk(decodeURIComponent(pathSegments[index + 1]));
-      if (!isEmptyResourceKey(normalized)) {
-        return normalized;
-      }
-    }
-  }
-
-  return undefined;
-}
-
 function useProcessTarget(
   modelContext?: ProcessDocumentsModelContext,
   explicitProcessId?: ProcessResourceKey | null,
@@ -351,7 +334,7 @@ function useProcessTarget(
     return { status: 'ready', key: fallbackKey, source: 'filterByTk' };
   }
 
-  const routeKey = getRouteFilterByTk();
+  const routeKey = normalizeFilterByTk(getInnermostRouteFilterByTk());
   if (!isEmptyResourceKey(routeKey)) {
     return { status: 'ready', key: routeKey, source: 'route' };
   }
@@ -770,11 +753,11 @@ function ProcessDocumentsBlockComponent({
           </Button>
           <input ref={fileInputRef} type="file" multiple hidden onChange={(event) => uploadFiles(event.target.files)} />
           <input
+            {...directoryInputProps}
             ref={folderInputRef}
             type="file"
             multiple
             hidden
-            webkitdirectory="true"
             onChange={(event) => uploadFiles(event.target.files)}
           />
         </div>
