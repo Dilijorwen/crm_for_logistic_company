@@ -1,5 +1,15 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import type { Plugin } from '@nocobase/server';
 import { ValidateProcessParents } from '../../application/ValidateProcessParents';
+import { ValidateProcessStatusChange } from '../../application/ValidateProcessStatusChange';
 import type { ProcessGovernanceRepository } from '../../application/ports/ProcessGovernanceRepository';
 import { ProcessGovernanceError } from '../../domain/process/ProcessGovernanceError';
 import {
@@ -8,13 +18,24 @@ import {
   uniqueIdentifiers,
   type EntityId,
 } from '../../domain/shared/Identifiers';
+import {
+  extractProcessRoleNames,
+  processGovernanceErrorMessage,
+  processGovernanceErrorStatus,
+} from '../ProcessGovernanceHttpError';
 
 const PROCESS_COLLECTION = 'customs_processes';
 const HISTORY_COLLECTION = 'process_history';
 const PARENT_LINKS_COLLECTION = 'customs_process_parent_links';
 const PARENT_FIELD = 'parent_processes';
+const STATUS_FIELD = 'status';
 
 interface ActionContext {
+  state?: {
+    currentRole?: unknown;
+    currentRoles?: unknown;
+  };
+  t?: (key: string, options: { ns: string }) => string;
   throw?: (status: number, message: string) => never;
   action?: {
     actionName?: string;
@@ -28,6 +49,7 @@ export class ProcessGovernancePreActions {
     private readonly plugin: Plugin,
     private readonly repository: ProcessGovernanceRepository,
     private readonly validateParents: ValidateProcessParents,
+    private readonly validateStatusChange: ValidateProcessStatusChange,
   ) {}
 
   register(): void {
@@ -60,6 +82,8 @@ export class ProcessGovernancePreActions {
           ? extractIdentifier(values.id)
           : extractIdentifier(context.action?.params?.filterByTk ?? context.action?.params?.resourceIndex);
 
+      await this.validateStatus(context, values, processId);
+
       if (Object.prototype.hasOwnProperty.call(values, PARENT_FIELD)) {
         await this.validateParents.execute({
           processId,
@@ -69,6 +93,29 @@ export class ProcessGovernancePreActions {
       await next();
     });
   };
+
+  private async validateStatus(
+    context: ActionContext,
+    values: Record<string, unknown>,
+    processId: EntityId | null,
+  ): Promise<void> {
+    if (!Object.prototype.hasOwnProperty.call(values, STATUS_FIELD)) {
+      return;
+    }
+    const roleNames = extractProcessRoleNames(context);
+    if (roleNames === null) {
+      return;
+    }
+
+    const isCreate = context.action?.actionName === 'create';
+    const currentProcess = !isCreate && processId !== null ? await this.repository.findProcess(processId) : null;
+    this.validateStatusChange.execute({
+      roleNames,
+      currentStatus: currentProcess?.status,
+      requestedStatus: values[STATUS_FIELD],
+      isExistingProcess: Boolean(currentProcess),
+    });
+  }
 
   private readonly parentRelation = async (context: ActionContext, next: () => Promise<unknown>): Promise<void> => {
     await this.mapErrors(context, async () => {
@@ -118,10 +165,12 @@ export class ProcessGovernancePreActions {
       await work();
     } catch (error) {
       if (error instanceof ProcessGovernanceError) {
+        const status = processGovernanceErrorStatus(error);
+        const message = processGovernanceErrorMessage(context, error);
         if (context.throw) {
-          context.throw(400, error.message);
+          context.throw(status, message);
         }
-        throw this.httpError(400, error.message);
+        throw this.httpError(status, message);
       }
       throw error;
     }

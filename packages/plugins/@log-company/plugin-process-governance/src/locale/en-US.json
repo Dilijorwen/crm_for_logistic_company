@@ -1,0 +1,6 @@
+{
+  "errors": {
+    "invalidProcessStatus": "The customs process status is invalid.",
+    "processStatusForbidden": "Your current role cannot set this customs process status."
+  }
+}

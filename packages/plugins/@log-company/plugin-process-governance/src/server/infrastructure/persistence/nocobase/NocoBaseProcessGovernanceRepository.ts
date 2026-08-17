@@ -1,3 +1,12 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import type { Plugin } from '@nocobase/server';
 import type { CreateOptions, Transaction } from '@nocobase/database';
 import type { ProcessHistoryEntry } from '../../../domain/history/ProcessHistory';
@@ -18,6 +27,7 @@ const PARENT_LINKS_COLLECTION = 'customs_process_parent_links';
 const GRAPH_LOCK_KEY = 'log-company-process-parent-graph';
 const PROCESS_NUMBER_LOCK_KEY = 'log-company-process-numbering';
 const PROCESS_NUMBER_FIELD = 'process_number';
+const PROCESS_STATUS_FIELD = 'status';
 
 const SYSTEM_FIELDS = new Set([
   'id',
@@ -44,6 +54,21 @@ interface ProcessGovernanceCreateOptions extends CreateOptions {
 
 export class NocoBaseProcessGovernanceRepository implements ProcessGovernanceRepository {
   constructor(private readonly plugin: Plugin) {}
+
+  getProcessStatusValues(): string[] {
+    const statusField = this.plugin.db.getCollection(PROCESS_COLLECTION)?.getField(PROCESS_STATUS_FIELD);
+    const enumOptions = statusField?.options?.uiSchema?.enum;
+    if (!Array.isArray(enumOptions)) {
+      return [];
+    }
+    return enumOptions.flatMap((option: unknown) => {
+      if (option === null || typeof option !== 'object' || Array.isArray(option)) {
+        return [];
+      }
+      const value = (option as EnumOptionMetadata).value;
+      return typeof value === 'string' && value ? [value] : [];
+    });
+  }
 
   async lockParentGraph(transaction?: GovernanceTransaction): Promise<void> {
     if (!transaction || this.plugin.db.sequelize.getDialect() !== 'postgres') {
@@ -170,6 +195,7 @@ export class NocoBaseProcessGovernanceRepository implements ProcessGovernanceRep
     return {
       id: String(id),
       title: normalizeText(process.get('title')),
+      status: process.get(PROCESS_STATUS_FIELD),
       processNumber: process.get(PROCESS_NUMBER_FIELD),
       carNumber: process.get('car_number'),
       chineseClientId: (process.get('chinese_client_id') as EntityId | null) ?? null,

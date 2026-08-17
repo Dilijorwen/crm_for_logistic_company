@@ -1,3 +1,12 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import type { ProcessHistoryEntry } from '../../domain/history/ProcessHistory';
 import type { EntityId } from '../../domain/shared/Identifiers';
 
@@ -6,6 +15,7 @@ export type GovernanceTransaction = unknown;
 export interface ProcessCoreData {
   id: string;
   title: string;
+  status: unknown;
   processNumber: unknown;
   carNumber: unknown;
   chineseClientId: EntityId | null;
@@ -24,6 +34,7 @@ export interface TrackedProcessField {
 export type ProcessValuesSnapshot = Record<string, unknown>;
 
 export interface ProcessGovernanceRepository {
+  getProcessStatusValues(): string[];
   lockParentGraph(transaction?: GovernanceTransaction): Promise<void>;
   getParentIds(processId: EntityId, transaction?: GovernanceTransaction): Promise<EntityId[]>;
   parentSelectionCreatesCycle(

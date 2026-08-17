@@ -1,3 +1,12 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import type { Plugin } from '@nocobase/server';
 import { AssignProcessNumber } from '../../application/AssignProcessNumber';
 import { BuildComputedProcessTitle } from '../../application/BuildComputedProcessTitle';
@@ -7,6 +16,7 @@ import { RecordProcessCreated } from '../../application/RecordProcessCreated';
 import { RecordProcessFieldChanges } from '../../application/RecordProcessFieldChanges';
 import { RefreshChineseClientProcessTitles } from '../../application/RefreshChineseClientProcessTitles';
 import { ValidateProcessParents } from '../../application/ValidateProcessParents';
+import { ValidateProcessStatusChange } from '../../application/ValidateProcessStatusChange';
 import type {
   GovernanceTransaction,
   ProcessGovernanceRepository,
@@ -14,12 +24,18 @@ import type {
 } from '../../application/ports/ProcessGovernanceRepository';
 import { ProcessGovernanceError } from '../../domain/process/ProcessGovernanceError';
 import { extractIdentifier, sameIdentifier, type EntityId } from '../../domain/shared/Identifiers';
+import {
+  extractProcessRoleNames,
+  processGovernanceErrorMessage,
+  processGovernanceErrorStatus,
+} from '../ProcessGovernanceHttpError';
 
 const PROCESS_COLLECTION = 'customs_processes';
 const CLIENT_COLLECTION = 'chinese_clients';
 const HISTORY_COLLECTION = 'process_history';
 const PARENT_LINKS_COLLECTION = 'customs_process_parent_links';
 const PROCESS_NUMBER_FIELD = 'process_number';
+const PROCESS_STATUS_FIELD = 'status';
 
 interface NocoBaseModel {
   isNewRecord?: boolean;
@@ -47,6 +63,7 @@ export interface ProcessGovernanceHookActions {
   recordParentChange: RecordParentChange;
   refreshClientTitles: RefreshChineseClientProcessTitles;
   validateParents: ValidateProcessParents;
+  validateStatusChange: ValidateProcessStatusChange;
 }
 
 export class ProcessGovernanceHooks {
@@ -65,6 +82,7 @@ export class ProcessGovernanceHooks {
 
   private registerProcessHooks(): void {
     this.plugin.db.on(`${PROCESS_COLLECTION}.beforeCreate`, async (model: NocoBaseModel, options: HookOptions) => {
+      this.validateStatusChange(model, options);
       await this.prepareProcess(model, options);
     });
     this.plugin.db.on(`${PROCESS_COLLECTION}.beforeUpdate`, async (model: NocoBaseModel, options: HookOptions) => {
@@ -77,6 +95,7 @@ export class ProcessGovernanceHooks {
           fallbackSnapshot: this.previousSnapshot(model),
         });
       }
+      this.validateStatusChange(model, options);
       await this.prepareProcess(model, options);
     });
     this.plugin.db.on(
@@ -209,6 +228,39 @@ export class ProcessGovernanceHooks {
       snapshot[field.name] = model.previous?.(field.storageKey);
     }
     return snapshot;
+  }
+
+  private validateStatusChange(model: NocoBaseModel, options: HookOptions): void {
+    const roleNames = extractProcessRoleNames(options.context);
+    if (roleNames === null) {
+      return;
+    }
+
+    const rawValues = this.asRecord(options.inputValues ?? options.values);
+    const hasExplicitStatus = Object.prototype.hasOwnProperty.call(rawValues, PROCESS_STATUS_FIELD);
+    const isExistingProcess = !model.isNewRecord;
+    const currentStatus = isExistingProcess ? model.previous?.(PROCESS_STATUS_FIELD) : undefined;
+    const requestedStatus = hasExplicitStatus ? rawValues[PROCESS_STATUS_FIELD] : model.get(PROCESS_STATUS_FIELD);
+    if (!hasExplicitStatus && (!isExistingProcess || currentStatus === requestedStatus)) {
+      return;
+    }
+
+    try {
+      this.actions.validateStatusChange.execute({
+        roleNames,
+        currentStatus,
+        requestedStatus,
+        isExistingProcess,
+      });
+    } catch (error) {
+      if (error instanceof ProcessGovernanceError) {
+        throw this.httpError(
+          processGovernanceErrorStatus(error),
+          processGovernanceErrorMessage(options.context, error),
+        );
+      }
+      throw error;
+    }
   }
 
   private async validateParentLink(model: NocoBaseModel, options: HookOptions): Promise<void> {
