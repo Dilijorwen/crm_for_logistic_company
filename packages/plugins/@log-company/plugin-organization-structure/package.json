@@ -1,0 +1,29 @@
+{
+  "name": "@log-company/plugin-organization-structure",
+  "displayName": "Organization structure",
+  "displayName.ru-RU": "Организационная структура",
+  "description": "A visual organization structure interface backed by the standard NocoBase departments plugin.",
+  "version": "2.0.60",
+  "main": "dist/server/index.js",
+  "peerDependencies": {
+    "@ant-design/icons": "*",
+    "@formily/react": "2.x",
+    "@formily/validator": "2.x",
+    "@nocobase/actions": "2.x",
+    "@nocobase/client": "2.x",
+    "@nocobase/database": "2.x",
+    "@nocobase/plugin-auth": "2.x",
+    "@nocobase/server": "2.x",
+    "@nocobase/test": "2.x",
+    "antd": "*",
+    "react": "*",
+    "react-i18next": "^11.15.1",
+    "react-router-dom": "6.x"
+  },
+  "nocobase": {
+    "supportedVersions": [
+      "2.x"
+    ],
+    "editionLevel": 0
+  }
+}
