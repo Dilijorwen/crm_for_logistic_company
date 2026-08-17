@@ -1,3 +1,12 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import { DownOutlined, LinkOutlined, LoadingOutlined, RightOutlined } from '@ant-design/icons';
 import {
   css,
@@ -10,6 +19,7 @@ import {
   useFormBlockContext,
   useRecord,
 } from '@nocobase/client';
+import { getInnermostRouteFilterByTk } from '@log-company/plugin-process-governance/client';
 import { observer } from '@formily/react';
 import { Alert, Button, Empty, Spin, Tag, theme as antdTheme } from 'antd';
 import dayjs from 'dayjs';
@@ -221,37 +231,6 @@ function isCreateFormBlock(formBlockContext: unknown) {
   return asRecord(formBlockContext).type === 'create';
 }
 
-function getRouteFilterByTk() {
-  if (typeof window === 'undefined') {
-    return undefined;
-  }
-
-  const paramsList = [window.location.search, window.location.hash.split('?')[1]]
-    .filter(Boolean)
-    .map((query) => new URLSearchParams(query.replace(/^\?/, '')));
-
-  for (const params of paramsList) {
-    const value = params.get('filterByTk') || params.get('filterByTk[]') || params.get('id');
-    const normalized = normalizeFilterByTk(value);
-    if (!isEmptyResourceKey(normalized)) {
-      return normalized;
-    }
-  }
-
-  const pathSegments = window.location.pathname.split('/').filter(Boolean);
-  for (let index = 0; index < pathSegments.length - 1; index += 1) {
-    const segment = pathSegments[index].toLowerCase();
-    if (segment === 'filterbytk' || segment === 'filter-by-tk' || segment === 'filterbytk[]') {
-      const normalized = normalizeFilterByTk(decodeURIComponent(pathSegments[index + 1]));
-      if (!isEmptyResourceKey(normalized)) {
-        return normalized;
-      }
-    }
-  }
-
-  return undefined;
-}
-
 function useProcessTarget(
   modelContext?: ProcessTreeModelContext,
   explicitProcessId?: ProcessResourceKey | null,
@@ -339,7 +318,7 @@ function useProcessTarget(
     return { status: 'ready', key: fallbackKey, source: 'filterByTk' };
   }
 
-  const routeKey = getRouteFilterByTk();
+  const routeKey = normalizeFilterByTk(getInnermostRouteFilterByTk());
   if (!isEmptyResourceKey(routeKey)) {
     return { status: 'ready', key: routeKey, source: 'route' };
   }
@@ -442,9 +421,13 @@ function useStatusLabels() {
       const field =
         collection?.getField?.('status') ||
         collection?.fields?.find?.((item) => item?.name === 'status' || item?.options?.name === 'status');
-      const items = field?.uiSchema?.enum || field?.options?.uiSchema?.enum || [];
+      const configuredItems: unknown = field?.uiSchema?.enum || field?.options?.uiSchema?.enum;
+      const items = Array.isArray(configuredItems) ? configuredItems : [];
       return items.reduce<Record<string, string>>((memo, item) => {
-        memo[String(item.value)] = item.label;
+        const option = asRecord(item);
+        if (!isEmptyResourceKey(option.value)) {
+          memo[String(option.value)] = String(option.label ?? option.value);
+        }
         return memo;
       }, {});
     } catch {
@@ -793,13 +776,14 @@ function ProcessTreeBlockComponent({ processId, modelContext }: ProcessTreeBlock
     }
     setLoading(true);
     loadTree()
+      .then(() => {
+        if (processKeyRef.current === processKey) {
+          setLoading(false);
+        }
+      })
       .catch((err) => {
         if (processKeyRef.current === processKey) {
           setError(getErrorText(err, 'Не удалось загрузить дерево процессов'));
-        }
-      })
-      .finally(() => {
-        if (processKeyRef.current === processKey) {
           setLoading(false);
         }
       });

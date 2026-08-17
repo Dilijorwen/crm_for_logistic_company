@@ -8,6 +8,7 @@
     "@ant-design/icons": "*",
     "@formily/react": "*",
     "@nocobase/client": "2.x",
+    "@log-company/plugin-process-governance": "2.x",
     "@nocobase/server": "2.x",
     "@nocobase/test": "2.x",
     "antd": "*",
