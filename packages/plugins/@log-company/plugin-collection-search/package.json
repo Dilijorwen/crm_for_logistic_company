@@ -1,0 +1,26 @@
+{
+  "name": "@log-company/plugin-collection-search",
+  "displayName": "Current collection search",
+  "displayName.ru-RU": "Поиск по текущей коллекции",
+  "description": "Fast substring search across searchable fields of the current NocoBase collection.",
+  "version": "2.0.60",
+  "main": "dist/server/index.js",
+  "peerDependencies": {
+    "@ant-design/icons": "*",
+    "@nocobase/actions": "2.x",
+    "@nocobase/client": "2.x",
+    "@nocobase/database": "2.x",
+    "@nocobase/flow-engine": "2.x",
+    "@nocobase/server": "2.x",
+    "@nocobase/test": "2.x",
+    "antd": "*",
+    "react": "*",
+    "react-i18next": "^11.15.1"
+  },
+  "nocobase": {
+    "supportedVersions": [
+      "2.x"
+    ],
+    "editionLevel": 0
+  }
+}
