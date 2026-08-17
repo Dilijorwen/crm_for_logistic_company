@@ -35,11 +35,22 @@ ncc-cache/
 yarn--**
 v8-compile-cache-**
 vitest.config.mts.timestamp-*
-.claude/
-.claudeignore
+/.claude/
+/.claudeignore
 python/
 git-repos.json
-CLAUDE.local.md
-AGENTS.local.md
+/CLAUDE.local.md
+/AGENTS.local.md
 openspec/
 /backups/
+
+# Log Company runtime data and deployment secrets
+/storage/
+.env.production
+.env.staging
+.env.*.secret
+
+# Local AI development instructions
+/AGENTS.md
+/AGENTS.override.md
+/CLAUDE.md
