@@ -1,1 +1,30 @@
-{}
+{
+  "discussion": {
+    "blockTitle": "Process discussion",
+    "unknownUser": "User",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "fileFallback": "File {{id}}",
+    "loadFailed": "The discussion could not be loaded.",
+    "refreshFailed": "The discussion could not be refreshed.",
+    "loadPreviousFailed": "Previous messages could not be loaded.",
+    "submitFailed": "The message could not be sent.",
+    "emptyMessage": "An empty message cannot be sent.",
+    "saveProcessFirst": "Save the process before opening its discussion.",
+    "loadPrevious": "Load previous messages",
+    "empty": "No messages yet",
+    "attachFile": "Attach file",
+    "placeholder": "Write a message...",
+    "send": "Send",
+    "removeFile": "Remove file {{name}}",
+    "removeAttachmentFailed": "The file could not be removed from storage. Try again."
+  },
+  "errors": {
+    "authenticationRequired": "Authentication is required.",
+    "invalidAttachmentId": "Invalid attachment identifier.",
+    "attachmentNotFound": "The attachment was not found.",
+    "attachmentDeleteForbidden": "You cannot delete this attachment.",
+    "attachmentInUse": "The attachment is already linked to a record.",
+    "internal": "The attachment could not be removed from storage."
+  }
+}

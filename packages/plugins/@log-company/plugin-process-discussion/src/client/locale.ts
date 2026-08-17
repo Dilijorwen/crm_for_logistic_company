@@ -7,10 +7,16 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-export function useT() {
-  return (str: string) => str;
+import { useApp } from '@nocobase/client';
+import { useTranslation } from 'react-i18next';
+
+export const NAMESPACE = '@log-company/plugin-process-discussion';
+
+export function useProcessDiscussionTranslation() {
+  const app = useApp();
+  return useTranslation(NAMESPACE, { i18n: app.i18n });
 }
 
 export function tExpr(key: string) {
-  return key;
+  return `{{t("${key}", { ns: "${NAMESPACE}" })}}`;
 }

@@ -8,11 +8,15 @@
   "peerDependencies": {
     "@ant-design/icons": "*",
     "@formily/react": "*",
+    "@nocobase/actions": "2.x",
     "@nocobase/client": "2.x",
+    "@nocobase/database": "2.x",
+    "@log-company/plugin-process-governance": "2.x",
     "@nocobase/server": "2.x",
     "@nocobase/test": "2.x",
     "antd": "*",
     "dayjs": "*",
-    "react": "*"
+    "react": "*",
+    "react-i18next": "^11.15.1"
   }
 }
