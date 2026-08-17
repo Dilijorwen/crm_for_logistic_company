@@ -11,8 +11,10 @@ services:
     networks:
       - nocobase
     depends_on:
-      - postgres
-      - minio
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     environment:
       # Application key, used to generate user tokens, etc.
       # If APP_KEY is changed, old tokens will become invalid
@@ -38,6 +40,11 @@ services:
       - PROCESS_DOCUMENTS_MINIO_BUCKET=${PROCESS_DOCUMENTS_MINIO_BUCKET:-log-company-process-documents}
       - PROCESS_DOCUMENTS_MINIO_ACCESS_KEY=${PROCESS_DOCUMENTS_MINIO_ACCESS_KEY:-log_company_process_documents}
       - PROCESS_DOCUMENTS_MINIO_SECRET_KEY=${PROCESS_DOCUMENTS_MINIO_SECRET_KEY:-log_company_process_documents_secret}
+      - CHAT_MINIO_ENDPOINT=${CHAT_MINIO_ENDPOINT:-http://minio:9000}
+      - CHAT_MINIO_REGION=${CHAT_MINIO_REGION:-us-east-1}
+      - CHAT_MINIO_BUCKET=${CHAT_MINIO_BUCKET:-log-company-chats}
+      - CHAT_MINIO_ACCESS_KEY=${CHAT_MINIO_ACCESS_KEY:-}
+      - CHAT_MINIO_SECRET_KEY=${CHAT_MINIO_SECRET_KEY:-}
 
     volumes:
       - ./storage:/app/nocobase/storage
@@ -58,6 +65,12 @@ services:
       - ./storage/db/postgres:/var/lib/postgresql/data
     networks:
       - nocobase
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U nocobase -d nocobase']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
   minio:
     image: minio/minio:RELEASE.2025-05-24T17-08-30Z
@@ -70,3 +83,9 @@ services:
       - ./storage/minio:/data
     networks:
       - nocobase
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', '--silent', 'http://localhost:9000/minio/health/live']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s

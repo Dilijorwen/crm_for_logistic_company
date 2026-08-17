@@ -1,0 +1,27 @@
+{
+  "name": "@log-company/plugin-chats",
+  "displayName": "CRM chats",
+  "description": "Direct and group CRM chats with MinIO-backed attachments.",
+  "version": "2.0.60",
+  "main": "dist/server/index.js",
+  "peerDependencies": {
+    "@ant-design/icons": "*",
+    "@formily/react": "*",
+    "@nocobase/actions": "2.x",
+    "@nocobase/client": "2.x",
+    "@nocobase/database": "2.x",
+    "@nocobase/server": "2.x",
+    "@nocobase/test": "2.x",
+    "@nocobase/utils": "2.x",
+    "antd": "*",
+    "dayjs": "*",
+    "react": "*",
+    "react-i18next": "^11.15.1"
+  },
+  "nocobase": {
+    "supportedVersions": [
+      "2.x"
+    ],
+    "editionLevel": 0
+  }
+}
