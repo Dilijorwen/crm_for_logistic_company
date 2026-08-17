@@ -1,0 +1,130 @@
+name: log-company-production
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 20m
+    max-file: 5
+
+networks:
+  backend:
+    driver: bridge
+
+services:
+  app:
+    image: nocobase/nocobase:2.0.60-full
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      APP_KEY: ${APP_KEY:?Set APP_KEY in .env.production}
+      APP_SERVER_BASE_URL: ${APP_PUBLIC_URL:?Set APP_PUBLIC_URL in .env.production}
+      DB_DIALECT: postgres
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DB_DATABASE:?Set DB_DATABASE in .env.production}
+      DB_USER: ${DB_USER:?Set DB_USER in .env.production}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env.production}
+      TZ: ${TZ:-Etc/UTC}
+      INIT_LANG: ${INIT_LANG:-ru-RU}
+      INIT_ROOT_EMAIL: ${INIT_ROOT_EMAIL:?Set INIT_ROOT_EMAIL in .env.production}
+      INIT_ROOT_USERNAME: ${INIT_ROOT_USERNAME:?Set INIT_ROOT_USERNAME in .env.production}
+      INIT_ROOT_NICKNAME: ${INIT_ROOT_NICKNAME:-Administrator}
+      INIT_ROOT_PASSWORD: ${INIT_ROOT_PASSWORD:?Set INIT_ROOT_PASSWORD in .env.production}
+      PLUGIN_PACKAGE_PREFIX: '@nocobase/plugin-,@nocobase/preset-,@log-company/plugin-'
+      PROCESS_DOCUMENTS_MINIO_ENDPOINT: http://minio:9000
+      PROCESS_DOCUMENTS_MINIO_REGION: us-east-1
+      PROCESS_DOCUMENTS_MINIO_BUCKET: ${PROCESS_DOCUMENTS_MINIO_BUCKET:-log-company-process-documents}
+      PROCESS_DOCUMENTS_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env.production}
+      PROCESS_DOCUMENTS_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env.production}
+      CHAT_MINIO_ENDPOINT: http://minio:9000
+      CHAT_MINIO_REGION: us-east-1
+      CHAT_MINIO_BUCKET: ${CHAT_MINIO_BUCKET:-log-company-chats}
+      CHAT_MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env.production}
+      CHAT_MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env.production}
+    volumes:
+      - ../storage:/app/nocobase/storage
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget --quiet --tries=1 --timeout=5 --output-document=/dev/null http://127.0.0.1/api/app:getInfo || exit 1
+      interval: 10s
+      timeout: 6s
+      retries: 30
+      start_period: 60s
+    stop_grace_period: 1m
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    logging: *default-logging
+    command: postgres -c wal_level=logical
+    networks:
+      - backend
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:?Set DB_DATABASE in .env.production}
+      POSTGRES_USER: ${DB_USER:?Set DB_USER in .env.production}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env.production}
+      TZ: ${TZ:-Etc/UTC}
+    volumes:
+      - ../storage/db/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    stop_grace_period: 1m
+
+  minio:
+    image: minio/minio:RELEASE.2025-05-24T17-08-30Z
+    restart: unless-stopped
+    logging: *default-logging
+    command: server /data
+    networks:
+      - backend
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env.production}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env.production}
+    volumes:
+      - ../storage/minio:/data
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - --fail
+        - --silent
+        - http://127.0.0.1:9000/minio/health/live
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  caddy:
+    image: caddy:2.11.4-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    networks:
+      - backend
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:?Set APP_PUBLIC_URL in .env.production}
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../storage/caddy/data:/data
+      - ../storage/caddy/config:/config
