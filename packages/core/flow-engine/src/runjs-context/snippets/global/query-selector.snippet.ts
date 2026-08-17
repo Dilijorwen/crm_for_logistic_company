@@ -17,12 +17,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-query-selector',
   label: 'Query selector',
   description: 'Find a child element inside rendered DOM using querySelector',
-  locales: {
-    'zh-CN': {
-      label: '查询子元素',
-      description: '使用 querySelector 在渲染的 DOM 内查找子元素',
-    },
-  },
+  locales: {},
   content: `
 const wrapper = document.createElement('div');
 wrapper.innerHTML = '<div class="child-class"></div>';

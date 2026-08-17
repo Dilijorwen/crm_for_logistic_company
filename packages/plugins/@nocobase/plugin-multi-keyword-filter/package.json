@@ -3,11 +3,8 @@
   "version": "2.0.60",
   "main": "dist/server/index.js",
   "displayName": "Multi-keyword filter",
-  "displayName.zh-CN": "多关键词筛选",
   "description": "Supports multi-keyword filtering for common fields, with options for quick input or batch import of keywords from Excel.",
-  "description.zh-CN": "支持常见字段的多关键词筛选，支持快捷输入或从 Excel 批量导入关键词。",
   "homepage": "https://docs.nocobase.com/handbook/multi-keyword-filter",
-  "homepage.zh-CN": "https://docs-cn.nocobase.com/handbook/multi-keyword-filter",
   "keywords": [
     "Multiple keywords"
   ],

@@ -4,6 +4,8 @@ const fs = require('fs-extra');
 const _ = require('lodash');
 const deepmerge = require('deepmerge');
 
+const SUPPORTED_LOCALES = new Set(['en-US', 'ru-RU']);
+
 // 获取 cronstrue 和 react-js-cron 的翻译
 // 这些函数需要从 CLI 包中引入，或者在这里实现简化版本
 // 为了简化，这里先跳过，你可以根据需要添加
@@ -52,6 +54,9 @@ async function main() {
   // 读取所有文件并按语言和包名组织
   for (const file of files) {
     const localeName = path.basename(file, '.json').replace(/_/g, '-');
+    if (!SUPPORTED_LOCALES.has(localeName)) {
+      continue;
+    }
     const pkg = path.basename(path.dirname(path.dirname(path.dirname(file))));
     const packageName = `@nocobase/${pkg}`;
 
@@ -65,19 +70,7 @@ async function main() {
     }
   }
 
-  // 处理中文和英文的合并逻辑
-  const zhCN = locales['zh-CN'];
   const enUS = locales['en-US'] || {};
-
-  if (zhCN && enUS) {
-    for (const key1 in zhCN) {
-      for (const key2 in zhCN[key1]) {
-        if (!_.get(enUS, [key1, key2])) {
-          _.set(enUS, [key1, key2], key2);
-        }
-      }
-    }
-  }
 
   // 合并所有语言文件（以英文为基础）
   for (const locale of Object.keys(locales)) {
@@ -128,8 +121,8 @@ async function main() {
   for (const locale of Object.keys(locales)) {
     const outputPath = path.resolve(outputDir, `${locale}.json`);
 
-    // zh-CN 和 en-US：始终使用最新生成的内容，直接覆盖（包括已存在的 key）
-    if (locale === 'zh-CN' || locale === 'en-US') {
+    // en-US：始终使用最新生成的内容，直接覆盖（包括已存在的 key）
+    if (locale === 'en-US') {
       const json = await fs.readJSON(outputPath);
       locales[locale]['cronstrue'] = json['cronstrue'];
       locales[locale]['react-js-cron'] = json['react-js-cron'];

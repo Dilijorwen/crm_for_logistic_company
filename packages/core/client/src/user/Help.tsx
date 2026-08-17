@@ -30,8 +30,7 @@ const SettingsMenu: React.FC<{
   const data = useCurrentAppInfo();
   const { token } = useToken();
 
-  // 是否是简体中文
-  const isSimplifiedChinese = data?.data?.lang === 'zh-CN';
+  const isRussian = data?.data?.lang === 'ru-RU';
 
   const items: SettingsMenuItemType[] = [
     {
@@ -51,11 +50,7 @@ const SettingsMenu: React.FC<{
     {
       key: 'homePage',
       label: (
-        <a
-          href={isSimplifiedChinese ? 'https://www.nocobase.com/cn/' : 'https://www.nocobase.com'}
-          target="_blank"
-          rel="noreferrer"
-        >
+        <a href="https://www.nocobase.com" target="_blank" rel="noreferrer">
           {t('Home page')}
         </a>
       ),
@@ -64,7 +59,7 @@ const SettingsMenu: React.FC<{
       key: 'userManual',
       label: (
         <a
-          href={isSimplifiedChinese ? 'https://docs.nocobase.com/cn/guide/' : 'https://docs.nocobase.com/guide/'}
+          href={isRussian ? 'https://docs-ru.nocobase.com/guide/' : 'https://docs.nocobase.com/guide/'}
           target="_blank"
           rel="noreferrer"
         >
@@ -75,11 +70,7 @@ const SettingsMenu: React.FC<{
     {
       key: 'license',
       label: (
-        <a
-          href={isSimplifiedChinese ? 'https://www.nocobase.com/cn/agreement' : 'https://www.nocobase.com/en/agreement'}
-          target="_blank"
-          rel="noreferrer"
-        >
+        <a href="https://www.nocobase.com/en/agreement" target="_blank" rel="noreferrer">
           {t('License')}
         </a>
       ),

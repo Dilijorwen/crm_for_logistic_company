@@ -19,12 +19,4 @@ export default {
       "Hello, I'm Cole. I have access to the NocoBase knowledge base. Ask me anything about setting up or using the platform.",
     about: prompt['en-US'],
   },
-  'zh-CN': {
-    avatar: 'nocobase-036-female',
-    nickname: 'Cole',
-    position: 'NocoBase助手',
-    bio: '我是Cole，你的NocoBase助手。我基于官方知识库提供使用NocoBase的清晰的分析和逐步指导。',
-    greeting: '你好，我是Cole。我可以进入NocoBase的知识库。问我任何关于设置或使用平台的问题。',
-    about: prompt['en-US'],
-  },
 };

@@ -61,7 +61,6 @@ async function create(ctx: Context, next: Next) {
   });
   if (record) {
     const seconds = dayjs(record.get('expiresAt')).diff(dayjs(), 'seconds');
-    // return ctx.throw(429, { code: 'RateLimit', message: ctx.t('Please don\'t retry in {{time}}', { time: moment().locale('zh').to(record.get('expiresAt')) }) });
     return ctx.throw(429, {
       code: 'RateLimit',
       message: ctx.t("Please don't retry in {{time}} seconds", { time: seconds, ns: namespace }),

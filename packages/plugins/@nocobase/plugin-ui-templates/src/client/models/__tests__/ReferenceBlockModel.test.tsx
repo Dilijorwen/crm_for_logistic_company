@@ -132,7 +132,7 @@ describe('ReferenceBlockModel', () => {
       value: {
         auth: {
           role: 'admin',
-          locale: 'zh-CN',
+          locale: 'ru-RU',
           token: 'test-token',
         },
       },

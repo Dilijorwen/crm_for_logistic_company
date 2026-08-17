@@ -11,9 +11,23 @@ import PluginFileManagerServer from '@nocobase/plugin-file-manager';
 import { InstallOptions, Plugin } from '@nocobase/server';
 import { resolve } from 'path';
 
+const DEFAULT_LANGUAGE = 'en-US';
+const SUPPORTED_LANGUAGES = new Set([DEFAULT_LANGUAGE, 'ru-RU']);
+
+const normalizeEnabledLanguages = (languages: unknown): string[] => {
+  if (!Array.isArray(languages)) {
+    return [DEFAULT_LANGUAGE];
+  }
+  const enabledLanguages = languages.filter(
+    (language): language is string => typeof language === 'string' && SUPPORTED_LANGUAGES.has(language),
+  );
+  return enabledLanguages.length ? [...new Set(enabledLanguages)] : [DEFAULT_LANGUAGE];
+};
+
 export class PluginSystemSettingsServer extends Plugin {
   getInitAppLang(options) {
-    return options?.cliArgs?.[0]?.opts?.lang || process.env.INIT_APP_LANG || 'en-US';
+    const language = options?.cliArgs?.[0]?.opts?.lang || process.env.INIT_APP_LANG || DEFAULT_LANGUAGE;
+    return SUPPORTED_LANGUAGES.has(language) ? language : DEFAULT_LANGUAGE;
   }
 
   async install(options?: InstallOptions) {
@@ -52,6 +66,10 @@ export class PluginSystemSettingsServer extends Plugin {
       appends: ['logo'],
     });
     const json = instance.toJSON();
+    json.enabledLanguages = normalizeEnabledLanguages(json.enabledLanguages);
+    if (!json.enabledLanguages.includes(json.appLang)) {
+      json.appLang = json.enabledLanguages[0];
+    }
     json.raw_title = json.title;
     json.title = this.app.environment.renderJsonTemplate(instance.title);
     return json;
@@ -89,10 +107,14 @@ export class PluginSystemSettingsServer extends Plugin {
         put: async (ctx, next) => {
           const repository = this.db.getRepository('systemSettings');
           const values = ctx.action.params.values;
+          const enabledLanguages = normalizeEnabledLanguages(values.enabledLanguages);
+          const appLang = enabledLanguages.includes(values.appLang) ? values.appLang : enabledLanguages[0];
           await repository.update({
             filterByTk: 1,
             values: {
               ...values,
+              appLang,
+              enabledLanguages,
               title: values.raw_title,
             },
           });

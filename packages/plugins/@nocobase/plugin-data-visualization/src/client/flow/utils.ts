@@ -186,7 +186,7 @@ export function sleep(ms: number): Promise<void> {
   });
 }
 
-export function appendColon(label: string, lang?: string): string {
+export function appendColon(label: string, _lang?: string): string {
   if (typeof label !== 'string') {
     return '';
   }
@@ -196,9 +196,7 @@ export function appendColon(label: string, lang?: string): string {
   }
   // 先移除末尾已有的半角/全角冒号（以及其后的空白）
   const noColon = trimmed.replace(/[：:]\s*$/u, '');
-  const isZh = typeof lang === 'string' && /^zh([-_]|$)/i.test(lang);
-  const colon = isZh ? '：' : ':';
-  return `${noColon}${colon}`;
+  return `${noColon}:`;
 }
 
 // 调试日志开关：支持 URL 参数 ?_debug=true 或 localStorage('nocobase.debug')

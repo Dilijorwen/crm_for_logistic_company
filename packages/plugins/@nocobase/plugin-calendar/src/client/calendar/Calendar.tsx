@@ -51,7 +51,6 @@ import updateLocale from 'dayjs/plugin/updateLocale';
 import { dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import enUS from 'date-fns/locale/en-US';
-import zhCN from 'date-fns/locale/zh-CN';
 import ru from 'date-fns/locale/ru';
 
 interface Event {
@@ -294,7 +293,6 @@ export const Calendar: any = withDynamicSchemaProps(
       const [currentSelectDate, setCurrentSelectDate] = useState(undefined);
       const apiClient = useAPIClient();
       const locales = {
-        'zh-CN': zhCN,
         'en-US': enUS,
         'ru-RU': ru,
       };
@@ -302,48 +300,21 @@ export const Calendar: any = withDynamicSchemaProps(
       const formats = useMemo(() => {
         return {
           monthHeaderFormat: (date, culture, local) =>
-            local.format(
-              date,
-              culture === 'zh-CN' ? 'yyyy年M月' : culture === 'ru-RU' ? 'LLLL yyyy' : 'MMM yyyy',
-              culture,
-            ),
-          // dayHeaderFormat: (date, culture, local) => {
-          //   return local.format(date, culture === 'zh-CN' ? 'eee, M/d' : culture === 'ru-RU' ? 'EEE, d MMM' : 'EEE, MMM d', culture);
-          // },
+            local.format(date, culture === 'ru-RU' ? 'LLLL yyyy' : 'MMM yyyy', culture),
           agendaDateFormat: (date, culture, local) => {
-            // return local.format(date, culture === 'zh-CN' ? 'M月d日' : culture === 'ru-RU' ? 'd MMM' : 'M-dd', culture);
-            return local.format(
-              date,
-              culture === 'zh-CN' ? 'yyyy年M月' : culture === 'ru-RU' ? 'LLLL yyyy' : 'MMM yyyy',
-              culture,
-            );
+            return local.format(date, culture === 'ru-RU' ? 'LLLL yyyy' : 'MMM yyyy', culture);
           },
           dayHeaderFormat: (date, culture, local) => {
-            return local.format(
-              date,
-              culture === 'zh-CN' ? 'eee, M/d' : culture === 'ru-RU' ? 'EEE, d MMM' : 'EEE, MMM d',
-              culture,
-            );
+            return local.format(date, culture === 'ru-RU' ? 'EEE, d MMM' : 'EEE, MMM d', culture);
           },
-          // agendaDateFormat: (date, culture, local) => {
-          //   return local.format(date, culture === 'zh-CN' ? 'M月d日' : culture === 'ru-RU' ? 'd MMM' : 'M-dd', culture);
-          // },
 
           dayRangeHeaderFormat: ({ start, end }, culture, local) => {
             if (start.getMonth() === end.getMonth()) {
-              return local.format(
-                start,
-                culture === 'zh-CN' ? 'yyyy年M月' : culture === 'ru-RU' ? 'LLLL yyyy' : 'MMM yyyy',
-                culture,
-              );
+              return local.format(start, culture === 'ru-RU' ? 'LLLL yyyy' : 'MMM yyyy', culture);
             }
-            return `${local.format(
-              start,
-              culture === 'zh-CN' ? 'yyyy年M月' : culture === 'ru-RU' ? 'LLLL yyyy' : 'MMM yyyy',
-              culture,
-            )} - ${local.format(
+            return `${local.format(start, culture === 'ru-RU' ? 'LLLL yyyy' : 'MMM yyyy', culture)} - ${local.format(
               end,
-              culture === 'zh-CN' ? 'yyyy年M月' : culture === 'ru-RU' ? 'LLLL yyyy' : 'MMM yyyy',
+              culture === 'ru-RU' ? 'LLLL yyyy' : 'MMM yyyy',
               culture,
             )}`;
           },

@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-act-destroy-selected',
   label: 'Destroy selected rows',
   description: 'Delete selected rows via resource.destroySelectedRows()',
-  locales: {
-    'zh-CN': {
-      label: '删除选中行',
-      description: '通过 resource.destroySelectedRows() 删除选中行',
-    },
-  },
+  locales: {},
   content: `
 const rows = ctx.resource?.getSelectedRows?.() || [];
 if (!rows.length) {

@@ -66,6 +66,7 @@ export const CSSVariableProvider = ({ children }) => {
     colorBgScrollBarActive,
     colorBgScrollBarHover,
     colorBgScrollTrack,
+    token.colorBgHeaderMenuActive,
     token.colorBgContainer,
     token.colorBgLayout,
     token.colorBgSettingsHover,

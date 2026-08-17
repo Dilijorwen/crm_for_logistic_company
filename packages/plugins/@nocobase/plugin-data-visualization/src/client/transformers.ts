@@ -200,7 +200,6 @@ const transformers: {
         'x-component': 'Select',
         enum: [
           { label: '100,000.00', value: 'en-US' },
-          { label: '100.000,00', value: 'de-DE' },
           { label: '100 000.00', value: 'ru-RU' },
         ],
       },
@@ -208,8 +207,6 @@ const transformers: {
         switch (separator) {
           case 'en-US':
             return val.toLocaleString('en-US', { minimumFractionDigits: 2 });
-          case 'de-DE':
-            return val.toLocaleString('de-DE', { minimumFractionDigits: 2 });
           case 'ru-RU':
             return val.toLocaleString('ru-RU', { minimumFractionDigits: 2 });
           default:
@@ -226,14 +223,8 @@ const transformers: {
       fn: (val: number, locale = 'en-US') => {
         const currency =
           {
-            'zh-CN': 'CNY',
             'en-US': 'USD',
-            'ja-JP': 'JPY',
-            'ko-KR': 'KRW',
-            'pt-BR': 'BRL',
             'ru-RU': 'RUB',
-            'tr-TR': 'TRY',
-            'es-ES': 'EUR',
           }[locale] || 'USD';
         return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(val);
       },
@@ -244,7 +235,7 @@ const transformers: {
         'x-component': 'Select',
         enum: [
           { label: 'en-US', value: 'en-US' },
-          { label: 'zh-CN', value: 'zh-CN' },
+          { label: 'ru-RU', value: 'ru-RU' },
         ],
       },
       fn: (val: number, locale = 'en-US') => new Intl.NumberFormat(locale, { notation: 'compact' }).format(val),

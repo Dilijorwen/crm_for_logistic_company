@@ -64,7 +64,6 @@ const TokenPanelPro: FC<TokenPanelProProps> = ({
 }) => {
   const [wrapSSR, hashId] = useStyle();
   const [activeGroup, setActiveGroup] = useState<string>('brandColor');
-  const locale = useLocale();
 
   const activeCategory = useMemo(() => {
     return tokenCategory.reduce<TokenGroup<string> | undefined>((result, category) => {
@@ -89,7 +88,7 @@ const TokenPanelPro: FC<TokenPanelProProps> = ({
         }}
         items={tokenCategory.map((category) => ({
           key: category.nameEn,
-          label: locale._lang === 'zh-CN' ? category.name : category.nameEn,
+          label: category.nameEn,
           children: (
             <TokenContent
               category={category}

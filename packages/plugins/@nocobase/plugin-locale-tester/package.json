@@ -2,7 +2,6 @@
   "name": "@nocobase/plugin-locale-tester",
   "displayName": "Locale tester",
   "displayName.ru-RU": "Тестер локализации",
-  "displayName.zh-CN": "翻译测试工具",
   "version": "2.0.60",
   "homepage": "https://github.com/nocobase/locales",
   "main": "dist/server/index.js",

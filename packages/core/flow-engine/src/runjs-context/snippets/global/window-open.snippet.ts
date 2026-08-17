@@ -14,12 +14,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-window-open',
   label: 'Open new window',
   description: 'Safely open a new browser window/tab',
-  locales: {
-    'zh-CN': {
-      label: '打开新窗口',
-      description: '安全地打开一个新的浏览器窗口或标签页',
-    },
-  },
+  locales: {},
   content: `
 // Open a new window/tab
 window.open('https://example.com', '_blank');

@@ -35,7 +35,7 @@ export default function () {
         'Upgrade-Insecure-Requests': `1`,
         Accept: `text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -54,7 +54,7 @@ export default function () {
         'X-With-ACL-Meta': `true`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -73,7 +73,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -92,7 +92,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -111,7 +111,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -130,7 +130,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -149,7 +149,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -170,7 +170,7 @@ export default function () {
         Origin: `${__ENV.ORIGIN}`,
         Referer: `${__ENV.ORIGIN}/signin?redirect=/admin/`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -192,7 +192,7 @@ export default function () {
         Origin: `${__ENV.ORIGIN}`,
         Referer: `${__ENV.ORIGIN}/signin?redirect=/admin/`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -215,7 +215,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.ORIGIN}/signin?redirect=/admin/`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -236,7 +236,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -257,7 +257,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -278,7 +278,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -301,7 +301,7 @@ export default function () {
         Origin: `${__ENV.ORIGIN}`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -322,7 +322,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -343,7 +343,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -365,7 +365,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -387,7 +387,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/flwak70a1tp`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -409,7 +409,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/flwak70a1tp`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -431,7 +431,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/flwak70a1tp`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -453,7 +453,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/flwak70a1tp`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -477,7 +477,7 @@ export default function () {
         Origin: `${__ENV.ORIGIN}`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/flwak70a1tp`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -499,7 +499,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/flwak70a1tp`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -523,7 +523,7 @@ export default function () {
         Origin: `${__ENV.ORIGIN}`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/flwak70a1tp`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -545,7 +545,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/flwak70a1tp`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -567,7 +567,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/flwak70a1tp`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -589,7 +589,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/flwak70a1tp/popups/6jpajycbqcl`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -611,7 +611,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/flwak70a1tp/popups/6jpajycbqcl`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -635,7 +635,7 @@ export default function () {
         Origin: `${__ENV.ORIGIN}`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/flwak70a1tp/popups/6jpajycbqcl`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };
@@ -752,7 +752,7 @@ export default function () {
         'X-Locale': `en-US`,
         Referer: `${__ENV.TARGET_ORIGIN}/admin/flwak70a1tp/popups/6jpajycbqcl`,
         'Accept-Encoding': `gzip, deflate`,
-        'Accept-Language': `zh-CN,zh;q=0.9`,
+        'Accept-Language': `ru-RU,ru;q=0.9`,
       },
       cookies: {},
     };

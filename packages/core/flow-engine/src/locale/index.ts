@@ -8,12 +8,12 @@
  */
 
 import enUS from './en-US.json';
-import zhCN from './zh-CN.json';
+import ruRU from './ru-RU.json';
 import { FLOW_ENGINE_NAMESPACE } from '../utils';
 
 export const locales = {
   'en-US': enUS,
-  'zh-CN': zhCN,
+  'ru-RU': ruRU,
 };
 
 /**

@@ -12,10 +12,10 @@ import { createStyles, useAPIClient, useGlobalTheme } from '@nocobase/client';
 import { error } from '@nocobase/utils/client';
 import { Button, ConfigProvider, Input, Space, message } from 'antd';
 import antdEnUs from 'antd/locale/en_US';
-import antdZhCN from 'antd/locale/zh_CN';
+import antdRuRU from 'antd/locale/ru_RU';
 import React, { useEffect } from 'react';
 import { ThemeConfig } from '../../../types';
-import { ThemeEditor, enUS, zhCN } from '../../antd-token-previewer';
+import { ThemeEditor, enUS } from '../../antd-token-previewer';
 import { useUpdateThemeSettings } from '../../hooks/useUpdateThemeSettings';
 import { useTranslation } from '../../locale';
 import { changeAlgorithmFromFunctionToString } from '../../utils/changeAlgorithmFromFunctionToString';
@@ -144,7 +144,7 @@ const CustomTheme = ({ onThemeChange }: { onThemeChange?: (theme: ThemeConfig) =
 
   return (
     <>
-      <ConfigProvider theme={{ inherit: false }} locale={lang === 'zh-CN' ? antdZhCN : antdEnUs}>
+      <ConfigProvider theme={{ inherit: false }} locale={lang === 'ru-RU' ? antdRuRU : antdEnUs}>
         <Space className={styles.header}>
           <Input
             className={cx({ [styles.errorPlaceholder]: themeNameStatus === 'error' })}
@@ -169,7 +169,7 @@ const CustomTheme = ({ onThemeChange }: { onThemeChange?: (theme: ThemeConfig) =
             setTheme(newTheme.config);
             onThemeChange?.(newTheme.config);
           }}
-          locale={lang === 'zh-CN' ? zhCN : enUS}
+          locale={enUS}
         />
       </ConfigProvider>
     </>

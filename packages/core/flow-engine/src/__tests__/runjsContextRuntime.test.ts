@@ -257,12 +257,12 @@ describe('RunJS Context Runtime Behavior', () => {
     it('should provide locale-specific documentation', () => {
       const ctx = new FlowContext();
       ctx.defineProperty('model', { value: { constructor: { name: 'JSFieldModel' } } });
-      ctx.defineProperty('api', { value: { auth: { locale: 'zh-CN' } } });
+      ctx.defineProperty('api', { value: { auth: { locale: 'ru-RU' } } });
 
       const doc = getRunJSDocFor(ctx as any, { version: 'v1' });
 
       expect(doc).toBeTruthy();
-      // Should have Chinese documentation
+      // Should have localized documentation
       expect(doc?.label).toContain('JS');
     });
   });

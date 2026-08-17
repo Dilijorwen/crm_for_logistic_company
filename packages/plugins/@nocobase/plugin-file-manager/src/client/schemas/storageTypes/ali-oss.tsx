@@ -78,5 +78,5 @@ export default {
     paranoid: common.paranoid,
     settings: common.settings,
   },
-  thumbnailRuleLink: 'https://help.aliyun.com/zh/oss/user-guide/resize-images-4',
+  thumbnailRuleLink: 'https://help.aliyun.com/en/oss/user-guide/resize-images-4',
 };

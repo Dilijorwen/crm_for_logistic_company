@@ -18,12 +18,4 @@ export default {
     greeting: 'Hi, I’m Dara. Ask me about your data — I’ll visualize the answer.',
     about: prompt['en-US'],
   },
-  'zh-CN': {
-    avatar: 'nocobase-048-female',
-    nickname: 'Dara',
-    position: '数据可视化专家',
-    bio: '我是 Dara，一名数据可视化专家，擅长将复杂数据转化为清晰、生动的图表，让洞察一目了然。',
-    greeting: '你好，我是 Dara。告诉我你的数据需求，我会用图表为你呈现。',
-    about: prompt['en-US'],
-  },
 };

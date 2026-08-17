@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsb-timeline',
   label: 'Render timeline from records',
   description: 'Display records as a timeline using Ant Design Timeline',
-  locales: {
-    'zh-CN': {
-      label: '渲染时间轴',
-      description: '使用 Ant Design 时间轴组件显示记录历史',
-    },
-  },
+  locales: {},
   content: `
 const { Timeline, Card } = ctx.libs.antd;
 

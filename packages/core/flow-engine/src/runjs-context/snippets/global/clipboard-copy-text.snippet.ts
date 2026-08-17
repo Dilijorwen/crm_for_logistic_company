@@ -14,12 +14,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-clipboard-copy',
   label: 'Copy text to clipboard (function)',
   description: 'A reusable function that copies a given string to the clipboard.',
-  locales: {
-    'zh-CN': {
-      label: '复制文本到剪贴板（函数）',
-      description: '通用函数：接受一个字符串参数并复制到剪贴板。',
-    },
-  },
+  locales: {},
   content: `
 // A general utility function that copies text to clipboard.
 // Usage:

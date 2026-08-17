@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsf-copy',
   label: 'Display text field with copy button',
   description: 'Render the text field value with a copy-to-clipboard button',
-  locales: {
-    'zh-CN': {
-      label: '将文本字段显示为复制按钮',
-      description: '展示字段值并提供快捷复制到剪贴板的按钮',
-    },
-  },
+  locales: {},
   content: `
 const text = String(ctx.value ?? '');
 

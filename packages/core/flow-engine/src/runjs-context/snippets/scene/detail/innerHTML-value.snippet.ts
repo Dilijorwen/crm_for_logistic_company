@@ -16,12 +16,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsf-value',
   label: 'Display text field as highlighted text',
   description: 'Render the current text field value with simple highlight styling',
-  locales: {
-    'zh-CN': {
-      label: '将文本字段显示为高亮文本',
-      description: '将字段值写入容器并添加高亮样式',
-    },
-  },
+  locales: {},
   content: `
 const v = String(ctx.value ?? '');
 ctx.render(\`<span class="nb-js-field-value" style="color:#1890ff;font-weight:600">\${v}</span>\`);

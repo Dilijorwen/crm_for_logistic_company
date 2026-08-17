@@ -14,12 +14,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-open-drawer',
   label: 'Open view (drawer)',
   description: 'Open a view in drawer via ctx.openView',
-  locales: {
-    'zh-CN': {
-      label: '打开视图（抽屉）',
-      description: '通过 ctx.openView 以抽屉方式打开视图',
-    },
-  },
+  locales: {},
   content: `
 // Open a view as drawer and pass arguments at top-level
 const popupUid = ctx.model.uid + '-1'; // popupUid should be stable and better bound to ctx.model.uid

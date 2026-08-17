@@ -94,7 +94,7 @@ const MarkdownEditor = (props: MarkdownEditorProps) => {
         </span>
 
         <a
-          href={`https://${i18n.language === 'zh-CN' ? 'docs-cn' : 'docs'}.nocobase.com/handbook/template-handlebars`}
+          href={`https://${i18n.language === 'ru-RU' ? 'docs-ru' : 'docs'}.nocobase.com/handbook/template-handlebars`}
           target="_blank"
           rel="noreferrer"
         >

@@ -32,8 +32,8 @@ describe('resources', () => {
           if (name === 'localizationTranslations') {
             return {
               find: () => [
-                { textId: 1, translation: '编辑' },
-                { textId: 3, translation: '管理员' },
+                { textId: 1, translation: 'Редактировать' },
+                { textId: 3, translation: 'Администратор' },
               ],
             };
           }
@@ -51,20 +51,20 @@ describe('resources', () => {
   });
 
   test('getTranslations', async () => {
-    const translations = await resources.getTranslations('zh-CN');
+    const translations = await resources.getTranslations('ru-RU');
     expect(translations).toBeDefined();
-    const cache = await resources.cache.get('translations:zh-CN');
+    const cache = await resources.cache.get('translations:ru-RU');
     expect(cache).toBeDefined();
   });
 
   test('getResources', async () => {
-    const result = await resources.getResources('zh-CN');
+    const result = await resources.getResources('ru-RU');
     expect(result).toEqual({
       'resources.client': {
-        Edit: '编辑',
+        Edit: 'Редактировать',
       },
       'resources.acl': {
-        Admin: '管理员',
+        Admin: 'Администратор',
       },
     });
   });

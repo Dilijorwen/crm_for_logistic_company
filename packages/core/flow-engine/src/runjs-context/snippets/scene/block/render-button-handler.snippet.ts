@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsb-button',
   label: 'Render button handler',
   description: 'Render a button and handle click events inside the block',
-  locales: {
-    'zh-CN': {
-      label: '按钮事件处理',
-      description: '在区块中渲染按钮并绑定点击处理逻辑',
-    },
-  },
+  locales: {},
   content: `
 const { Button } = ctx.libs.antd;
 

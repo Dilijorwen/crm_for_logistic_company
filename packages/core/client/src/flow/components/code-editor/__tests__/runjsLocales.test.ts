@@ -11,14 +11,13 @@ import { describe, it, expect } from 'vitest';
 import { buildRunJSCompletions } from '../runjsCompletions';
 
 describe('RunJS snippets locales (client completions)', () => {
-  it('should load snippets with zh-CN labels when locale is zh-CN', async () => {
+  it('should fall back to English snippet labels for ru-RU', async () => {
     const hostCtx = {
       model: { constructor: { name: 'JSBlockModel' } },
-      api: { auth: { locale: 'zh-CN' } },
+      api: { auth: { locale: 'ru-RU' } },
     } as any;
     const { entries } = await buildRunJSCompletions(hostCtx, 'v1', 'block');
-    // expect at least one well-known snippet description (from doc) to be Chinese
-    const hasDialog = entries.some((e) => /对话框/.test(e.description || ''));
+    const hasDialog = entries.some((entry) => /dialog/i.test(entry.description || ''));
     expect(hasDialog).toBe(true);
   });
 });

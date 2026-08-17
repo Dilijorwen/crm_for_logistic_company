@@ -18,12 +18,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsf-status-tag',
   label: 'Display status field as colored tag',
   description: 'Display status values using colored tags',
-  locales: {
-    'zh-CN': {
-      label: '将状态字段显示为彩色标签',
-      description: '根据状态值显示不同颜色的标签',
-    },
-  },
+  locales: {},
   content: `
 const statusColors = {
   active: 'green',

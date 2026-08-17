@@ -3,7 +3,7 @@ import { defineConfig } from 'dumi';
 import { defineThemeConfig } from 'dumi-theme-nocobase';
 
 const umiConfig = getUmiConfig();
-process.env.DOC_LANG = process.env.DOC_LANG || 'zh-CN';
+process.env.DOC_LANG = process.env.DOC_LANG === 'ru-RU' ? 'ru-RU' : 'en-US';
 const lang = process.env.DOC_LANG;
 
 console.log('process.env.DOC_LANG', lang);
@@ -14,7 +14,7 @@ export default defineConfig({
   alias: {
     ...umiConfig.alias,
   },
-  fastRefresh: false, // 热更新会导致 Context 丢失，不开启
+  fastRefresh: false, // Hot reload loses Context state, so keep it disabled.
   // ssr: {},
   // exportStatic: {
   //   ignorePreRenderError: true
@@ -30,7 +30,7 @@ export default defineConfig({
   jsMinifierOptions: {
     target: ['chrome80', 'es2020'],
   },
-  locales: lang === 'zh-CN' ? [{ id: 'zh-CN', name: '中文' },] : [{ id: 'en-US', name: 'English' }],
+  locales: lang === 'ru-RU' ? [{ id: 'ru-RU', name: 'Русский' }] : [{ id: 'en-US', name: 'English' }],
   themeConfig: defineThemeConfig({
     title: 'NocoBase',
     logo: 'https://www.nocobase.com/images/logo.png',
@@ -60,7 +60,7 @@ export default defineConfig({
       },
       {
         title: 'Home site',
-        link: lang === 'zh-CN' ? 'https://docs-cn.nocobase.com' : 'https://docs.nocobase.com',
+        link: lang === 'ru-RU' ? 'https://docs-ru.nocobase.com' : 'https://docs.nocobase.com',
       }
       // {
       //   title: 'UI Schema',
@@ -73,17 +73,17 @@ export default defineConfig({
           title: 'Filter',
           type: 'group',
           children: [
-            { title: '概览', link: '/components/filter' },
+            { title: 'Overview', link: '/components/filter' },
             { title: 'FilterGroup', link: '/components/filter/filter-group' },
-            { title: '自定义 FilterItem', link: '/components/filter/custom-filter-item' },
-            { title: '变量筛选项组件', link: '/components/filter/variable-filter-item' },
+            { title: 'Custom FilterItem', link: '/components/filter/custom-filter-item' },
+            { title: 'Variable filter item', link: '/components/filter/variable-filter-item' },
           ],
         },
         {
           title: 'Variables',
           type: 'group',
           children: [
-            { title: '概览', link: '/components/variables' },
+            { title: 'Overview', link: '/components/variables' },
             {
               title: 'FlowContextSelector',
               link: '/components/variables/flow-context-selector',
@@ -91,11 +91,11 @@ export default defineConfig({
             {
               title: 'VariableInput',
               children: [
-                { title: '基础用法', link: '/components/variables/variable-input' },
-                { title: '筛选条件', link: '/components/variables/variable-input/scenarios/filter' },
-                { title: '联动规则', link: '/components/variables/variable-input/scenarios/linkage-rule' },
-                { title: '字段赋值', link: '/components/variables/variable-input/scenarios/assign-fields-value' },
-                { title: '数据范围', link: '/components/variables/variable-input/scenarios/data-scope' },
+                { title: 'Basic usage', link: '/components/variables/variable-input' },
+                { title: 'Filter conditions', link: '/components/variables/variable-input/scenarios/filter' },
+                { title: 'Linkage rules', link: '/components/variables/variable-input/scenarios/linkage-rule' },
+                { title: 'Field assignment', link: '/components/variables/variable-input/scenarios/assign-fields-value' },
+                { title: 'Data scope', link: '/components/variables/variable-input/scenarios/data-scope' },
               ],
             },
             { title: 'SlateVariableEditor', link: '/components/variables/slate-variable-editor' },
@@ -125,23 +125,23 @@ export default defineConfig({
               link: '/examples/flow-models/fork-model',
             },
             {
-              title: '拖拽（DND）',
+              title: 'Drag and drop (DND)',
               link: '/examples/flow-models/dnd',
             },
             {
-              title: '可配置的卡片',
+              title: 'Configurable card',
               link: '/examples/flow-models/my-card',
             },
             {
-              title: 'Vditor 集成',
+              title: 'Vditor integration',
               link: '/examples/flow-models/vditor',
             },
             {
-              title: 'Markdown 解析',
+              title: 'Markdown parsing',
               link: '/examples/flow-models/markdown',
             },
             {
-              title: 'LiquidJS 集成',
+              title: 'LiquidJS integration',
               link: '/examples/flow-models/liquidjs',
             },
             {
@@ -149,11 +149,11 @@ export default defineConfig({
               link: '/examples/flow-models/crud',
             },
             {
-              title: '错误回退',
+              title: 'Error boundary',
               link: '/examples/flow-models/error-boundary',
             },
             {
-              title: '生命周期',
+              title: 'Lifecycle',
               link: '/examples/flow-models/lifecycle',
             },
             {
@@ -161,7 +161,7 @@ export default defineConfig({
               link: '/examples/flow-models/schedule-model-operation',
             },
             {
-              title: 'hidden 属性演示',
+              title: 'hidden property demo',
               link: '/examples/flow-model-hidden',
             },
           ],
@@ -171,67 +171,67 @@ export default defineConfig({
           type: 'group',
           children: [
             {
-              title: '属性流',
+              title: 'Property flow',
               link: '/examples/flow-definition/props-flow',
             },
             {
-              title: '事件流',
+              title: 'Event flow',
               link: '/examples/flow-definition/event-flow',
             },
             {
-              title: 'Context（运行时）',
+              title: 'Context (runtime)',
               link: '/examples/flow-definition/context-runtime',
             },
             {
-              title: 'Context（配置态）',
+              title: 'Context (settings)',
               link: '/examples/flow-definition/context-settings',
             },
             {
-              title: 'uiSchema - 步骤配置表单',
+              title: 'uiSchema - step settings form',
               link: '/examples/flow-definition/ui-schema-basic',
             },
             {
-              title: '自定义组件（配置表单）',
+              title: 'Custom component (settings form)',
               link: '/examples/flow-definition/ui-schema-custom-component',
             },
             {
-              title: 'defaultParams - 步骤参数默认值',
+              title: 'defaultParams - default step parameters',
               link: '/examples/flow-definition/default-params',
             },
             {
-              title: 'beforeParamsSave - 步骤参数保存前',
+              title: 'beforeParamsSave - before saving step parameters',
               link: '/examples/flow-definition/before-params-save',
             },
             {
-              title: 'afterParamsSave - 步骤参数保存后',
+              title: 'afterParamsSave - after saving step parameters',
               link: '/examples/flow-definition/after-params-save',
             },
             {
-              title: 'handler - 步骤处理函数',
+              title: 'handler - step handler',
               link: '/examples/flow-definition/handler',
             },
             {
-              title: 'preset - 预设置的配置步骤',
+              title: 'preset - predefined settings step',
               link: '/examples/flow-definition/preset',
             },
             {
-              title: 'hideInSettings - 在设置界面中隐藏',
+              title: 'hideInSettings - hide in settings',
               link: '/examples/flow-definition/hide-in-settings',
             },
             {
-              title: '扩展设置菜单（Common actions）',
+              title: 'Extend the settings menu (common actions)',
               link: '/examples/flow-definition/settings-menu-extra-items',
             },
             {
-              title: 'uiMode - 步骤设置的 UI 模式',
+              title: 'uiMode - step settings UI mode',
               link: '/examples/flow-definition/ui-mode',
             },
             {
-              title: '打开预设置的配置表单',
+              title: 'Open a predefined settings form',
               link: '/examples/flow-definition/open-preset-step-settings-dialog',
             },
             {
-              title: '打开流配置表单',
+              title: 'Open a flow settings form',
               link: '/examples/flow-definition/open-settings',
             },
             {
@@ -253,7 +253,7 @@ export default defineConfig({
           type: 'group',
           children: [
             {
-              title: 'FlowAction 示例',
+              title: 'FlowAction example',
               link: '/examples/flow-actions/example',
             },
           ],
@@ -263,19 +263,19 @@ export default defineConfig({
           type: 'group',
           children: [
             {
-              title: 'ctx.defineProperty() - 定义属性',
+              title: 'ctx.defineProperty() - define a property',
               link: '/examples/flow-context/define-property',
             },
             {
-              title: 'ctx.defineMethod() - 定义方法',
+              title: 'ctx.defineMethod() - define a method',
               link: '/examples/flow-context/define-method',
             },
             {
-              title: 'ctx.addDelegate() - 代理链',
+              title: 'ctx.addDelegate() - delegate chain',
               link: '/examples/flow-context/add-delegate',
             },
             {
-              title: '异步 ctx 属性的 loading 状态',
+              title: 'Loading state of an asynchronous ctx property',
               link: '/examples/flow-context/loading',
             },
             {
@@ -413,7 +413,7 @@ export default defineConfig({
           type: 'group',
           children: [
             {
-              title: '简单的 Resource',
+              title: 'Simple Resource',
               link: '/examples/flow-resources/simple-resource',
             },
             {
@@ -465,15 +465,15 @@ export default defineConfig({
           ],
         },
         {
-          title: '单元测试',
+          title: 'Unit tests',
           type: 'group',
           children: [
             {
-              title: 'FlowModel 测试',
+              title: 'FlowModel tests',
               link: '/examples/tests/flow-model-test',
             },
             {
-              title: '流测试',
+              title: 'Flow tests',
               link: '/examples/tests/flow-test',
             },
           ],
@@ -481,11 +481,11 @@ export default defineConfig({
       ],
       '/learn': [
         {
-          title: '扩展指南',
+          title: 'Extension guide',
           link: '/learn',
         },
         {
-          title: '在线编写 & 运行 JS',
+          title: 'Write and run JS online',
           link: '/learn/js-in-nocobase',
         },
         {
@@ -493,25 +493,25 @@ export default defineConfig({
           type: 'group',
           children: [
             {
-              title: '编写第一个 FlowModel 插件',
+              title: 'Write your first FlowModel plugin',
               link: '/learn/flow-model-plugin',
             },
             {
-              title: '构建可编排的按钮组件',
+              title: 'Build a composable button component',
               link: '/learn/quickstart',
             },
           ],
         },
         {
-          title: '区块扩展',
+          title: 'Block extensions',
           type: 'group',
           children: [
             {
-              title: '区块的分类',
+              title: 'Block categories',
               link: '/learn/block-categories',
             },
             {
-              title: '区块的使用场景',
+              title: 'Block use cases',
               link: '/learn/block-scenes',
             },
           ]
@@ -521,15 +521,15 @@ export default defineConfig({
           type: 'group',
           children: [
             {
-              title: '创建一个 FlowModel',
+              title: 'Create a FlowModel',
               link: '/learn/create-flow-model',
             },
             {
-              title: '什么是 FlowModel',
+              title: 'What is a FlowModel?',
               link: '/learn/what-is-flow-model',
             },
             {
-              title: 'FlowModel 的生命周期',
+              title: 'FlowModel lifecycle',
               link: '/learn/lifecycle',
             },
             {
@@ -542,21 +542,21 @@ export default defineConfig({
             //   link: '/learn/define-collection',
             // },
             // {
-            //   title: '区块扩展',
+            //   title: 'Block extensions',
             //   link: '/learn/block',
             // },
             // {
-            //   title: '操作扩展',
+            //   title: 'Action extensions',
             //   link: '/learn/action',
             // },
             // {
-            //   title: '字段扩展',
+            //   title: 'Field extensions',
             //   link: '/learn/field',
             // },
           ],
         },
         {
-          title: '升级指南',
+          title: 'Upgrade guide',
           type: 'group',
           children: [
             {
@@ -572,28 +572,28 @@ export default defineConfig({
           link: '/models',
         },
         {
-          title: '区块',
+          title: 'Blocks',
           type: 'group',
           children: [
             {
               title: 'BlockModel',
               link: '/models/blocks/block-model',
-              extra: '基类',
+              extra: 'Base class',
             },
             {
               title: 'CollectionBlockModel',
               link: '/models/blocks/collection-block-model',
-              extra: '基类',
+              extra: 'Base class',
             },
             {
               title: 'DataBlockModel',
               link: '/models/blocks/data-block-model',
-              extra: '基类',
+              extra: 'Base class',
             },
             {
               title: 'FilterBlockModel',
               link: '/models/blocks/filter-block-model',
-              extra: '基类',
+              extra: 'Base class',
             },
             {
               title: 'JSBlockModel',
@@ -602,7 +602,7 @@ export default defineConfig({
           ],
         },
         // {
-        //   title: '过滤器',
+        //   title: 'Filters',
         //   type: 'group',
         //   children: [
         //     {
@@ -612,18 +612,18 @@ export default defineConfig({
         //   ],
         // },
         {
-          title: '字段',
+          title: 'Fields',
           type: 'group',
           children: [
             {
               title: 'FieldModel',
               link: '/models/fields/field-model',
-              extra: '基类',
+              extra: 'Base class',
             },
             {
               title: 'ClickableFieldModel',
               link: '/models/fields/clickable-field-model',
-              extra: '基类',
+              extra: 'Base class',
             },
             {
               title: 'DisplayItemModel',
@@ -652,28 +652,28 @@ export default defineConfig({
           ],
         },
         {
-          title: '操作',
+          title: 'Actions',
           type: 'group',
           children: [
             {
               title: 'ActionModel',
               link: '/models/actions/action-model',
-              extra: '基类',
+              extra: 'Base class',
             },
             {
               title: 'PopupActionModel',
               link: '/models/actions/popup-action-model',
-              extra: '基类',
+              extra: 'Base class',
             },
             {
               title: 'FormActionModel',
               link: '/models/actions/form-action-model',
-              extra: '基类',
+              extra: 'Base class',
             },
             {
               title: 'FilterFormActionModel',
               link: '/models/actions/filter-form-action-model',
-              extra: '基类',
+              extra: 'Base class',
             },
             {
               title: 'JSActionModel',
@@ -1447,7 +1447,7 @@ export default defineConfig({
       //         link: '/ui-schema/actions/bulk-edit',
       //       },
       //       {
-      //         title: 'Add record(任意表)',
+      //         title: 'Add record (any collection)',
       //         link: '/ui-schema/actions/add-record',
       //       },
       //       {
@@ -1471,8 +1471,8 @@ export default defineConfig({
       // ],
     },
     localesEnhance: [
-      { id: 'zh-CN', switchPrefix: '中', hostname: 'client.docs-cn.nocobase.com' },
-      { id: 'en-US', switchPrefix: 'en', hostname: 'client.docs.nocobase.com' }
+      { id: 'ru-RU', switchPrefix: 'ru', hostname: 'docs-ru.nocobase.com' },
+      { id: 'en-US', switchPrefix: 'en', hostname: 'client.docs.nocobase.com' },
     ],
   }),
 });

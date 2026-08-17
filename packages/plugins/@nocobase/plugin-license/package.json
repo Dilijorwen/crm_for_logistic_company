@@ -4,10 +4,8 @@
   "main": "dist/server/index.js",
   "displayName": "License settings",
   "displayName.ru-RU": "Настройки лицензии",
-  "displayName.zh-CN": "授权设置",
   "description": "Instance ID and license key settings",
   "description.ru-RU": "Настройка идентификатора экземпляра и ключа лицензии",
-  "description.zh-CN": "实例 ID 和授权密钥设置",
   "peerDependencies": {
     "@nocobase/client": "2.x",
     "@nocobase/server": "2.x",

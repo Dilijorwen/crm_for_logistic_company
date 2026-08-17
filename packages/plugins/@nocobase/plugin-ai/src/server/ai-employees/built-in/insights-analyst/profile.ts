@@ -18,12 +18,4 @@ export default {
     greeting: "Hi, I'm Viz. Ask me a question about your data, and I'll help you see the story behind the numbers.",
     about: prompt['en-US'],
   },
-  'zh-CN': {
-    avatar: 'nocobase-010-male',
-    nickname: 'Viz',
-    position: '洞察分析师',
-    bio: '我是Viz，你的洞察分析师。我从你的数据中发现了故事，并用清晰的图表和易于理解的解释使它们栩栩如生。',
-    greeting: '嗨，我是Viz，问我一个关于你的数据的问题，我会帮助你看到数字背后的故事。',
-    about: prompt['en-US'],
-  },
 };

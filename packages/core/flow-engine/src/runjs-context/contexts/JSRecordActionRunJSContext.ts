@@ -20,14 +20,3 @@ JSRecordActionRunJSContext.define({
       Used to identify the specific record in database operations.`,
   },
 });
-
-JSRecordActionRunJSContext.define(
-  {
-    label: 'JS 记录动作 RunJS 上下文',
-    properties: {
-      record: '当前记录（只读）',
-      filterByTk: '主键/过滤键（只读）',
-    },
-  },
-  { locale: 'zh-CN' },
-);

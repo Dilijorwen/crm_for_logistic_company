@@ -62,13 +62,13 @@ describe('Specific RunJSContext implementations', () => {
       expect(doc?.methods?.onRefReady).toBeTruthy();
     });
 
-    it('should support zh-CN locale', () => {
+    it('should fall back to English for ru-RU', () => {
       const ctx = new FlowContext();
       (ctx as any).defineProperty('model', { value: { constructor: { name: 'JSColumnModel' } } });
-      (ctx as any).defineProperty('api', { value: { auth: { locale: 'zh-CN' } } });
+      (ctx as any).defineProperty('api', { value: { auth: { locale: 'ru-RU' } } });
       const doc = getRunJSDocFor(ctx as any, { version: 'v1' });
-      expect(doc?.label).toMatch(/JS 列/);
-      expect(doc?.properties?.element).toContain('表格单元格');
+      expect(doc?.label).toBe('JSColumn RunJS context');
+      expect(doc?.properties?.element).toContain('current table cell');
     });
 
     it('should create instance successfully', () => {
@@ -101,10 +101,10 @@ describe('Specific RunJSContext implementations', () => {
       expect(doc?.properties?.element).toBeTruthy();
     });
 
-    it('should support zh-CN locale', () => {
+    it('should fall back to English for ru-RU', () => {
       const ctx = new FlowContext();
       (ctx as any).defineProperty('model', { value: { constructor: { name: 'JSBlockModel' } } });
-      (ctx as any).defineProperty('api', { value: { auth: { locale: 'zh-CN' } } });
+      (ctx as any).defineProperty('api', { value: { auth: { locale: 'ru-RU' } } });
       const doc = getRunJSDocFor(ctx as any, { version: 'v1' });
       expect(doc?.label).toContain('RunJS');
     });
@@ -125,12 +125,12 @@ describe('Specific RunJSContext implementations', () => {
       expect(doc?.properties?.element).toBeTruthy();
     });
 
-    it('should support zh-CN locale', () => {
+    it('should fall back to English for ru-RU', () => {
       const ctx = new FlowContext();
       (ctx as any).defineProperty('model', { value: { constructor: { name: 'JSFieldModel' } } });
-      (ctx as any).defineProperty('api', { value: { auth: { locale: 'zh-CN' } } });
+      (ctx as any).defineProperty('api', { value: { auth: { locale: 'ru-RU' } } });
       const doc = getRunJSDocFor(ctx as any, { version: 'v1' });
-      expect(doc?.label).toMatch(/JS 字段/);
+      expect(doc?.label).toBe('JSField RunJS context');
     });
   });
 
@@ -148,12 +148,12 @@ describe('Specific RunJSContext implementations', () => {
       expect(doc?.properties?.resource).toBeTruthy();
     });
 
-    it('should support zh-CN locale', () => {
+    it('should fall back to English for ru-RU', () => {
       const ctx = new FlowContext();
       (ctx as any).defineProperty('model', { value: { constructor: { name: 'JSItemModel' } } });
-      (ctx as any).defineProperty('api', { value: { auth: { locale: 'zh-CN' } } });
+      (ctx as any).defineProperty('api', { value: { auth: { locale: 'ru-RU' } } });
       const doc = getRunJSDocFor(ctx as any, { version: 'v1' });
-      expect(doc?.label).toMatch(/JS 表单项/);
+      expect(doc?.label).toBe('JSItem RunJS context');
     });
   });
 
@@ -170,12 +170,12 @@ describe('Specific RunJSContext implementations', () => {
       expect(doc?.properties?.filterByTk).toBeTruthy();
     });
 
-    it('should support zh-CN locale', () => {
+    it('should fall back to English for ru-RU', () => {
       const ctx = new FlowContext();
       (ctx as any).defineProperty('model', { value: { constructor: { name: 'JSRecordActionModel' } } });
-      (ctx as any).defineProperty('api', { value: { auth: { locale: 'zh-CN' } } });
+      (ctx as any).defineProperty('api', { value: { auth: { locale: 'ru-RU' } } });
       const doc = getRunJSDocFor(ctx as any, { version: 'v1' });
-      expect(doc?.label).toMatch(/JS 记录动作/);
+      expect(doc?.label).toBe('JSRecordAction RunJS context');
     });
   });
 
@@ -186,12 +186,12 @@ describe('Specific RunJSContext implementations', () => {
       expect(doc?.properties?.resource).toBeTruthy();
     });
 
-    it('should support zh-CN locale', () => {
+    it('should fall back to English for ru-RU', () => {
       const ctx = new FlowContext();
       (ctx as any).defineProperty('model', { value: { constructor: { name: 'JSCollectionActionModel' } } });
-      (ctx as any).defineProperty('api', { value: { auth: { locale: 'zh-CN' } } });
+      (ctx as any).defineProperty('api', { value: { auth: { locale: 'ru-RU' } } });
       const doc = getRunJSDocFor(ctx as any, { version: 'v1' });
-      expect(doc?.label).toMatch(/JS 集合动作/);
+      expect(doc?.label).toBe('JSCollectionAction RunJS context');
     });
   });
 
@@ -215,12 +215,12 @@ describe('Specific RunJSContext implementations', () => {
       expect(doc?.methods?.setProps).toBeTruthy();
     });
 
-    it('should support zh-CN locale', () => {
+    it('should fall back to English for ru-RU', () => {
       const ctx = new FlowContext();
       (ctx as any).defineProperty('model', { value: { constructor: { name: 'FormJSFieldItemModel' } } });
-      (ctx as any).defineProperty('api', { value: { auth: { locale: 'zh-CN' } } });
+      (ctx as any).defineProperty('api', { value: { auth: { locale: 'ru-RU' } } });
       const doc = getRunJSDocFor(ctx as any, { version: 'v1' });
-      expect(doc?.label).toMatch(/表单 JS 字段项/);
+      expect(doc?.label).toBe('FormJSFieldItem RunJS context');
     });
   });
 
@@ -237,12 +237,12 @@ describe('Specific RunJSContext implementations', () => {
       expect(doc?.methods?.setValue).toBeTruthy();
     });
 
-    it('should support zh-CN locale', () => {
+    it('should fall back to English for ru-RU', () => {
       const ctx = new FlowContext();
       (ctx as any).defineProperty('model', { value: { constructor: { name: 'JSEditableFieldModel' } } });
-      (ctx as any).defineProperty('api', { value: { auth: { locale: 'zh-CN' } } });
+      (ctx as any).defineProperty('api', { value: { auth: { locale: 'ru-RU' } } });
       const doc = getRunJSDocFor(ctx as any, { version: 'v1' });
-      expect(doc?.label).toMatch(/可编辑字段/);
+      expect(doc?.label).toBe('JSEditableField RunJS context');
     });
   });
 });

@@ -16,12 +16,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsf-num',
   label: 'Display number field as localized number',
   description: 'Format numeric values with locale-aware separators before rendering',
-  locales: {
-    'zh-CN': {
-      label: '将数字字段显示为本地化格式',
-      description: '按本地化格式输出数值',
-    },
-  },
+  locales: {},
   content: `
 // Format number using locale
 const n = Number(ctx.value ?? 0);

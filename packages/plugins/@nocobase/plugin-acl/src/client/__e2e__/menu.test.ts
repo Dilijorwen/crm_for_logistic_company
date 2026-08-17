@@ -82,26 +82,26 @@ test.skip('i18n should not fallbackNS', async ({ page }) => {
   await expect(page.getByLabel('Users')).toBeVisible();
   await expect(page.getByLabel('用户')).not.toBeVisible();
 
-  // 添加中文选项
+  // Добавляем русский язык
   await page.reload();
   await page.getByTestId('select-multiple').click();
-  await page.getByRole('option', { name: '简体中文 (zh-CN)' }).click();
+  await page.getByRole('option', { name: 'Русский (ru-RU)' }).click();
   await page.getByLabel('action-Action-Submit').click();
 
-  // 切换为中文
+  // Переключаемся на русский язык
   await page.getByTestId('user-center-button').click();
   await page.getByText('LanguageEnglish').click();
-  await page.getByRole('option', { name: '简体中文' }).click();
+  await page.getByRole('option', { name: 'Русский' }).click();
 
   // await page.reload();
 
-  // 应该显示 Users 而非中文 “用户”
+  // Пользовательское имя страницы остаётся без автоматического перевода
   await expect(page.getByLabel('Users')).toBeVisible();
-  await expect(page.getByLabel('用户')).not.toBeVisible();
+  await expect(page.getByLabel('Пользователи')).not.toBeVisible();
 
-  // 删除中文
-  await page.getByLabel('简体中文 (zh-CN)').getByLabel('icon-close-tag').click();
-  await page.getByLabel('action-Action-提交').click();
+  // Удаляем русский язык
+  await page.getByLabel('Русский (ru-RU)').getByLabel('icon-close-tag').click();
+  await page.getByLabel('action-Action-Отправить').click();
 
   // 删除 Users 页面
   await page.getByLabel('Users').hover();

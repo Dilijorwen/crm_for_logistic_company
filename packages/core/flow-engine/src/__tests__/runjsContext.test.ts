@@ -87,15 +87,15 @@ describe('flowRunJSContext registry and doc', () => {
       expect(doc?.label).toMatch(/RunJS base/);
     });
 
-    it('should support locale-specific doc', () => {
+    it('should fall back to English docs when locale-specific metadata is unavailable', () => {
       const ctx = new FlowContext();
       (ctx as any).defineProperty('model', { value: { constructor: { name: 'JSFieldModel' } } });
-      (ctx as any).defineProperty('api', { value: { auth: { locale: 'zh-CN' } } });
+      (ctx as any).defineProperty('api', { value: { auth: { locale: 'ru-RU' } } });
       const doc = getRunJSDocFor(ctx as any, { version: 'v1' });
       const message = doc?.properties?.message;
       const messageText =
         typeof message === 'string' ? message : (message as any)?.description ?? (message as any)?.detail ?? '';
-      expect(String(messageText)).toMatch(/Ant Design 全局消息/);
+      expect(String(messageText)).toContain('Ant Design global message API');
     });
 
     it('should fallback to English when locale is not found', () => {

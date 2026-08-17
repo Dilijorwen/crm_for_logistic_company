@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsb-info-card',
   label: 'Render record info card',
   description: 'Display current record information in an Ant Design card',
-  locales: {
-    'zh-CN': {
-      label: '渲染记录信息卡片',
-      description: '使用 Ant Design 卡片显示当前记录的关键信息',
-    },
-  },
+  locales: {},
   content: `
 const { Card, Descriptions, Tag } = ctx.libs.antd;
 

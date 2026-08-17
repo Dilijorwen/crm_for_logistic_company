@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsb-antd-icons',
   label: 'Render Ant Design icons',
   description: 'Render Ant Design icons with buttons inside the block container',
-  locales: {
-    'zh-CN': {
-      label: '渲染 Ant Design 图标',
-      description: '在区块容器中使用 Ant Design 图标与按钮进行渲染',
-    },
-  },
+  locales: {},
   content: `
 // Render Ant Design icons with buttons via ctx.libs
 const { React, antd, antdIcons } = ctx.libs;

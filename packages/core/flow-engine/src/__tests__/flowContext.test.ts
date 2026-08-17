@@ -163,11 +163,11 @@ describe('FlowContext properties and methods', () => {
   it('should expose current language as a top-level variable', async () => {
     const engine = new FlowEngine();
     const ctx = engine.context;
-    ctx.defineProperty('api', { value: { auth: { locale: 'zh-CN' } } });
+    ctx.defineProperty('api', { value: { auth: { locale: 'ru-RU' } } });
     ctx.defineProperty('i18n', { value: { language: 'en-US' } });
 
-    expect(ctx.locale).toBe('zh-CN');
-    await expect(ctx.resolveJsonTemplate('{{ ctx.locale }}')).resolves.toBe('zh-CN');
+    expect(ctx.locale).toBe('ru-RU');
+    await expect(ctx.resolveJsonTemplate('{{ ctx.locale }}')).resolves.toBe('ru-RU');
 
     const localeNode = ctx.getPropertyMetaTree().find((node) => node.name === 'locale');
     expect(localeNode).toMatchObject({

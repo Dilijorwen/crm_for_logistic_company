@@ -13,7 +13,7 @@ import React, { forwardRef, useImperativeHandle, useMemo, useState } from 'react
 import { antdComponents } from './component-panel';
 import useControlledTheme from './hooks/useControlledTheme';
 import type { SelectedToken, Theme } from './interface';
-import { LocaleContext, zhCN } from './locale';
+import { enUS, LocaleContext } from './locale';
 import { mapRelatedAlias, seedRelatedAlias, seedRelatedMap } from './meta/TokenRelation';
 import type { TokenPanelProProps } from './token-panel-pro';
 import TokenPanelPro from './token-panel-pro';
@@ -53,7 +53,7 @@ export type ThemeEditorProps = {
 };
 
 const ThemeEditor = forwardRef<ThemeEditorRef, ThemeEditorProps>(
-  ({ theme: customTheme, onThemeChange, className, style, darkAlgorithm, locale = zhCN }, ref) => {
+  ({ theme: customTheme, onThemeChange, className, style, darkAlgorithm, locale = enUS }, ref) => {
     const [wrapSSR, hashId] = useStyle();
     const [selectedTokens, setSelectedTokens] = useState<SelectedToken>({
       seed: ['colorPrimary'],

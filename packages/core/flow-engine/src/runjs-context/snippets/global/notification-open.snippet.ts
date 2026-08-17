@@ -14,12 +14,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-notify',
   label: 'Open notification',
   description: 'Open an AntD notification with custom content',
-  locales: {
-    'zh-CN': {
-      label: '打开通知',
-      description: '展示一条自定义内容的通知',
-    },
-  },
+  locales: {},
   content: `
 ctx.notification.open({
   message: ctx.t('Notification title'),

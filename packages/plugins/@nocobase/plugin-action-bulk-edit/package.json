@@ -4,13 +4,10 @@
   "main": "dist/server/index.js",
   "homepage": "https://docs.nocobase.com/handbook/action-bulk-edit",
   "homepage.ru-RU": "https://docs-ru.nocobase.com/handbook/action-bulk-edit",
-  "homepage.zh-CN": "https://docs-cn.nocobase.com/handbook/action-bulk-edit",
   "displayName": "Action: Batch edit",
   "displayName.ru-RU": "Действие: Массовое редактирование",
-  "displayName.zh-CN": "操作：批量编辑",
   "description": "Batch edit all records or selected records.",
   "description.ru-RU": "Массовое редактирование всех или только выбранных записей.",
-  "description.zh-CN": "对全部数据或选中的数据进行批量编辑。",
   "license": "Apache-2.0",
   "peerDependencies": {
     "@nocobase/client": "2.x",

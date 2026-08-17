@@ -39,7 +39,7 @@ const defaultToolbar = [
 
 const NAMESPACE = 'block-markdown';
 
-const locales = ['en_US', 'fr_FR', 'pt_BR', 'ja_JP', 'ko_KR', 'ru_RU', 'sv_SE', 'zh_CN', 'zh_TW'];
+const locales = ['en_US', 'ru_RU'];
 
 const Edit = (props) => {
   const { disabled, onChange, value, fileCollection, toolbar, vditorRef } = props;

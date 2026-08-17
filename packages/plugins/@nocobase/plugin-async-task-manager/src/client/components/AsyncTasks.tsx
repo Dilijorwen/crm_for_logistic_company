@@ -35,7 +35,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import dayjs from 'dayjs';
-import 'dayjs/locale/zh-cn';
+import 'dayjs/locale/ru';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { useT } from '../locale';
 import { TASK_STATUS, TASK_STATUS_OPTIONS } from '../../common/constants';

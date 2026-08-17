@@ -213,7 +213,7 @@ function render() {
 
   const btnAdd = ctx.element.querySelector('#btnAdd');
   btnAdd.addEventListener('click', async () => {
-    const now = new Date().toLocaleString('zh-CN');
+    const now = new Date().toLocaleString('ru-RU');
     await ctx.resource.create({ name: '新线索 ' + now, company: '示例公司', status: 'Initial Contact', rating: 'Warm' });
     render();
   });

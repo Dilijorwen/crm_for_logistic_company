@@ -66,8 +66,8 @@ const AddNew = () => {
                     <a
                       target="_blank"
                       href={
-                        api.auth.locale === 'zh-CN'
-                          ? 'https://docs-cn.nocobase.com/handbook/notification-manager'
+                        api.auth.locale === 'ru-RU'
+                          ? 'https://docs-ru.nocobase.com/handbook/notification-manager'
                           : 'https://docs.nocobase.com/handbook/notification-manager'
                       }
                       rel="noreferrer"

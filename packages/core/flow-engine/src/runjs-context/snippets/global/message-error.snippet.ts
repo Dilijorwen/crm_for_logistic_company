@@ -13,12 +13,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-msg-error',
   label: 'Message error',
   description: 'Show an error toast message',
-  locales: {
-    'zh-CN': {
-      label: '错误消息提示',
-      description: '显示一条错误提示消息',
-    },
-  },
+  locales: {},
   content: `
 ctx.message.error(ctx.t('Operation failed'));
 `,

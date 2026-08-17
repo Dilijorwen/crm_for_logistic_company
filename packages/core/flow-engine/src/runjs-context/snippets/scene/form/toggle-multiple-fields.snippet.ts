@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-link-show-hide',
   label: 'Show/hide fields based on condition',
   description: 'Toggle multiple fields visibility based on a condition',
-  locales: {
-    'zh-CN': {
-      label: '条件显示/隐藏字段',
-      description: '根据条件批量显示或隐藏多个字段',
-    },
-  },
+  locales: {},
   content: `
 // Show payment fields only when paymentMethod is 'online'
 const paymentMethod = ctx.record?.paymentMethod;

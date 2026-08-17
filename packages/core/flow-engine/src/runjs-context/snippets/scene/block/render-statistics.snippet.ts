@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsb-stats',
   label: 'Render statistics cards',
   description: 'Display multiple statistic cards with numbers from API',
-  locales: {
-    'zh-CN': {
-      label: '渲染统计卡片',
-      description: '显示多个统计数字卡片（从 API 获取数据）',
-    },
-  },
+  locales: {},
   content: `
 const { Card, Statistic, Row, Col } = ctx.libs.antd;
 

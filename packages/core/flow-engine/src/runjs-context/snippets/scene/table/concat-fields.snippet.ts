@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-col-concat',
   label: 'Concat two fields',
   description: 'Combine two field values into the current column cell',
-  locales: {
-    'zh-CN': {
-      label: '拼接两个字段值',
-      description: '在自定义列中拼接两个字段的值作为显示内容',
-    },
-  },
+  locales: {},
   content: `
 // Demo helper: infer previous columns' dataIndex values based on the current column position
 // In production, hardcode field names to avoid surprises when columns are reordered

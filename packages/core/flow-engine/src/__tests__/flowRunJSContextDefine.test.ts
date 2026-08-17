@@ -336,31 +336,19 @@ describe('FlowRunJSContext.define() and getDoc() deep tests', () => {
 
       LocaleContext.define(
         {
-          label: 'Chinese Label',
-          properties: { message: '中文消息' },
+          label: 'Russian Label',
+          properties: { message: 'Русское сообщение' },
         },
-        { locale: 'zh-CN' },
-      );
-
-      LocaleContext.define(
-        {
-          label: 'Japanese Label',
-          properties: { message: '日本語メッセージ' },
-        },
-        { locale: 'ja-JP' },
+        { locale: 'ru-RU' },
       );
 
       const defaultDoc = LocaleContext.getDoc();
       expect(defaultDoc.label).toBe('Default Label');
       expect(defaultDoc.properties?.message).toBe('Default message');
 
-      const zhDoc = LocaleContext.getDoc('zh-CN');
-      expect(zhDoc.label).toBe('Chinese Label');
-      expect(zhDoc.properties?.message).toBe('中文消息');
-
-      const jaDoc = LocaleContext.getDoc('ja-JP');
-      expect(jaDoc.label).toBe('Japanese Label');
-      expect(jaDoc.properties?.message).toBe('日本語メッセージ');
+      const ruDoc = LocaleContext.getDoc('ru-RU');
+      expect(ruDoc.label).toBe('Russian Label');
+      expect(ruDoc.properties?.message).toBe('Русское сообщение');
     });
 
     it('should merge locale-specific metadata with default', () => {
@@ -376,15 +364,15 @@ describe('FlowRunJSContext.define() and getDoc() deep tests', () => {
       LocaleMergeContext.define(
         {
           properties: {
-            message: '消息',
+            message: 'Сообщение',
           },
         },
-        { locale: 'zh-CN' },
+        { locale: 'ru-RU' },
       );
 
-      const zhDoc = LocaleMergeContext.getDoc('zh-CN');
-      expect(zhDoc.properties?.api).toBe('API client');
-      expect(zhDoc.properties?.message).toBe('消息');
+      const ruDoc = LocaleMergeContext.getDoc('ru-RU');
+      expect(ruDoc.properties?.api).toBe('API client');
+      expect(ruDoc.properties?.message).toBe('Сообщение');
     });
 
     it('should support locale inheritance', () => {
@@ -392,14 +380,14 @@ describe('FlowRunJSContext.define() and getDoc() deep tests', () => {
       class LocaleInheritChild extends LocaleInheritBase {}
 
       LocaleInheritBase.define({ properties: { base: 'base' } });
-      LocaleInheritBase.define({ properties: { base: '基础' } }, { locale: 'zh-CN' });
+      LocaleInheritBase.define({ properties: { base: 'основа' } }, { locale: 'ru-RU' });
 
       LocaleInheritChild.define({ properties: { child: 'child' } });
-      LocaleInheritChild.define({ properties: { child: '子级' } }, { locale: 'zh-CN' });
+      LocaleInheritChild.define({ properties: { child: 'потомок' } }, { locale: 'ru-RU' });
 
-      const zhDoc = LocaleInheritChild.getDoc('zh-CN');
-      expect(zhDoc.properties?.base).toBe('基础');
-      expect(zhDoc.properties?.child).toBe('子级');
+      const ruDoc = LocaleInheritChild.getDoc('ru-RU');
+      expect(ruDoc.properties?.base).toBe('основа');
+      expect(ruDoc.properties?.child).toBe('потомок');
     });
   });
 
@@ -443,16 +431,16 @@ describe('FlowRunJSContext.define() and getDoc() deep tests', () => {
       class LocaleCacheContext extends FlowRunJSContext {}
 
       LocaleCacheContext.define({ properties: { msg: 'English' } });
-      LocaleCacheContext.define({ properties: { msg: '中文' } }, { locale: 'zh-CN' });
+      LocaleCacheContext.define({ properties: { msg: 'Русский' } }, { locale: 'ru-RU' });
 
       const enDoc1 = LocaleCacheContext.getDoc();
-      const zhDoc1 = LocaleCacheContext.getDoc('zh-CN');
+      const ruDoc1 = LocaleCacheContext.getDoc('ru-RU');
       const enDoc2 = LocaleCacheContext.getDoc();
-      const zhDoc2 = LocaleCacheContext.getDoc('zh-CN');
+      const ruDoc2 = LocaleCacheContext.getDoc('ru-RU');
 
       expect(enDoc1).toBe(enDoc2);
-      expect(zhDoc1).toBe(zhDoc2);
-      expect(enDoc1).not.toBe(zhDoc1);
+      expect(ruDoc1).toBe(ruDoc2);
+      expect(enDoc1).not.toBe(ruDoc1);
     });
   });
 

@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsb-chartjs',
   label: 'Render Chart.js bar chart',
   description: 'Load Chart.js from CDN and render a basic bar chart inside the block',
-  locales: {
-    'zh-CN': {
-      label: '渲染 Chart.js 柱状图',
-      description: '通过 CDN 引入 Chart.js 并在区块中渲染基础柱状图',
-    },
-  },
+  locales: {},
   content: `
 const wrapper = document.createElement('div');
 wrapper.style.padding = '16px';

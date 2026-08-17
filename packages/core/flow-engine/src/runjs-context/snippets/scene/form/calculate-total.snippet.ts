@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-link-calc',
   label: 'Calculate total price (quantity × price)',
   description: 'Automatically calculate total when quantity or unit price changes',
-  locales: {
-    'zh-CN': {
-      label: '计算总价（数量 × 单价）',
-      description: '当数量或单价变化时自动计算总价',
-    },
-  },
+  locales: {},
   content: `
 // Get quantity and unit price from current record
 const quantity = Number(ctx.record?.quantity) || 0;

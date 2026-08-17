@@ -169,8 +169,8 @@ export const CreateDatabaseConnectAction = () => {
                             <a
                               target="_blank"
                               href={
-                                api.auth.locale === 'zh-CN'
-                                  ? 'https://docs-cn.nocobase.com/handbook/data-source-manager'
+                                api.auth.locale === 'ru-RU'
+                                  ? 'https://docs-ru.nocobase.com/handbook/data-source-manager'
                                   : 'https://docs.nocobase.com/handbook/data-source-manager'
                               }
                               rel="noreferrer"

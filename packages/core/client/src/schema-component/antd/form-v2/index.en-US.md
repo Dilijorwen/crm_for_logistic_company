@@ -24,7 +24,7 @@ We can use `x-use-component-props` and `form.setInitialValues()` to set default 
 
 ## FormLayout
 
-FormV2 internally encapsulates the FormLayout component. Please refer to [FormLayout](https://antd.formilyjs.org/zh-CN/components/form-layout) for the props of the FormLayout component.
+FormV2 internally encapsulates the FormLayout component. Please refer to [FormLayout](https://antd.formilyjs.org/components/form-layout) for the props of the FormLayout component.
 
 <code src="./demos/new-demos/form-layout.tsx"></code>
 

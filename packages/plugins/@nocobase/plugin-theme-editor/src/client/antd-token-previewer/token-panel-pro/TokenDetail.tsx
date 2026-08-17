@@ -71,7 +71,6 @@ export type TokenDetailProps = {
 const TokenDetail: FC<TokenDetailProps> = ({ themes, path, tokenName, className, style }) => {
   const [wrapSSR, hashId] = useStyle();
   const tokenPath = [...path, tokenName];
-  const locale = useLocale();
 
   const handleTokenChange = (theme: MutableTheme) => (value: TokenValue) => {
     theme.onThemeChange?.(deepUpdateObj(theme.config, [...path, tokenName], value), [...path, tokenName]);
@@ -84,7 +83,7 @@ const TokenDetail: FC<TokenDetailProps> = ({ themes, path, tokenName, className,
   return wrapSSR(
     <div className={classNames(className, hashId, 'token-panel-token-detail')} style={style}>
       <div className="token-panel-pro-token-collapse-map-collapse-token-description">
-        {(tokenMeta as any)[tokenName]?.[locale._lang === 'zh-CN' ? 'desc' : 'descEn']}
+        {(tokenMeta as any)[tokenName]?.descEn}
       </div>
       {relatedComponents.length > 0 && (
         <Tooltip title={getRelatedComponents(tokenName).join(', ')} placement="topLeft">

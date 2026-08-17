@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-act-iterate',
   label: 'Iterate selected rows',
   description: 'Loop through selected rows and process each record',
-  locales: {
-    'zh-CN': {
-      label: '遍历选中行',
-      description: '遍历选中行并处理每条记录',
-    },
-  },
+  locales: {},
   content: `
 const rows = ctx.resource?.getSelectedRows?.() || [];
 for (const row of rows) {

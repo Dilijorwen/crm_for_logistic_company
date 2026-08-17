@@ -17,23 +17,23 @@ describe('RunJS locales patch (engine doc)', () => {
     await setupRunJSContexts();
   });
 
-  it('should merge zh-CN locales for subclass doc label', () => {
+  it('should fall back to the English subclass doc label for ru-RU', () => {
     const ctx = new FlowContext();
     (ctx as any).defineProperty('model', { value: { constructor: { name: 'JSFieldModel' } } });
-    (ctx as any).defineProperty('api', { value: { auth: { locale: 'zh-CN' } } });
+    (ctx as any).defineProperty('api', { value: { auth: { locale: 'ru-RU' } } });
     const doc = getRunJSDocFor(ctx as any, { version: 'v1' });
-    expect(doc?.label || '').toMatch(/JS 字段|JS 字段 RunJS 上下文/);
+    expect(doc?.label || '').toContain('JSField');
   });
 
-  it('should localize base properties/methods via locales', () => {
+  it('should fall back to English base properties and methods for ru-RU', () => {
     const ctx = new FlowContext();
     (ctx as any).defineProperty('model', { value: { constructor: { name: 'JSBlockModel' } } });
-    (ctx as any).defineProperty('api', { value: { auth: { locale: 'zh-CN' } } });
+    (ctx as any).defineProperty('api', { value: { auth: { locale: 'ru-RU' } } });
     const doc = getRunJSDocFor(ctx as any, { version: 'v1' });
     const message = doc?.properties?.message;
     const messageText =
       typeof message === 'string' ? message : (message as any)?.description ?? (message as any)?.detail ?? '';
-    expect(String(messageText)).toMatch(/Ant Design 全局消息 API/);
-    expect(String(doc?.methods?.t || '')).toMatch(/国际化函数/);
+    expect(String(messageText)).toContain('Ant Design global message API');
+    expect(String(doc?.methods?.t || '')).toContain('Internationalization function');
   });
 });

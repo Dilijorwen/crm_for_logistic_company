@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsb-react',
   label: 'Render React',
   description: 'Render a React element inside the block container',
-  locales: {
-    'zh-CN': {
-      label: '渲染 React',
-      description: '在区块容器中渲染 React 组件',
-    },
-  },
+  locales: {},
   content: `
 // Render a React element into the current container
 const { Button } = ctx.libs.antd;

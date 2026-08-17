@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsb-fetch-list',
   label: 'Fetch & render list',
   description: 'Fetch a small list via ctx.api and render basic HTML',
-  locales: {
-    'zh-CN': {
-      label: '拉取并渲染列表',
-      description: '使用 ctx.api 拉取少量数据，并渲染基础 HTML 列表',
-    },
-  },
+  locales: {},
   content: `
 // Fetch users
 const { data } = await ctx.request({

@@ -19,12 +19,4 @@ export default {
       'Hi, I’m Ellis. Share an email or thread, and I’ll pull the context, summarize clearly, and help you craft the right reply.',
     about: prompt['en-US'],
   },
-  'zh-CN': {
-    avatar: 'nocobase-057-female',
-    nickname: 'Ellis',
-    position: '电子邮件专家',
-    bio: '嗨，我是 Ellis。请分享一封邮件或邮件线程，我会帮你提取上下文、清晰总结，并协助你撰写合适的回复。',
-    greeting: '',
-    about: prompt['en-US'],
-  },
 };

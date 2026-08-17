@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsitem-basic',
   label: 'Render form item',
   description: 'Render custom content inside a form item container',
-  locales: {
-    'zh-CN': {
-      label: '渲染表单项',
-      description: '在表单项容器中渲染自定义内容',
-    },
-  },
+  locales: {},
   content: `
 ctx.render(\`
   <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6;">

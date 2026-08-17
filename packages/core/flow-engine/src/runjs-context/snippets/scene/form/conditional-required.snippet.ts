@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-link-require',
   label: 'Conditional required field',
   description: "Make a field required based on another field's value",
-  locales: {
-    'zh-CN': {
-      label: '条件必填',
-      description: '根据另一个字段的值动态设置必填状态',
-    },
-  },
+  locales: {},
   content: `
 // When 'needsApproval' is true, make 'approver' field required
 const needsApproval = ctx.record?.needsApproval;

@@ -200,7 +200,7 @@ export default class extends Instruction {
       return (
         <Trans ns={NAMESPACE}>
           {'SQL query result could be used through '}
-          <a href="https://docs-cn.nocobase.com/handbook/workflow-json-query" target="_blank" rel="noreferrer">
+          <a href="https://docs.nocobase.com/handbook/workflow-json-query" target="_blank" rel="noreferrer">
             {'JSON query node'}
           </a>
           {'.'}

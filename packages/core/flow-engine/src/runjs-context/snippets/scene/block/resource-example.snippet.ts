@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-resource-example',
   label: 'Resource example',
   description: 'Create a resource via ctx.makeResource and render JSON output',
-  locales: {
-    'zh-CN': {
-      label: '资源示例',
-      description: '使用 ctx.initResource 加载数据并渲染 JSON 输出',
-    },
-  },
+  locales: {},
   content: `
 // Create a resource and load a single record
 const resource = ctx.makeResource('SingleRecordResource');

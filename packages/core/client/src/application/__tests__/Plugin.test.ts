@@ -172,13 +172,13 @@ describe('PluginManager', () => {
   it('i18n', async () => {
     class DemoPlugin extends Plugin {
       async load() {
-        expect(this.t('test', { lng: 'zh-CN' })).toBe('测试');
+        expect(this.t('test', { lng: 'ru-RU' })).toBe('Тест');
         expect(this.t('test', { lng: 'en' })).toBe('test');
       }
     }
     const app = new Application({ plugins: [[DemoPlugin, { packageName: 'plugin-demo' }]] });
-    app.i18n.addResourceBundle('zh-CN', 'plugin-demo', {
-      test: '测试',
+    app.i18n.addResourceBundle('ru-RU', 'plugin-demo', {
+      test: 'Тест',
     });
     app.i18n.addResourceBundle('en', 'plugin-demo', {
       test: 'test',

@@ -16,12 +16,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsf-relative-time',
   label: 'Display date field as relative time',
   description: 'Render date values as “3 days ago”, “just now”, etc.',
-  locales: {
-    'zh-CN': {
-      label: '将日期字段显示为相对时间',
-      description: '将日期显示为“3天前”、“刚刚”等相对时间',
-    },
-  },
+  locales: {},
   content: `
 const formatRelativeTime = (date) => {
   const now = new Date();

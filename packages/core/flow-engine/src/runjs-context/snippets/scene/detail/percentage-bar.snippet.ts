@@ -16,12 +16,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsf-percent',
   label: 'Display number field as percentage bar',
   description: 'Render numeric values as a percentage progress bar',
-  locales: {
-    'zh-CN': {
-      label: '将数字字段显示为百分比进度条',
-      description: '将数字格式化为百分比并显示进度条',
-    },
-  },
+  locales: {},
   content: `
 const value = Number(ctx.value ?? 0);
 

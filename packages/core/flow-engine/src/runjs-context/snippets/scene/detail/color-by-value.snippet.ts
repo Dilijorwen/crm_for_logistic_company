@@ -16,12 +16,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsf-color',
   label: 'Display number field as colored text',
   description: 'Display numeric values using colors based on their sign',
-  locales: {
-    'zh-CN': {
-      label: '将数字字段显示为彩色文本',
-      description: '根据数值正负设置显示颜色',
-    },
-  },
+  locales: {},
   content: `
 // Colorize based on numeric sign
 const n = Number(ctx.value ?? 0);

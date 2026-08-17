@@ -18,12 +18,26 @@ import { getAntdLocale } from './antd';
 import { getCronLocale } from './cron';
 import { getCronstrueLocale } from './cronstrue';
 
+const DEFAULT_LANGUAGE = 'en-US';
+const SUPPORTED_LANGUAGES = new Set([DEFAULT_LANGUAGE, 'ru-RU']);
+
+const getEnabledLanguages = (systemSetting?: Model): string[] => {
+  const configuredLanguages = systemSetting?.get('enabledLanguages');
+  if (!Array.isArray(configuredLanguages)) {
+    return [DEFAULT_LANGUAGE];
+  }
+  const enabledLanguages = configuredLanguages.filter(
+    (language): language is string => typeof language === 'string' && SUPPORTED_LANGUAGES.has(language),
+  );
+  return enabledLanguages.length ? [...new Set(enabledLanguages)] : [DEFAULT_LANGUAGE];
+};
+
 async function getLang(ctx) {
   const SystemSetting = ctx.db.getRepository('systemSettings');
   const systemSetting = await SystemSetting.findOne();
-  const enabledLanguages: string[] = systemSetting.get('enabledLanguages') || [];
+  const enabledLanguages = getEnabledLanguages(systemSetting);
   const currentUser = ctx.state.currentUser;
-  let lang = enabledLanguages?.[0] || process.env.APP_LANG || 'en-US';
+  let lang = enabledLanguages[0];
   if (enabledLanguages.includes(currentUser?.appLang)) {
     lang = currentUser?.appLang;
   }
@@ -80,9 +94,9 @@ export class PluginClientServer extends Plugin {
         async getInfo(ctx, next) {
           const SystemSetting = ctx.db.getRepository('systemSettings');
           const systemSetting = await SystemSetting.findOne();
-          const enabledLanguages: string[] = systemSetting?.get('enabledLanguages') || [];
+          const enabledLanguages = getEnabledLanguages(systemSetting);
           const currentUser = ctx.state.currentUser;
-          let lang = enabledLanguages?.[0] || process.env.APP_LANG || 'en-US';
+          let lang = enabledLanguages[0];
           if (enabledLanguages.includes(currentUser?.appLang)) {
             lang = currentUser?.appLang;
           }

@@ -8,8 +8,8 @@
  */
 
 import { CaretRightOutlined, EditOutlined, ExpandOutlined, QuestionCircleOutlined } from '@ant-design/icons';
-import type { ThemeConfig } from '@nocobase/client';
 import { StablePopover } from '@nocobase/client';
+import type { ThemeConfig } from '@nocobase/client';
 import { Button, Checkbox, Collapse, ConfigProvider, InputNumber, Switch, Tooltip, Typography, Input } from 'antd';
 import seed from 'antd/es/theme/themes/seed';
 import classNames from 'classnames';
@@ -376,8 +376,6 @@ const MapTokenCollapseContent: FC<MapTokenCollapseContentProps> = ({
   selectedTokens,
   type,
 }) => {
-  const locale = useLocale();
-
   return (
     <Collapse className="token-panel-pro-token-collapse-map-collapse">
       {mapTokens?.map((mapToken) => (
@@ -395,9 +393,6 @@ const MapTokenCollapseContent: FC<MapTokenCollapseContentProps> = ({
                   marginRight: 8,
                 }}
               >
-                {locale._lang === 'zh-CN' && (
-                  <span style={{ fontWeight: 500, flex: 'none' }}>{(tokenMeta as any)[mapToken]?.name}</span>
-                )}
                 <span className="token-panel-pro-token-collapse-map-collapse-token" style={{ flex: 'none' }}>
                   {mapToken}
                 </span>
@@ -581,7 +576,7 @@ const TokenContent: FC<ColorTokenContentProps> = ({
     <div className={classNames(hashId, 'token-panel-pro-color')}>
       <div className="token-panel-pro-color-seeds">
         <div className="token-panel-pro-color-themes">
-          <span style={{ marginRight: 12 }}>{locale._lang === 'zh-CN' ? category.name : category.nameEn}</span>
+          <span style={{ marginRight: 12 }}>{category.nameEn}</span>
           {category.nameEn === 'Color' && (
             <IconSwitch
               onChange={switchAlgorithm('dark')}
@@ -621,16 +616,9 @@ const TokenContent: FC<ColorTokenContentProps> = ({
           >
             {category.groups.map((group, index) => {
               return (
-                <Panel
-                  header={
-                    <span style={{ fontWeight: 500 }}>{locale._lang === 'zh-CN' ? group.name : group.nameEn}</span>
-                  }
-                  key={group.key}
-                >
+                <Panel header={<span style={{ fontWeight: 500 }}>{group.nameEn}</span>} key={group.key}>
                   <div>
-                    <div className="token-panel-pro-token-collapse-description">
-                      {locale._lang === 'zh-CN' ? group.desc : group.descEn}
-                    </div>
+                    <div className="token-panel-pro-token-collapse-description">{group.descEn}</div>
                     {group.seedToken?.map((seedToken) => (
                       <div key={seedToken} className="token-panel-pro-token-collapse-seed-block">
                         <div style={{ marginRight: 'auto' }}>
@@ -639,20 +627,14 @@ const TokenContent: FC<ColorTokenContentProps> = ({
                             <Tooltip
                               placement="topLeft"
                               arrowPointAtCenter
-                              title={
-                                locale._lang === 'zh-CN'
-                                  ? (tokenMeta as any)[seedToken]?.desc
-                                  : (tokenMeta as any)[seedToken]?.descEn
-                              }
+                              title={(tokenMeta as any)[seedToken]?.descEn}
                             >
                               <QuestionCircleOutlined style={{ fontSize: 14, marginLeft: 8 }} />
                             </Tooltip>
                           </div>
                           <div>
                             <span className="token-panel-pro-token-collapse-seed-block-name-cn">
-                              {locale._lang === 'zh-CN'
-                                ? (tokenMeta as any)[seedToken]?.name
-                                : (tokenMeta as any)[seedToken]?.nameEn}
+                              {(tokenMeta as any)[seedToken]?.nameEn}
                             </span>
                             {seedToken === 'colorInfo' && (
                               <Checkbox

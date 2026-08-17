@@ -14,12 +14,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-require',
   label: 'Load AMD module',
   description: 'Dynamically load an AMD/RequireJS module by URL',
-  locales: {
-    'zh-CN': {
-      label: '加载 AMD 模块',
-      description: '通过 RequireJS 按 URL 动态加载 AMD 模块',
-    },
-  },
+  locales: {},
   content: `
 // Load an external library (AMD/RequireJS)
 const dayjs = await ctx.requireAsync('dayjs@1/dayjs.min.js');

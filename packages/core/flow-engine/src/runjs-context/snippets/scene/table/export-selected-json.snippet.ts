@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-act-export',
   label: 'Export selected rows as JSON',
   description: 'Download selected rows as a JSON file',
-  locales: {
-    'zh-CN': {
-      label: '导出选中行为 JSON',
-      description: '将选中的行导出为 JSON 文件下载',
-    },
-  },
+  locales: {},
   content: `
 const rows = ctx.resource?.getSelectedRows?.() || [];
 if (!rows.length) {

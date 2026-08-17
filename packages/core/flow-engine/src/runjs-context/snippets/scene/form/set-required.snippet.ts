@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-link-required',
   label: 'Set required',
   description: 'Toggle required rule for another field within linkage',
-  locales: {
-    'zh-CN': {
-      label: '设置必填',
-      description: '在联动脚本中控制字段是否必填',
-    },
-  },
+  locales: {},
   content: `
 const targetFieldUid = 'FIELD_UID_OR_NAME';
 const required = true;

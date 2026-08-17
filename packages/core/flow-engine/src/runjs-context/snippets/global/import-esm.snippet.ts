@@ -14,12 +14,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-import',
   label: 'Import ESM module',
   description: 'Dynamically import an ESM module by URL',
-  locales: {
-    'zh-CN': {
-      label: '导入 ESM 模块',
-      description: '按 URL 动态导入 ESM 模块',
-    },
-  },
+  locales: {},
   content: `
 // Import an ESM module by URL
 // Works in yarn dev and yarn start

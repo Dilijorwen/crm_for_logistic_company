@@ -31,23 +31,3 @@ JSItemRunJSContext.define({
       Parameters: (ref: React.RefObject, callback: (element: HTMLElement) => void, timeout?: number) => void`,
   },
 });
-
-JSItemRunJSContext.define(
-  {
-    label: 'JS 表单项 RunJS 上下文',
-    properties: {
-      element: 'ElementProxy，表单项渲染容器，支持 innerHTML/append 等 DOM 操作',
-      resource: '当前资源（只读）',
-      record: '当前记录（只读）',
-      formValues: {
-        description: '当前表单值快照（对象）。仅表单相关上下文可用（Create/Edit Form）。',
-        detail: 'Record<string, any>',
-        examples: ['const { name, status } = ctx.formValues || {};'],
-      },
-    },
-    methods: {
-      onRefReady: '容器就绪后执行回调。参数：(ref, callback, timeout?)',
-    },
-  },
-  { locale: 'zh-CN' },
-);

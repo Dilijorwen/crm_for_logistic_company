@@ -65,19 +65,17 @@ describe('RunJS Snippets', () => {
 
     it('should support locale-specific labels', async () => {
       const enSnippets = await listSnippetsForContext('JSBlockRunJSContext', 'v1', 'en-US');
-      const zhSnippets = await listSnippetsForContext('JSBlockRunJSContext', 'v1', 'zh-CN');
+      const ruSnippets = await listSnippetsForContext('JSBlockRunJSContext', 'v1', 'ru-RU');
 
       expect(enSnippets.length).toBeGreaterThan(0);
-      expect(zhSnippets.length).toBeGreaterThan(0);
+      expect(ruSnippets.length).toBeGreaterThan(0);
 
       // Both should have snippets, but labels might differ
       const enSnippet = enSnippets.find((s) => s.ref.includes('message-success'));
-      const zhSnippet = zhSnippets.find((s) => s.ref.includes('message-success'));
+      const ruSnippet = ruSnippets.find((s) => s.ref.includes('message-success'));
 
-      if (enSnippet && zhSnippet) {
-        // If locale support is implemented, labels should differ
-        // Otherwise they might be the same
-        expect(enSnippet.ref).toBe(zhSnippet.ref);
+      if (enSnippet && ruSnippet) {
+        expect(enSnippet.ref).toBe(ruSnippet.ref);
       }
     });
 

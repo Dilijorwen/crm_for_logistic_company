@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-three-users-orbit',
   label: 'Users orbit (three.js)',
   description: 'Fetch users:list and render a rotating 3D orbit of users with hover/click',
-  locales: {
-    'zh-CN': {
-      label: 'Three.js 用户轨道',
-      description: '从 users:list 加载用户，并以 3D 轨道方式展示（支持悬停高亮与点击提示）',
-    },
-  },
+  locales: {},
   content: `
 // Container
 const container = document.createElement('div');

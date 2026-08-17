@@ -35,24 +35,3 @@ JSColumnRunJSContext.define({
     importAsync: 'Dynamically import ESM module by URL: `const mod = await ctx.importAsync(url)`',
   },
 });
-
-JSColumnRunJSContext.define(
-  {
-    label: 'JS 列 RunJS 上下文',
-    properties: {
-      element: 'ElementProxy，表格单元格的安全 DOM 容器，支持 innerHTML/append 等',
-      record: '当前行记录对象（只读）',
-      recordIndex: '当前行索引（从 0 开始）',
-      collection: '集合定义元数据（只读）',
-      viewer: '视图控制器，可用于在单元格中触发抽屉/对话框/内嵌等交互',
-      React: 'React 库',
-      antd: 'Ant Design 库',
-    },
-    methods: {
-      onRefReady: '等待单元格 DOM 就绪后执行回调。参数：(ref, callback, timeout?)',
-      requireAsync: '按 URL 异步加载外部库：`const lib = await ctx.requireAsync(url)`',
-      importAsync: '按 URL 动态导入 ESM 模块：`const mod = await ctx.importAsync(url)`',
-    },
-  },
-  { locale: 'zh-CN' },
-);

@@ -54,7 +54,7 @@ interface CollectionFieldOptions {
 
 ### Regular Fields and Relationship Fields
 
-There are two types of fields: regular fields and [relationship fields](https://docs-cn.nocobase.com/development/server/collections/association-fields).
+There are two types of fields: regular fields and [relationship fields](https://docs.nocobase.com/development/server/collections/association-fields).
 
 A relationship field refers to a field whose value is data from another collection. For example, if there are two collections, `users` and `roles`, and the `users` collection has a field called `roles` whose value is data from the `roles` collection, then `roles` is a relationship field.
 
@@ -159,6 +159,5 @@ const required = uiSchema?.required
 It is usually used in [SchemaSettings](/core/ui-schema/schema-settings) to retrieve and modify field properties.
 
 <code src="./demos/collection-field/demo2.tsx"></code>
-
 
 

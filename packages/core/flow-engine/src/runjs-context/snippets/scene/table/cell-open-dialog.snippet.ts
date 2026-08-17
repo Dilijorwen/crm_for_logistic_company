@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-col-open-dialog',
   label: 'Cell dialog with row data',
   description: 'Render a button in cell to open dialog via ctx.openView with current row context',
-  locales: {
-    'zh-CN': {
-      label: '单元格对话框（显示行数据）',
-      description: '在单元格渲染按钮，点击后通过 ctx.openView 打开弹窗并传入当前行上下文',
-    },
-  },
+  locales: {},
   content: `
 // Render a button inside the cell
 const button = document.createElement('button');

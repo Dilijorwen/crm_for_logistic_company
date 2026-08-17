@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-act-selected-count',
   label: 'Selected count',
   description: 'Show number of selected rows in list action',
-  locales: {
-    'zh-CN': {
-      label: '选中数量',
-      description: '提示当前选中行的数量',
-    },
-  },
+  locales: {},
   content: `
 const rows = ctx.resource?.getSelectedRows?.() || [];
 if (!rows.length) {

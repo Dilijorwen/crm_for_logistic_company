@@ -60,7 +60,7 @@ describe('actions', () => {
               text: 'text1',
               translations: [
                 {
-                  locale: 'zh-CN',
+                  locale: 'ru-RU',
                   translation: 'translation1',
                 },
               ],
@@ -80,14 +80,14 @@ describe('actions', () => {
         expect(res.body.data[0].translation).toBe('translation');
         expect(res.body.data[0].translationId).toBe(1);
 
-        const res2 = await agent.set('X-Locale', 'zh-CN').resource('localizationTexts').list();
+        const res2 = await agent.set('X-Locale', 'ru-RU').resource('localizationTexts').list();
         expect(res2.body.data.length).toBe(2);
         expect(res2.body.data[0].text).toBe('text');
         expect(res2.body.data[0].translation).toBeUndefined();
       });
 
       it('should search by keyword', async () => {
-        let res = await agent.set('X-Locale', 'zh-CN').resource('localizationTexts').list({
+        let res = await agent.set('X-Locale', 'ru-RU').resource('localizationTexts').list({
           keyword: 'text',
         });
         expect(res.body.data.length).toBe(2);
@@ -99,7 +99,7 @@ describe('actions', () => {
       });
 
       it('should filter no translation', async () => {
-        const res = await agent.set('X-Locale', 'zh-CN').resource('localizationTexts').list({
+        const res = await agent.set('X-Locale', 'ru-RU').resource('localizationTexts').list({
           keyword: 'text',
           hasTranslation: 'false',
         });

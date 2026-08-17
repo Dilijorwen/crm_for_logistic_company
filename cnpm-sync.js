@@ -22,7 +22,7 @@ const files = glob.sync(path.resolve(__dirname, './node_modules/@nocobase/**/pac
         const res = await fetch(`https://registry-direct.npmmirror.com/-/package/${json.name}/syncs`, {
           headers: {
             accept: '*/*',
-            'accept-language': 'zh-CN,zh;q=0.9',
+            'accept-language': 'en-US,en;q=0.9',
             priority: 'u=1, i',
             'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
             'sec-ch-ua-mobile': '?0',

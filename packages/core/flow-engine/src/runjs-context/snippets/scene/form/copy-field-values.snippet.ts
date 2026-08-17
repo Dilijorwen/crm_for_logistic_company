@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-link-copy',
   label: 'Copy value from another field',
   description: 'Copy value from one field to another when checkbox is checked',
-  locales: {
-    'zh-CN': {
-      label: '复制字段值',
-      description: '勾选复选框时，将一个字段的值复制到另一个字段',
-    },
-  },
+  locales: {},
   content: `
 // When 'sameAsAbove' is checked, copy billing address to shipping address
 const sameAsAbove = ctx.record?.sameAsAbove;

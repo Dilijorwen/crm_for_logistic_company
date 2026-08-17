@@ -20,7 +20,7 @@ describe('CurrentAppInfoProvider', () => {
           database: {
             dialect: 'mysql',
           },
-          lang: 'zh-CN',
+          lang: 'ru-RU',
           version: '1.0.0',
         },
       },
@@ -30,7 +30,7 @@ describe('CurrentAppInfoProvider', () => {
         database: {
           dialect: 'mysql',
         },
-        lang: 'zh-CN',
+        lang: 'ru-RU',
         version: '1.0.0',
       });
     });

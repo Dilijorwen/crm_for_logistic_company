@@ -9,7 +9,6 @@
 
 import { useFieldSchema } from '@formily/react';
 import { useEventListener } from 'ahooks';
-import { theme } from 'antd';
 import { debounce } from 'lodash';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -18,6 +17,7 @@ import { useCollection } from '../../';
 import { getPageSchema, useBlockHeightProps } from '../../block-provider/hooks';
 import { useTableBlockContext } from '../../block-provider/TableBlockProvider';
 import { HeightMode } from '../../schema-settings/SchemaSettingsBlockHeightItem';
+import { useToken } from '../../style';
 
 const getPageHeaderHeight = (disablePageHeader, enablePageTabs, hidePageTitle, token, pathname) => {
   if (pathname.includes('/popups/')) {
@@ -53,7 +53,7 @@ const getPageHeaderHeight = (disablePageHeader, enablePageTabs, hidePageTitle, t
 
 // 页面中满屏
 const usePageFullScreenHeight = (props?) => {
-  const { token } = theme.useToken();
+  const { token } = useToken();
   const { designable } = useDesignable();
   const { heightProps } = useBlockHeightProps();
   const location = useLocation();
@@ -74,7 +74,7 @@ const usePageFullScreenHeight = (props?) => {
 
 // 抽屉中满屏
 const useDrawerFullScreenHeight = () => {
-  const { token } = theme.useToken();
+  const { token } = useToken();
   const { designable } = useDesignable();
   const tabActionHeight = token.paddingContentVerticalLG + token.margin + 2 * token.paddingContentVertical + 24;
   const addBlockBtnHeight = designable
@@ -98,7 +98,7 @@ const useFullScreenHeight = (props?) => {
 const InternalWorkflowCollection = ['workflowManualTasks', 'approvals', 'approvalRecords'];
 // 表格区块高度计算
 const useTableHeight = () => {
-  const { token } = theme.useToken();
+  const { token } = useToken();
   const { heightProps: blockHeightProps } = useBlockHeightProps();
   const { heightProps: tableHeightProps } = useTableBlockContext();
   const { designable } = useDesignable();
@@ -162,7 +162,7 @@ export const useDataBlockHeight = (options?: UseDataBlockHeightOptions) => {
 //其他非数据区块高度,如iframe、markdown
 export const useBlockHeight = () => {
   const fieldSchema = useFieldSchema();
-  const pageSchema = useMemo(() => getPageSchema(fieldSchema), []);
+  const pageSchema = useMemo(() => getPageSchema(fieldSchema), [fieldSchema]);
   const { disablePageHeader, enablePageTabs, hidePageTitle } = pageSchema?.['x-component-props'] || {};
   const heightProps = { ...fieldSchema?.['x-component-props'], disablePageHeader, enablePageTabs, hidePageTitle };
   const pageFullScreenHeight = useFullScreenHeight(heightProps);
@@ -180,15 +180,16 @@ export const useTableSize = () => {
   const [width, setTableWidth] = useState<number>();
   const elementRef = useRef<HTMLDivElement>(null);
   const targetHeight = useTableHeight();
-  const calcTableSize = useCallback(
-    debounce(() => {
-      if (!elementRef.current) return;
-      const clientRect = elementRef.current.getBoundingClientRect();
-      const tableContentRect = elementRef.current.querySelector('.ant-table')?.getBoundingClientRect();
-      if (!tableContentRect) return;
-      setTableWidth(clientRect.width);
-    }, 100),
-    [targetHeight],
+  const calcTableSize = useMemo(
+    () =>
+      debounce(() => {
+        if (!elementRef.current) return;
+        const clientRect = elementRef.current.getBoundingClientRect();
+        const tableContentRect = elementRef.current.querySelector('.ant-table')?.getBoundingClientRect();
+        if (!tableContentRect) return;
+        setTableWidth(clientRect.width);
+      }, 100),
+    [],
   );
 
   const tableSizeRefCallback: React.RefCallback<HTMLDivElement> = useCallback(

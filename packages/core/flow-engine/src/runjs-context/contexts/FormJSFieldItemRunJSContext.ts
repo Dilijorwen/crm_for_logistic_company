@@ -33,24 +33,3 @@ FormJSFieldItemRunJSContext.define({
       Example: ctx.setProps(fieldModel, { value: "new value" })`,
   },
 });
-
-FormJSFieldItemRunJSContext.define(
-  {
-    label: '表单 JS 字段项 RunJS 上下文',
-    properties: {
-      element: 'ElementProxy，表单字段容器',
-      value: '字段值（展示模式为只读；受控场景用 setProps 修改）',
-      record: '当前记录（只读）',
-      formValues: {
-        description: '当前表单值快照（对象）。仅表单相关上下文可用（Create/Edit Form）。',
-        detail: 'Record<string, any>',
-        examples: ['const { name, status } = ctx.formValues || {};'],
-      },
-    },
-    methods: {
-      onRefReady: '容器就绪回调',
-      setProps: '设置表单项属性：`setProps(fieldModel, { value })`（由联动/表单上下文提供）',
-    },
-  },
-  { locale: 'zh-CN' },
-);

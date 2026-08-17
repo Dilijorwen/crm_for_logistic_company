@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-link-cascade',
   label: 'Cascade select (load child roles)',
   description: 'Load child roles based on the selected parent role',
-  locales: {
-    'zh-CN': {
-      label: '级联选择（加载子角色）',
-      description: '根据选择的父角色加载对应子角色',
-    },
-  },
+  locales: {},
   content: `
 // Get selected parent role (adjust field name to match your form)
 const parentRoleId = ctx.record?.parentRole?.id;

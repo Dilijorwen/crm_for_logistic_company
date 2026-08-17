@@ -28,8 +28,8 @@ describe('i18next', () => {
       registerActions: false,
       skipSupervisor: true,
     });
-    app.i18n.addResources('zh-CN', 'translation', {
-      hello: '你好',
+    app.i18n.addResources('ru-RU', 'translation', {
+      hello: 'Привет',
     });
     app.i18n.addResources('en-US', 'translation', {
       hello: 'Hello',
@@ -43,8 +43,8 @@ describe('i18next', () => {
 
   it('global', async () => {
     expect(app.i18n.t('hello')).toEqual('Hello');
-    app.i18n.changeLanguage('zh-CN');
-    expect(app.i18n.t('hello')).toEqual('你好');
+    app.i18n.changeLanguage('ru-RU');
+    expect(app.i18n.t('hello')).toEqual('Привет');
   });
 
   it('ctx', async () => {
@@ -59,10 +59,10 @@ describe('i18next', () => {
     });
     const response1 = await agent.get('/api/tests:get');
     expect(response1.text).toEqual('Hello');
-    const response2 = await agent.get('/api/tests:get').set('X-Locale', 'zh-CN');
-    expect(response2.text).toEqual('你好');
-    const response3 = await agent.get('/api/tests:get?locale=zh-CN');
-    expect(response3.text).toEqual('你好');
+    const response2 = await agent.get('/api/tests:get').set('X-Locale', 'ru-RU');
+    expect(response2.text).toEqual('Привет');
+    const response3 = await agent.get('/api/tests:get?locale=ru-RU');
+    expect(response3.text).toEqual('Привет');
     expect(app.i18n.language).toBe('en-US');
   });
 });

@@ -92,7 +92,7 @@ const AllowOptionsHelp = ({ type }) => {
             {description}{' '}
             <a
               href={`https://developer.mozilla.org/${
-                i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US'
+                i18n.language === 'ru-RU' ? 'ru' : 'en-US'
               }/docs/Web/HTTP/Reference/Headers/Permissions-Policy/${type}`}
               target="_blank"
               rel="noreferrer"
@@ -111,8 +111,8 @@ const AllowOptionsHelp = ({ type }) => {
 const AllowDescription = () => {
   const { t, i18n } = useTranslation();
   const helpURL =
-    i18n.language === 'zh-CN'
-      ? 'https://developer.mozilla.org/zh-CN/docs/Web/HTML/Reference/Elements/iframe#allow'
+    i18n.language === 'ru-RU'
+      ? 'https://developer.mozilla.org/ru/docs/Web/HTML/Reference/Elements/iframe#allow'
       : 'https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe#allow';
   return (
     <span>
@@ -183,7 +183,7 @@ const commonOptions: any = {
             </span>{' '}
             <a
               href={`https://${
-                i18n.language === 'zh-CN' ? 'docs-cn' : 'docs'
+                i18n.language === 'ru-RU' ? 'docs-ru' : 'docs'
               }.nocobase.com/handbook/template-handlebars`}
               target="_blank"
               rel="noreferrer"

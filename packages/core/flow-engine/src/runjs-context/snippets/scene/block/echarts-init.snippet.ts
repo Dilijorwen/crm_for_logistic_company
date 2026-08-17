@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-echarts',
   label: 'Init ECharts',
   description: 'Load ECharts and render a simple chart inside the block',
-  locales: {
-    'zh-CN': {
-      label: '初始化 ECharts',
-      description: '加载 ECharts 并在区块内渲染示例图表',
-    },
-  },
+  locales: {},
   content: `
 const container = document.createElement('div');
 container.style.height = '400px';

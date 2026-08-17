@@ -14,7 +14,7 @@ import { FlowEngine, FlowModel } from '../..';
 function newEngine(): FlowEngine {
   const engine = new FlowEngine();
   // 提供最小 api，避免 ctx.auth getter 在测试输出时抛错
-  engine.context.defineProperty('api', { value: { auth: { role: 'guest', locale: 'zh-CN', token: '' } } });
+  engine.context.defineProperty('api', { value: { auth: { role: 'guest', locale: 'ru-RU', token: '' } } });
   return engine;
 }
 

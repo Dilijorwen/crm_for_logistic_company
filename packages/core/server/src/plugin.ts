@@ -254,14 +254,8 @@ export abstract class Plugin<O = any> implements PluginInterface {
     }
 
     const langMap = {
-      'zh-CN': 'cn/',
       'en-US': '',
-      'ja-JP': 'ja/',
-      'ko-KR': 'ko/',
-      'es-ES': 'es/',
-      'pt-PT': 'pt/',
-      'de-DE': 'de',
-      'fr-FR': 'fr/',
+      'ru-RU': 'ru/',
     };
 
     if (packageName.startsWith('@nocobase/plugin-')) {

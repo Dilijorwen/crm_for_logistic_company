@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsb-iframe',
   label: 'Render iframe',
   description: 'Embed example.com as a sandboxed iframe inside the block element',
-  locales: {
-    'zh-CN': {
-      label: '渲染 iframe',
-      description: '在区块中以 sandbox 限制嵌入 example.com 页面',
-    },
-  },
+  locales: {},
   content: `
 // Create an iframe that fills the current block container
 const iframe = document.createElement('iframe');

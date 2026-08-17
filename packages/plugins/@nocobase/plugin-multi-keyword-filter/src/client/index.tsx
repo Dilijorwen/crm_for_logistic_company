@@ -10,6 +10,7 @@
 import { Plugin } from '@nocobase/client';
 import { MultipleKeywordsInput } from './MultipleKeywordsInput';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useT } from './locale';
 import { LinkOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { Tooltip } from 'antd';
@@ -20,7 +21,9 @@ const $in = (fieldInterface: string) => {
     label: React.createElement(() => {
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const t = useT();
-      const isSimplifiedChinese = t('equalsAny') === '等于任意一个';
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const { i18n } = useTranslation();
+      const documentationHost = i18n.resolvedLanguage?.startsWith('ru') ? 'docs-ru' : 'docs';
       return (
         <div>
           {t('equalsAny')}{' '}
@@ -29,9 +32,7 @@ const $in = (fieldInterface: string) => {
               <div>
                 {t('providedByPlugin', { pluginName: t('pluginName') })}{' '}
                 <a
-                  href={`https://${
-                    isSimplifiedChinese ? 'docs-cn' : 'docs'
-                  }.nocobase.com/handbook/multi-keyword-filter`}
+                  href={`https://${documentationHost}.nocobase.com/handbook/multi-keyword-filter`}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -59,7 +60,9 @@ const $notIn = (fieldInterface: string) => {
     label: React.createElement(() => {
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const t = useT();
-      const isSimplifiedChinese = t('equalsAny') === '等于任意一个';
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const { i18n } = useTranslation();
+      const documentationHost = i18n.resolvedLanguage?.startsWith('ru') ? 'docs-ru' : 'docs';
       return (
         <div>
           {t('notEqualsAny')}{' '}
@@ -68,9 +71,7 @@ const $notIn = (fieldInterface: string) => {
               <div>
                 {t('providedByPlugin', { pluginName: t('pluginName') })}{' '}
                 <a
-                  href={`https://${
-                    isSimplifiedChinese ? 'docs-cn' : 'docs'
-                  }.nocobase.com/handbook/multi-keyword-filter`}
+                  href={`https://${documentationHost}.nocobase.com/handbook/multi-keyword-filter`}
                   target="_blank"
                   rel="noopener noreferrer"
                 >

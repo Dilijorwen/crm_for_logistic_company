@@ -54,15 +54,7 @@ module.exports = (cli) => {
         );
       }
     }
-    const zhCN = locales['zh-CN'];
-    const enUS = locales['en-US'];
-    for (const key1 in zhCN) {
-      for (const key2 in zhCN[key1]) {
-        if (!_.get(enUS, [key1, key2])) {
-          _.set(enUS, [key1, key2], key2);
-        }
-      }
-    }
+    const enUS = locales['en-US'] || {};
     for (const locale of Object.keys(locales)) {
       locales[locale] = deepmerge(enUS, locales[locale]);
       locales[locale]['cronstrue'] = getCronstrueLocale(locale);

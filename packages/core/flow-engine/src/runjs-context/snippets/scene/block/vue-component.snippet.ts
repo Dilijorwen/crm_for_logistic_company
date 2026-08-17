@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsb-vue',
   label: 'Embed Vue component',
   description: 'Use ctx.importAsync to load Vue 3 ESM build and render a reactive widget',
-  locales: {
-    'zh-CN': {
-      label: '嵌入 Vue 组件',
-      description: '通过 ctx.importAsync 加载 Vue 3 ESM 构建并渲染交互组件',
-    },
-  },
+  locales: {},
   content: `
 const mountNode = document.createElement('div');
 mountNode.style.padding = '16px';

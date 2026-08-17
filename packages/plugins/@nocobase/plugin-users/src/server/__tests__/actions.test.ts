@@ -108,13 +108,13 @@ describe('actions', () => {
   it('update lang', async () => {
     const res = await adminAgent.resource('users').updateLang({
       values: {
-        appLang: 'zh-CN',
+        appLang: 'ru-RU',
       },
     });
     expect(res.status).toBe(200);
     const user = await db.getRepository('users').findOne({
       filterByTk: adminUser.id,
     });
-    expect(user.appLang).toBe('zh-CN');
+    expect(user.appLang).toBe('ru-RU');
   });
 });

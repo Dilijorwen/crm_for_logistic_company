@@ -19,13 +19,3 @@ JSCollectionActionRunJSContext.define({
       Use ctx.resource.pagination for page info.`,
   },
 });
-
-JSCollectionActionRunJSContext.define(
-  {
-    label: 'JS 集合动作 RunJS 上下文',
-    properties: {
-      resource: '列表资源（包含选中行/分页信息等）',
-    },
-  },
-  { locale: 'zh-CN' },
-);

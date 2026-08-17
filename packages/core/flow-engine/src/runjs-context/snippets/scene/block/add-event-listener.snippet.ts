@@ -15,12 +15,7 @@ const snippet: SnippetModule = {
   prefix: 'sn-jsb-click',
   label: 'Add click listener',
   description: 'Render a button and bind a click event handler',
-  locales: {
-    'zh-CN': {
-      label: '添加点击监听',
-      description: '渲染按钮并绑定点击事件处理',
-    },
-  },
+  locales: {},
   content: `
 // Render a button and bind a click handler
 const button = document.createElement('button');
