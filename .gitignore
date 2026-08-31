@@ -1,5 +1,7 @@
 node_modules/
-/lib/
+lib/
+!packages/plugins/@log-company/plugin-chats/src/client/features/chats/lib/
+!packages/plugins/@log-company/plugin-chats/src/client/features/chats/lib/*.ts
 esm/
 es/
 .env
