@@ -11,6 +11,7 @@ plugins=(
   '@log-company/plugin-chats'
   '@log-company/plugin-collection-search'
   '@log-company/plugin-organization-structure'
+  '@log-company/plugin-permit-documents'
   '@log-company/plugin-process-governance'
   '@log-company/plugin-process-discussion'
   '@log-company/plugin-process-documents'
@@ -61,6 +62,8 @@ validate_environment() {
     INIT_ROOT_EMAIL
     INIT_ROOT_USERNAME
     INIT_ROOT_PASSWORD
+    FSA_USERNAME
+    FSA_PASSWORD
   )
   local key
   local value

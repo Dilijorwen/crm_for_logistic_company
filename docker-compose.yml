@@ -45,6 +45,10 @@ services:
       - CHAT_MINIO_BUCKET=${CHAT_MINIO_BUCKET:-log-company-chats}
       - CHAT_MINIO_ACCESS_KEY=${CHAT_MINIO_ACCESS_KEY:-}
       - CHAT_MINIO_SECRET_KEY=${CHAT_MINIO_SECRET_KEY:-}
+      - FSA_USERNAME=${FSA_USERNAME:-}
+      - FSA_PASSWORD=${FSA_PASSWORD:-}
+      - FSA_BASE_URL=${FSA_BASE_URL:-https://pub.fsa.gov.ru}
+      - EAEU_BASE_URL=${EAEU_BASE_URL:-https://nsi.eaeunion.org}
 
     volumes:
       - ./storage:/app/nocobase/storage
