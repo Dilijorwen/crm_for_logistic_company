@@ -1,7 +1,9 @@
 node_modules/
+
+# Generated package output. Keep source-level feature helpers named `lib`.
 lib/
-!packages/plugins/@log-company/plugin-chats/src/client/features/chats/lib/
-!packages/plugins/@log-company/plugin-chats/src/client/features/chats/lib/*.ts
+!**/src/**/lib/
+!**/src/**/lib/**
 esm/
 es/
 .env
