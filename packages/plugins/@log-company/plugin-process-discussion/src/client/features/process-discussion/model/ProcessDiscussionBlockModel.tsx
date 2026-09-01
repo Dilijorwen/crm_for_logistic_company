@@ -9,7 +9,6 @@
 
 import { BlockModel } from '@nocobase/client';
 import React from 'react';
-import { tExpr } from '../../../locale';
 import { ProcessDiscussionBlock } from '../ui/ProcessDiscussionBlock';
 
 export class ProcessDiscussionBlockModel extends BlockModel {
@@ -35,6 +34,6 @@ export class ProcessDiscussionBlockModel extends BlockModel {
 }
 
 ProcessDiscussionBlockModel.define({
-  label: tExpr('discussion.blockTitle'),
+  label: 'Обсуждение процесса',
   sort: 545,
 });

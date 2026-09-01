@@ -17,7 +17,6 @@ import {
 } from '../../domain/attachments/DiscussionAttachmentErrors';
 
 const RESOURCE = 'processDiscussionAttachments';
-const NAMESPACE = '@log-company/plugin-process-discussion';
 
 export class DiscussionAttachmentsController {
   constructor(
@@ -53,7 +52,7 @@ export class DiscussionAttachmentsController {
       context.state?.currentUser?.id ?? context.state?.currentUserId ?? context.state?.user?.id,
     );
     if (!actorId) {
-      throw new DiscussionAttachmentError('AUTHENTICATION_REQUIRED', 'Authentication required');
+      throw new DiscussionAttachmentError('AUTHENTICATION_REQUIRED', 'Требуется авторизация');
     }
     return actorId;
   }
@@ -61,7 +60,7 @@ export class DiscussionAttachmentsController {
   private requiredIdentifier(value: unknown): string {
     const identifier = this.optionalIdentifier(value);
     if (!identifier) {
-      throw new DiscussionAttachmentError('INVALID_ATTACHMENT_ID', 'Invalid attachment identifier');
+      throw new DiscussionAttachmentError('INVALID_ATTACHMENT_ID', 'Некорректный идентификатор вложения');
     }
     return identifier;
   }
@@ -89,13 +88,13 @@ export class DiscussionAttachmentsController {
       await work();
     } catch (error) {
       if (error instanceof DiscussionAttachmentError) {
-        context.throw(this.statusFor(error.code), context.t(this.translationKey(error.code), { ns: NAMESPACE }));
+        context.throw(this.statusFor(error.code), this.errorMessage(error.code));
       }
       this.logger.error('Failed to discard a pending discussion attachment', error, {
         resource: String(context.action?.resourceName || ''),
         action: String(context.action?.actionName || ''),
       });
-      context.throw(500, context.t('errors.internal', { ns: NAMESPACE }));
+      context.throw(500, 'Не удалось удалить вложение из хранилища.');
     }
   }
 
@@ -115,15 +114,15 @@ export class DiscussionAttachmentsController {
     return 400;
   }
 
-  private translationKey(code: DiscussionAttachmentErrorCode): string {
-    const keys: Record<DiscussionAttachmentErrorCode, string> = {
-      AUTHENTICATION_REQUIRED: 'errors.authenticationRequired',
-      INVALID_ATTACHMENT_ID: 'errors.invalidAttachmentId',
-      ATTACHMENT_NOT_FOUND: 'errors.attachmentNotFound',
-      ATTACHMENT_DELETE_FORBIDDEN: 'errors.attachmentDeleteForbidden',
-      ATTACHMENT_IN_USE: 'errors.attachmentInUse',
+  private errorMessage(code: DiscussionAttachmentErrorCode): string {
+    const messages: Record<DiscussionAttachmentErrorCode, string> = {
+      AUTHENTICATION_REQUIRED: 'Требуется авторизация.',
+      INVALID_ATTACHMENT_ID: 'Некорректный идентификатор вложения.',
+      ATTACHMENT_NOT_FOUND: 'Вложение не найдено.',
+      ATTACHMENT_DELETE_FORBIDDEN: 'Недостаточно прав для удаления этого вложения.',
+      ATTACHMENT_IN_USE: 'Вложение уже прикреплено к записи.',
     };
-    return keys[code];
+    return messages[code];
   }
 
   private asRecord(value: unknown): Record<string, unknown> {

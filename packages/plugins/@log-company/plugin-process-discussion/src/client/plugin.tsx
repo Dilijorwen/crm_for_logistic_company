@@ -8,15 +8,10 @@
  */
 
 import { Plugin } from '@nocobase/client';
-import enUS from '../locale/en-US.json';
-import ruRU from '../locale/ru-RU.json';
 import models from './features/process-discussion/model';
-import { NAMESPACE } from './locale';
 
 export class PluginProcessDiscussionClient extends Plugin {
   async load() {
-    this.app.i18n.addResources('en-US', NAMESPACE, enUS);
-    this.app.i18n.addResources('ru-RU', NAMESPACE, ruRU);
     this.flowEngine.registerModels(models);
   }
 }

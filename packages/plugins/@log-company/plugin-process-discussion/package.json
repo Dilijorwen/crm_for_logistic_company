@@ -2,7 +2,7 @@
   "name": "@log-company/plugin-process-discussion",
   "displayName": "Process discussion",
   "description": "Custom discussion block for customs process records.",
-  "version": "2.0.61",
+  "version": "2.0.62",
   "main": "dist/server/index.js",
   "dependencies": {},
   "peerDependencies": {

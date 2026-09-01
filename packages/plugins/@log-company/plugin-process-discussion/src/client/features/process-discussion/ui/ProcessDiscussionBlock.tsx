@@ -44,7 +44,6 @@ import {
   PROCESS_DISCUSSION_ATTACHMENT_PURPOSE,
   PROCESS_DISCUSSION_ATTACHMENT_PURPOSE_FIELD,
 } from '../../../../shared/processDiscussionAttachments';
-import { useProcessDiscussionTranslation } from '../../../locale';
 
 const PAGE_SIZE = 50;
 const POLL_INTERVAL = 15000;
@@ -620,7 +619,6 @@ function useElementVisibility(ref: React.RefObject<HTMLElement>) {
 
 function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDiscussionBlockProps) {
   const api = useAPIClient();
-  const { t } = useProcessDiscussionTranslation();
   const { token } = antdTheme.useToken();
   const currentUser = useCurrentUserContext()?.data?.data;
   const processTarget = useProcessTarget(modelContext, processId);
@@ -707,14 +705,14 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
         if (processKeyRef.current !== processKey) {
           return;
         }
-        setError(getErrorText(err, t('discussion.loadFailed')));
+        setError(getErrorText(err, 'Не удалось загрузить обсуждение.'));
       } finally {
         if (!silent && processKeyRef.current === processKey) {
           setLoading(false);
         }
       }
     },
-    [fetchPage, processKey, scrollToBottom, t],
+    [fetchPage, processKey, scrollToBottom],
   );
 
   useEffect(() => {
@@ -730,10 +728,10 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
     setRemovingFileUid(null);
     if (!isEmptyResourceKey(processKey)) {
       loadLatest({ replace: true, scroll: true }).catch((error) => {
-        setError(getErrorText(error, t('discussion.loadFailed')));
+        setError(getErrorText(error, 'Не удалось загрузить обсуждение.'));
       });
     }
-  }, [loadLatest, processKey, t]);
+  }, [loadLatest, processKey]);
 
   useEffect(() => {
     if (isEmptyResourceKey(processKey) || !visible) {
@@ -741,11 +739,11 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
     }
     const timer = window.setInterval(() => {
       loadLatest({ silent: true }).catch((error) => {
-        setError(getErrorText(error, t('discussion.refreshFailed')));
+        setError(getErrorText(error, 'Не удалось обновить обсуждение.'));
       });
     }, POLL_INTERVAL);
     return () => window.clearInterval(timer);
-  }, [loadLatest, processKey, t, visible]);
+  }, [loadLatest, processKey, visible]);
 
   const loadPrevious = useCallback(async () => {
     if (isEmptyResourceKey(processKey) || loadingPrevious) {
@@ -766,13 +764,13 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
       if (processKeyRef.current !== processKey) {
         return;
       }
-      setError(getErrorText(err, t('discussion.loadPreviousFailed')));
+      setError(getErrorText(err, 'Не удалось загрузить предыдущие сообщения.'));
     } finally {
       if (processKeyRef.current === processKey) {
         setLoadingPrevious(false);
       }
     }
-  }, [fetchPage, loadedPages, loadingPrevious, processKey, t, totalCount]);
+  }, [fetchPage, loadedPages, loadingPrevious, processKey, totalCount]);
 
   const uploadRequest = useCallback<NonNullable<UploadProps['customRequest']>>(
     async (options) => {
@@ -817,12 +815,12 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
         setFileList((current) => current.filter((item) => item.uid !== file.uid));
       } catch (error) {
         console.warn('[process-discussion] Failed to remove attachment', error);
-        message.warning(getErrorText(error, t('discussion.removeAttachmentFailed')));
+        message.warning(getErrorText(error, 'Не удалось удалить файл из хранилища. Повторите попытку.'));
       } finally {
         setRemovingFileUid(null);
       }
     },
-    [api, t],
+    [api],
   );
 
   const uploading = fileList.some((file) => file.status === 'uploading');
@@ -839,7 +837,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
   const submit = useCallback(async () => {
     if (!canSubmit || isEmptyResourceKey(processKey)) {
       if (!text.trim() && uploadedAttachments.length === 0) {
-        message.warning(t('discussion.emptyMessage'));
+        message.warning('Нельзя отправить пустое сообщение.');
       }
       return;
     }
@@ -869,18 +867,18 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
       if (processKeyRef.current !== processKey) {
         return;
       }
-      setError(getErrorText(err, t('discussion.submitFailed')));
+      setError(getErrorText(err, 'Не удалось отправить сообщение.'));
     } finally {
       if (processKeyRef.current === processKey) {
         setSubmitting(false);
       }
     }
-  }, [api, canSubmit, loadLatest, processKey, t, text, uploadedAttachments]);
+  }, [api, canSubmit, loadLatest, processKey, text, uploadedAttachments]);
 
   const groupedItems = useMemo(() => {
     const groups: { label: string; items: DiscussionMessage[] }[] = [];
     items.forEach((item) => {
-      const label = getDateLabel(item.createdAt, t('discussion.today'), t('discussion.yesterday'));
+      const label = getDateLabel(item.createdAt, 'Сегодня', 'Вчера');
       let group = groups[groups.length - 1];
       if (!group || group.label !== label) {
         group = { label, items: [] };
@@ -889,7 +887,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
       group.items.push(item);
     });
     return groups;
-  }, [items, t]);
+  }, [items]);
 
   if (processTarget.status === 'loading') {
     return (
@@ -900,7 +898,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
   }
 
   if (processTarget.status !== 'ready') {
-    return <Alert type="info" showIcon message={t('discussion.saveProcessFirst')} />;
+    return <Alert type="info" showIcon message="Сначала сохраните процесс, чтобы открыть обсуждение." />;
   }
 
   return (
@@ -910,7 +908,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
         {hasMore ? (
           <div className="process-discussion-load">
             <Button size="small" loading={loadingPrevious} onClick={loadPrevious}>
-              {t('discussion.loadPrevious')}
+              Загрузить предыдущие
             </Button>
           </div>
         ) : null}
@@ -920,7 +918,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
           </div>
         ) : null}
         {!loading && items.length === 0 ? (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('discussion.empty')} />
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Сообщений пока нет" />
         ) : null}
         {groupedItems.map((group) => (
           <React.Fragment key={group.label}>
@@ -928,7 +926,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
               {group.label}
             </Divider>
             {group.items.map((item) => {
-              const authorName = getAuthorName(item, t('discussion.unknownUser'));
+              const authorName = getAuthorName(item, 'Пользователь');
               const isOwn = currentUser?.id != null && String(currentUser.id) === String(item.createdBy?.id);
               const attachments = Array.isArray(item[ATTACHMENT_FIELD]) ? item[ATTACHMENT_FIELD] : [];
               const textContent = getRenderableText(item.text);
@@ -952,10 +950,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
                       <div className="process-discussion-files">
                         {attachments.map((file) => {
                           const url = normalizeAttachmentUrl(file);
-                          const title = getAttachmentTitle(
-                            file,
-                            t('discussion.fileFallback', { id: file?.id || '' }).trim(),
-                          );
+                          const title = getAttachmentTitle(file, `Файл ${file?.id || ''}`.trim());
                           return (
                             <Button
                               key={String(file.id)}
@@ -988,22 +983,22 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
             showUploadList={false}
             onChange={({ fileList: nextFileList }) => setFileList(nextFileList)}
           >
-            <Button icon={<UploadOutlined />}>{t('discussion.attachFile')}</Button>
+            <Button icon={<UploadOutlined />}>Прикрепить файл</Button>
           </Upload>
           <Input.TextArea
             autoSize={{ minRows: 1, maxRows: 5 }}
             value={text}
-            placeholder={t('discussion.placeholder')}
+            placeholder="Написать сообщение..."
             onChange={(event) => setText(event.target.value)}
             onPressEnter={(event) => {
               if (!event.shiftKey) {
                 event.preventDefault();
-                submit().catch((error) => setError(getErrorText(error, t('discussion.submitFailed'))));
+                submit().catch((error) => setError(getErrorText(error, 'Не удалось отправить сообщение.')));
               }
             }}
           />
           <Button type="primary" icon={<SendOutlined />} disabled={!canSubmit} loading={submitting} onClick={submit}>
-            {t('discussion.send')}
+            Отправить
           </Button>
         </div>
         {fileList.length ? (
@@ -1022,7 +1017,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
                     <Button
                       size="small"
                       icon={removingFileUid === file.uid ? <LoadingOutlined /> : <CloseOutlined />}
-                      aria-label={t('discussion.removeFile', { name: file.name })}
+                      aria-label={`Убрать файл ${file.name}`}
                       disabled={file.status === 'uploading' || removingFileUid !== null}
                       onClick={() => removeFile(file)}
                     />
