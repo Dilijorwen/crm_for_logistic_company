@@ -26,6 +26,7 @@ import { ZoomControls } from './ZoomControls';
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 1.5;
 const ZOOM_STEP = 0.1;
+const PAN_ACTIVATION_DISTANCE = 4;
 
 interface OrganizationCanvasProps {
   departments: OrganizationDepartment[];
@@ -54,6 +55,7 @@ interface PanState {
   y: number;
   scrollLeft: number;
   scrollTop: number;
+  captured: boolean;
 }
 
 export function OrganizationCanvas(props: OrganizationCanvasProps) {
@@ -174,21 +176,33 @@ export function OrganizationCanvas(props: OrganizationCanvasProps) {
           y: event.clientY,
           scrollLeft: event.currentTarget.scrollLeft,
           scrollTop: event.currentTarget.scrollTop,
+          captured: false,
         };
-        event.currentTarget.setPointerCapture(event.pointerId);
       }}
       onPointerMove={(event) => {
         const pan = panState.current;
         if (!pan || pan.pointerId !== event.pointerId) {
           return;
         }
-        event.currentTarget.scrollLeft = pan.scrollLeft - (event.clientX - pan.x);
-        event.currentTarget.scrollTop = pan.scrollTop - (event.clientY - pan.y);
+        const deltaX = event.clientX - pan.x;
+        const deltaY = event.clientY - pan.y;
+        if (!pan.captured) {
+          if (Math.hypot(deltaX, deltaY) < PAN_ACTIVATION_DISTANCE) {
+            return;
+          }
+          event.currentTarget.setPointerCapture(event.pointerId);
+          pan.captured = true;
+        }
+        event.currentTarget.scrollLeft = pan.scrollLeft - deltaX;
+        event.currentTarget.scrollTop = pan.scrollTop - deltaY;
       }}
       onPointerUp={(event) => {
-        if (panState.current?.pointerId === event.pointerId) {
+        const pan = panState.current;
+        if (pan?.pointerId === event.pointerId) {
           panState.current = null;
-          event.currentTarget.releasePointerCapture(event.pointerId);
+          if (pan.captured) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
         }
       }}
       onPointerCancel={() => {

@@ -3,7 +3,7 @@
   "displayName": "Organization structure",
   "displayName.ru-RU": "Организационная структура",
   "description": "A visual organization structure interface backed by the standard NocoBase departments plugin.",
-  "version": "2.0.60",
+  "version": "2.0.61",
   "main": "dist/server/index.js",
   "peerDependencies": {
     "@ant-design/icons": "*",

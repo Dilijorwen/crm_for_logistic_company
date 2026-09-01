@@ -100,7 +100,15 @@ export function DepartmentCard(props: DepartmentCardProps) {
             </Typography.Title>
           </Tooltip>
           {menuItems.length > 0 ? (
-            <Dropdown menu={{ items: menuItems, onClick: handleMenuClick }} trigger={['click']}>
+            <Dropdown
+              menu={{ items: menuItems, onClick: handleMenuClick }}
+              trigger={['click']}
+              dropdownRender={(menu) => (
+                <div data-interactive="true" onPointerDown={(event) => event.stopPropagation()}>
+                  {menu}
+                </div>
+              )}
+            >
               <Button
                 type="text"
                 size="small"
