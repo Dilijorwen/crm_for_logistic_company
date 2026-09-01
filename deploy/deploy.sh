@@ -161,6 +161,7 @@ wait_for_app
 new_plugins=()
 new_archives=()
 updated_archives=()
+plugins_changed=false
 
 for plugin in "${plugins[@]}"; do
   version="$(node -p "require('./packages/plugins/${plugin}/package.json').version")"
@@ -181,12 +182,20 @@ if [[ ${#updated_archives[@]} -gt 0 ]]; then
   echo 'Updating installed Log Company plugins...'
   "${compose[@]}" exec -T app yarn nocobase pm update "${updated_archives[@]}"
   wait_for_app
+  plugins_changed=true
 fi
 
 if [[ ${#new_archives[@]} -gt 0 ]]; then
   echo 'Installing and enabling new Log Company plugins...'
   "${compose[@]}" exec -T app yarn nocobase pm add "${new_archives[@]}"
   "${compose[@]}" exec -T app yarn nocobase pm enable "${new_plugins[@]}"
+  wait_for_app
+  plugins_changed=true
+fi
+
+if [[ "${plugins_changed}" == true ]]; then
+  echo 'Restarting NocoBase to refresh plugin asset hashes...'
+  "${compose[@]}" restart app
   wait_for_app
 fi
 
