@@ -159,9 +159,12 @@ export function OrganizationCanvas(props: OrganizationCanvasProps) {
       className="lc-org-canvas"
       aria-label={t('canvas.diagram')}
       onPointerDown={(event) => {
+        const target = event.target;
         if (
           event.button !== 0 ||
-          (event.target instanceof Element && event.target.closest('[data-interactive="true"]'))
+          !(target instanceof Node) ||
+          !event.currentTarget.contains(target) ||
+          (target instanceof Element && target.closest('[data-interactive="true"]'))
         ) {
           return;
         }
