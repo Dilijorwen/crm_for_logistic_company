@@ -27,7 +27,7 @@ export const permitDocumentCompanyField = {
       multiple: false,
       fieldNames: { label: 'name', value: 'id' },
     },
-    required: true,
+    required: false,
   },
 } as const;
 

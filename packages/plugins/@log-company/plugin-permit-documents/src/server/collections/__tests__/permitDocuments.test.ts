@@ -35,6 +35,7 @@ describe('permit documents collection', () => {
         expect.objectContaining({ name: 'last_checked_at', type: 'date' }),
         expect.objectContaining({ name: 'last_sync_error', type: 'text' }),
         expect.objectContaining({ name: 'technical_regulations', type: 'belongsToMany' }),
+        expect.objectContaining({ name: 'company_id', type: 'bigInt', allowNull: true }),
       ]),
     );
     expect(permitDocuments.fields).not.toEqual(
@@ -42,13 +43,14 @@ describe('permit documents collection', () => {
     );
   });
 
-  it('links each permit document to one company and exposes the reverse one-to-many field', () => {
+  it('optionally links each permit document to at most one company and exposes the reverse one-to-many field', () => {
     expect(permitDocumentCompanyField).toMatchObject({
       name: 'company',
       type: 'belongsTo',
       target: 'our_companies',
       foreignKey: 'company_id',
       onDelete: 'RESTRICT',
+      uiSchema: { required: false },
     });
     expect(companyPermitDocumentsField).toMatchObject({
       name: 'permit_documents',

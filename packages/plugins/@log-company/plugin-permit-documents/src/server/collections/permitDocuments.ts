@@ -118,7 +118,7 @@ export const permitDocumentFields: FieldOptions[] = [
       'x-component-props': readOnlyProps,
     },
   },
-  { type: 'bigInt', name: 'company_id', interface: 'integer', isForeignKey: true, allowNull: false },
+  { type: 'bigInt', name: 'company_id', interface: 'integer', isForeignKey: true, allowNull: true },
   {
     type: 'string',
     name: 'external_id',

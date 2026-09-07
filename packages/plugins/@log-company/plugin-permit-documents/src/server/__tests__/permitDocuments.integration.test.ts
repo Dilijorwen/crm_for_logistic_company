@@ -83,7 +83,23 @@ describe('permit documents persistence', () => {
     expect(companyDocuments).toHaveLength(1);
   });
 
-  it('enforces one company per document and a global document identity', async () => {
+  it('creates a permit document without a company', async () => {
+    const permitDocument = await database.getRepository('permit_documents').create({
+      values: {
+        id: '2006',
+        title: 'DOC-WITHOUT-COMPANY',
+        document_type: 'certificate_of_conformity',
+      },
+    });
+    const [rows] = (await database.sequelize.query('select company_id from permit_documents where id = :documentId', {
+      replacements: { documentId: permitDocument.get('id') },
+    })) as unknown as [Array<{ company_id: string | null }>, unknown];
+
+    expect(rows[0].company_id).toBeNull();
+    expect(permitDocument.get('sync_status')).toBe('PENDING');
+  });
+
+  it('enforces at most one company per document and a global document identity', async () => {
     const first = await database.getRepository('our_companies').create({ values: { id: '1002', name: 'First' } });
     const second = await database.getRepository('our_companies').create({ values: { id: '1003', name: 'Second' } });
     await database.getRepository('permit_documents').create({
