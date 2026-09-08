@@ -49,6 +49,7 @@ describe('permit documents collection', () => {
       type: 'belongsTo',
       target: 'our_companies',
       foreignKey: 'company_id',
+      allowNull: true,
       onDelete: 'RESTRICT',
       uiSchema: { required: false },
     });

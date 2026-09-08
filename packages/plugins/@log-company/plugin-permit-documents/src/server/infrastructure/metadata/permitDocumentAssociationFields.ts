@@ -18,6 +18,7 @@ export const permitDocumentCompanyField = {
   target: 'our_companies',
   targetKey: 'id',
   foreignKey: 'company_id',
+  allowNull: true,
   onDelete: 'RESTRICT',
   uiSchema: {
     type: 'object',
