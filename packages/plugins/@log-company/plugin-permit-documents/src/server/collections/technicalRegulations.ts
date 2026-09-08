@@ -7,10 +7,22 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { defineCollection } from '@nocobase/database';
+import { defineCollection, type FieldOptions } from '@nocobase/database';
 
 const NAMESPACE = '@log-company/plugin-permit-documents';
 const translate = (key: string) => `{{t("${key}", { ns: "${NAMESPACE}" })}}`;
+
+export const technicalRegulationFsaIdField: FieldOptions = {
+  type: 'integer',
+  name: 'fsa_id',
+  interface: 'integer',
+  uiSchema: {
+    type: 'number',
+    title: translate('field.fsaId'),
+    'x-component': 'InputNumber',
+    'x-component-props': { separator: '0.00', step: '1' },
+  },
+};
 
 export default defineCollection({
   name: 'technical_regulations',
@@ -31,12 +43,7 @@ export default defineCollection({
   ],
   fields: [
     { type: 'snowflakeId', name: 'id', interface: 'snowflakeId', primaryKey: true, allowNull: false },
-    {
-      type: 'integer',
-      name: 'fsa_id',
-      interface: 'integer',
-      uiSchema: { type: 'number', title: translate('field.fsaId'), 'x-component': 'InputNumber' },
-    },
+    technicalRegulationFsaIdField,
     {
       type: 'string',
       name: 'doc_num',
