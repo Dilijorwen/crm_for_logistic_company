@@ -21,7 +21,7 @@ export class RequestPermitDocumentSync {
     if (!exists) {
       return false;
     }
-    await this.queue.enqueue(documentId);
+    await this.queue.enqueue(documentId, 'FULL');
     return true;
   }
 }

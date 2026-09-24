@@ -8,7 +8,7 @@
  */
 
 import type { PermitDocumentType } from '../../domain/permit-document/PermitDocumentPolicy';
-import type { RegistryDocument } from '../../domain/permit-document/RegistryDocument';
+import type { RegistryDocument, RegistryDocumentStatus } from '../../domain/permit-document/RegistryDocument';
 
 export interface FsaTechnicalRegulationDto {
   fsaId: number;
@@ -18,6 +18,11 @@ export interface FsaTechnicalRegulationDto {
 
 export interface PermitRegistryGateway {
   findByTitle(documentType: PermitDocumentType, title: string): Promise<RegistryDocument | null>;
-  getByExternalId(documentType: PermitDocumentType, externalId: string): Promise<RegistryDocument | null>;
+  findStatusByTitle(documentType: PermitDocumentType, title: string): Promise<RegistryDocumentStatus | null>;
+  getByExternalId(
+    documentType: PermitDocumentType,
+    externalId: string,
+    title: string,
+  ): Promise<RegistryDocument | null>;
   getFsaTechnicalRegulations(fsaIds: readonly number[]): Promise<FsaTechnicalRegulationDto[]>;
 }

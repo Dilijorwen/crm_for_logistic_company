@@ -30,11 +30,14 @@ function fixture(externalId: string | null = null) {
     markError: vi.fn().mockResolvedValue('UPDATED'),
     applySuccess: vi.fn().mockResolvedValue('UPDATED'),
     listPendingIds: vi.fn(),
-    listDailyDueIds: vi.fn(),
+    applyStatusCheck: vi.fn(),
+    listDailyFullSyncDueIds: vi.fn(),
+    listDailyStatusCheckDueIds: vi.fn(),
     clearTechnicalRegulations: vi.fn(),
   } as unknown as PermitDocumentRepository;
   const gateway = {
     findByTitle: vi.fn(),
+    findStatusByTitle: vi.fn(),
     getByExternalId: vi.fn(),
     getFsaTechnicalRegulations: vi.fn(),
   } as unknown as PermitRegistryGateway;
@@ -69,6 +72,7 @@ describe('SynchronizePermitDocument', () => {
     expect(repository.applySuccess).toHaveBeenCalledWith(
       expect.objectContaining({ id: '10', title: 'DOC-1' }),
       card,
+      'DOC-1 от 01.08.2026 до 01.08.2027',
       [{ fsaId: 17, docNum: 'ТР ТС 008/2011', name: 'О безопасности игрушек' }],
       new Date('2026-08-28T00:00:00Z'),
     );
@@ -79,8 +83,23 @@ describe('SynchronizePermitDocument', () => {
     vi.mocked(gateway.getByExternalId).mockResolvedValue({ ...card, technicalRegulations: [] });
 
     await expect(useCase.execute('10')).resolves.toBe('SUCCESS');
-    expect(gateway.getByExternalId).toHaveBeenCalledWith('declaration_of_conformity', '101');
+    expect(gateway.getByExternalId).toHaveBeenCalledWith('declaration_of_conformity', '101', 'DOC-1');
     expect(gateway.findByTitle).not.toHaveBeenCalled();
+  });
+
+  it('stores an open-ended declaration and builds its name from the registration date', async () => {
+    const { repository, gateway, useCase } = fixture();
+    const openEndedCard = { ...card, validUntil: null, technicalRegulations: [] };
+    vi.mocked(gateway.findByTitle).mockResolvedValue(openEndedCard);
+
+    await expect(useCase.execute('10')).resolves.toBe('SUCCESS');
+    expect(repository.applySuccess).toHaveBeenCalledWith(
+      expect.objectContaining({ id: '10', title: 'DOC-1' }),
+      openEndedCard,
+      'DOC-1 от 01.08.2026',
+      [],
+      new Date('2026-08-28T00:00:00Z'),
+    );
   });
 
   it('marks a new document as NOT_FOUND but treats a missing saved card as ERROR', async () => {

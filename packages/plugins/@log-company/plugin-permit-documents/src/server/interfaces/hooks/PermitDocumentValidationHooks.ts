@@ -19,6 +19,7 @@ import {
 const COLLECTION_NAME = 'permit_documents';
 const NAMESPACE = '@log-company/plugin-permit-documents';
 const MANAGED_FIELDS = [
+  'name',
   'valid_from',
   'valid_until',
   'status',
@@ -41,6 +42,7 @@ const ERROR_TRANSLATIONS: Record<PermitDocumentValidationErrorCode, string> = {
 };
 
 interface NocoBaseModel {
+  isNewRecord: boolean;
   get(key: string): unknown;
   set(key: string, value: unknown): void;
   changed(key: string): boolean;
@@ -69,15 +71,11 @@ export class PermitDocumentValidationHooks {
   ) {}
 
   register(): void {
-    this.plugin.db.on(`${COLLECTION_NAME}.beforeCreate`, (model: NocoBaseModel, options: HookOptions) => {
+    this.plugin.db.on(`${COLLECTION_NAME}.beforeValidate`, (model: NocoBaseModel, options: HookOptions) => {
       this.normalizeIdentity(model);
-      this.resetRegistryFields(model);
-      this.validate(model, options);
-    });
-    this.plugin.db.on(`${COLLECTION_NAME}.beforeUpdate`, (model: NocoBaseModel, options: HookOptions) => {
-      this.normalizeIdentity(model);
-      if (this.identityChanged(model)) {
+      if (model.isNewRecord || this.identityChanged(model)) {
         this.resetRegistryFields(model);
+        this.setPendingName(model);
       } else {
         this.restoreManagedFields(model);
       }
@@ -103,6 +101,11 @@ export class PermitDocumentValidationHooks {
     for (const field of MANAGED_FIELDS) {
       model.set(field, field === 'sync_status' ? 'PENDING' : null);
     }
+  }
+
+  private setPendingName(model: NocoBaseModel): void {
+    const title = model.get('title');
+    model.set('name', typeof title === 'string' ? title : null);
   }
 
   private restoreManagedFields(model: NocoBaseModel): void {

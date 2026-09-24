@@ -19,6 +19,21 @@ const translate = (key: string) => `{{t("${key}", { ns: "${NAMESPACE}" })}}`;
 const requiredRule = (key: string): { key: string; name: 'required' } => ({ key, name: 'required' });
 const readOnlyProps = { disabled: true } as const;
 
+export const permitDocumentNameField: FieldOptions = {
+  type: 'string',
+  name: 'name',
+  interface: 'input',
+  allowNull: false,
+  length: 300,
+  trim: true,
+  uiSchema: {
+    type: 'string',
+    title: 'Название',
+    'x-component': 'Input',
+    'x-component-props': readOnlyProps,
+  },
+};
+
 export const permitDocumentFields: FieldOptions[] = [
   {
     type: 'snowflakeId',
@@ -49,6 +64,7 @@ export const permitDocumentFields: FieldOptions[] = [
     },
     uiSchema: { type: 'string', title: translate('field.title'), 'x-component': 'Input', required: true },
   },
+  permitDocumentNameField,
   {
     type: 'string',
     name: 'document_type',
@@ -229,7 +245,7 @@ export default defineCollection({
   updatedAt: true,
   updatedBy: true,
   logging: true,
-  titleField: 'title',
+  titleField: 'name',
   filterTargetKey: ['id'],
   migrationRules: ['overwrite', 'schema-only'],
   indexes: [

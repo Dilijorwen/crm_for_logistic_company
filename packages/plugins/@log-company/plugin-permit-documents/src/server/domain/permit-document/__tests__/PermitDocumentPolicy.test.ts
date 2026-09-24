@@ -37,7 +37,7 @@ describe('validatePermitDocument', () => {
     }
   });
 
-  it('accepts all final business statuses and treats SGR as having no end date', () => {
+  it('accepts all final business statuses and open-ended registry documents', () => {
     for (const status of ['valid', 'suspended', 'terminated']) {
       expect(() => validatePermitDocument({ ...successfulInput(), status })).not.toThrow();
     }
@@ -48,13 +48,14 @@ describe('validatePermitDocument', () => {
         validUntil: null,
       }),
     ).not.toThrow();
+    expect(() => validatePermitDocument({ ...successfulInput(), validUntil: null })).not.toThrow();
   });
 
-  it('requires registry dates and product information after a successful sync', () => {
+  it('requires a registration date and product information after a successful sync', () => {
     expect(() => validatePermitDocument({ ...successfulInput(), productInformation: null })).toThrowError(
       expect.objectContaining<Partial<PermitDocumentValidationError>>({ code: 'MISSING_SUCCESS_FIELD' }),
     );
-    expect(() => validatePermitDocument({ ...successfulInput(), validUntil: null })).toThrowError(
+    expect(() => validatePermitDocument({ ...successfulInput(), validFrom: null })).toThrowError(
       expect.objectContaining<Partial<PermitDocumentValidationError>>({ code: 'MISSING_SUCCESS_FIELD' }),
     );
   });

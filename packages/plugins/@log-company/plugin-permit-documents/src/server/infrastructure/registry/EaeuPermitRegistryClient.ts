@@ -7,7 +7,7 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import type { RegistryDocument } from '../../domain/permit-document/RegistryDocument';
+import type { RegistryDocument, RegistryDocumentStatus } from '../../domain/permit-document/RegistryDocument';
 import { RegistryError } from '../../domain/permit-document/RegistryErrors';
 import type { JsonHttpResponse, JsonHttpTransport } from '../http/JsonHttpTransport';
 import { EaeuResponseParser } from './EaeuResponseParser';
@@ -38,6 +38,17 @@ export class EaeuPermitRegistryClient {
   ) {}
 
   async findByTitle(title: string): Promise<RegistryDocument | null> {
+    const response = await this.search(title);
+    const externalId = this.parser.findExactSearchId(response.body, title);
+    return externalId ? this.getByExternalId(externalId) : null;
+  }
+
+  async findStatusByTitle(title: string): Promise<RegistryDocumentStatus | null> {
+    const response = await this.search(title);
+    return this.parser.parseSearchStatus(response.body, title);
+  }
+
+  private async search(title: string): Promise<JsonHttpResponse> {
     const response = await this.transport.request({
       method: 'POST',
       url: `${this.baseUrl}/portal/api/dictionaries/1995/get-list-data`,
@@ -50,8 +61,7 @@ export class EaeuPermitRegistryClient {
       },
     });
     this.assertSuccess(response);
-    const externalId = this.parser.findExactSearchId(response.body, title);
-    return externalId ? this.getByExternalId(externalId) : null;
+    return response;
   }
 
   async getByExternalId(externalId: string): Promise<RegistryDocument | null> {

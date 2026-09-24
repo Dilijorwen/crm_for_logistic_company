@@ -23,7 +23,7 @@ import {
   isPermitDocumentSyncStatus,
   isPermitDocumentType,
 } from '../../domain/permit-document/PermitDocumentPolicy';
-import type { RegistryDocument } from '../../domain/permit-document/RegistryDocument';
+import type { RegistryDocument, RegistryDocumentStatus } from '../../domain/permit-document/RegistryDocument';
 import { RegistryError } from '../../domain/permit-document/RegistryErrors';
 
 interface SnowflakeIdGenerator {
@@ -125,6 +125,7 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
   async applySuccess(
     identity: PermitDocumentIdentity,
     document: RegistryDocument,
+    name: string,
     regulations: readonly TechnicalRegulationCandidate[],
     checkedAt: Date,
   ): Promise<ApplySyncResult> {
@@ -139,7 +140,8 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
       }
       await this.plugin.db.sequelize.query(
         `update permit_documents
-         set external_id = :externalId,
+         set name = :name,
+             external_id = :externalId,
              external_status = :externalStatus,
              status = :status,
              valid_from = :validFrom,
@@ -155,6 +157,7 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
             id: identity.id,
             title: identity.title,
             documentType: identity.documentType,
+            name,
             externalId: document.externalId,
             externalStatus: document.externalStatus,
             status: document.status,
@@ -171,6 +174,40 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
     });
   }
 
+  async applyStatusCheck(
+    identity: PermitDocumentIdentity,
+    expectedExternalId: string,
+    document: RegistryDocumentStatus,
+    checkedAt: Date,
+  ): Promise<ApplySyncResult> {
+    return this.plugin.db.sequelize.transaction(async (transaction) => {
+      const current = await this.lockIdentity(identity, transaction, expectedExternalId);
+      if (current === 'MISSING' || current === 'STALE') {
+        return current;
+      }
+      await this.plugin.db.sequelize.query(
+        `update permit_documents
+         set external_status = :externalStatus,
+             status = :status,
+             sync_status = 'SUCCESS',
+             last_checked_at = :checkedAt,
+             last_sync_error = null,
+             "updatedAt" = :checkedAt
+         where id = :id`,
+        {
+          replacements: {
+            id: identity.id,
+            externalStatus: document.externalStatus,
+            status: document.status,
+            checkedAt,
+          },
+          transaction,
+        },
+      );
+      return 'UPDATED';
+    });
+  }
+
   async listPendingIds(limit: number): Promise<string[]> {
     const [rows] = (await this.plugin.db.sequelize.query(
       `select id from permit_documents where sync_status = 'PENDING' order by "updatedAt" asc limit :limit`,
@@ -179,11 +216,26 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
     return rows.map((row) => String(row.id));
   }
 
-  async listDailyDueIds(checkedBefore: Date, limit: number): Promise<string[]> {
+  async listDailyFullSyncDueIds(checkedBefore: Date, limit: number): Promise<string[]> {
     const [rows] = (await this.plugin.db.sequelize.query(
       `select id
        from permit_documents
-       where sync_status in ('PENDING', 'SUCCESS', 'ERROR')
+       where (sync_status = 'PENDING' or (sync_status = 'ERROR' and external_id is null))
+         and (status is null or status <> 'terminated')
+         and (last_checked_at is null or last_checked_at <= :checkedBefore)
+       order by last_checked_at asc nulls first, id asc
+       limit :limit`,
+      { replacements: { checkedBefore, limit } },
+    )) as unknown as [IdentifierRow[], unknown];
+    return rows.map((row) => String(row.id));
+  }
+
+  async listDailyStatusCheckDueIds(checkedBefore: Date, limit: number): Promise<string[]> {
+    const [rows] = (await this.plugin.db.sequelize.query(
+      `select id
+       from permit_documents
+       where (sync_status = 'SUCCESS' or (sync_status = 'ERROR' and external_id is not null))
+         and external_id is not null
          and (status is null or status <> 'terminated')
          and (last_checked_at is null or last_checked_at <= :checkedBefore)
        order by last_checked_at asc nulls first, id asc
@@ -226,15 +278,21 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
   private async lockIdentity(
     identity: PermitDocumentIdentity,
     transaction: Transaction,
+    expectedExternalId?: string,
   ): Promise<'UPDATED' | 'STALE' | 'MISSING'> {
     const [rows] = (await this.plugin.db.sequelize.query(
-      `select id, title, document_type from permit_documents where id = :id limit 1 for update`,
+      `select id, title, document_type, external_id from permit_documents where id = :id limit 1 for update`,
       { replacements: { id: identity.id }, transaction },
-    )) as unknown as [Array<{ id: string | number | bigint; title: string; document_type: string }>, unknown];
+    )) as unknown as [
+      Array<{ id: string | number | bigint; title: string; document_type: string; external_id: string | null }>,
+      unknown,
+    ];
     if (!rows[0]) {
       return 'MISSING';
     }
-    return rows[0].title === identity.title && rows[0].document_type === identity.documentType ? 'UPDATED' : 'STALE';
+    const identityMatches = rows[0].title === identity.title && rows[0].document_type === identity.documentType;
+    const externalIdMatches = expectedExternalId === undefined || rows[0].external_id === expectedExternalId;
+    return identityMatches && externalIdMatches ? 'UPDATED' : 'STALE';
   }
 
   private async resolveTechnicalRegulation(

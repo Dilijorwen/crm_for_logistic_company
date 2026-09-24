@@ -12,16 +12,39 @@ import {
   InvalidRegistryDocumentError,
   mapFsaStatus,
   type RegistryDocument,
+  type RegistryDocumentStatus,
 } from '../../domain/permit-document/RegistryDocument';
 import { asArray, asRecord, nullableString, numberValue, stringValue } from './RegistryValueReader';
 
 export class FsaResponseParser {
   findExactSearchId(body: unknown, title: string): string | null {
-    const exactItem = asArray(asRecord(body).items)
-      .map(asRecord)
-      .find((item) => stringValue(item.number)?.trim() === title.trim());
+    const exactItem = this.findExactSearchItem(body, title);
     const id = exactItem ? numberValue(exactItem.id) : null;
     return id === null ? null : String(id);
+  }
+
+  parseSearchStatus(
+    documentType: Exclude<PermitDocumentType, 'state_registration_certificate'>,
+    body: unknown,
+    title: string,
+  ): RegistryDocumentStatus | null {
+    const item = this.findExactSearchItem(body, title);
+    if (!item) {
+      return null;
+    }
+    const externalId = numberValue(item.id);
+    const statusId = numberValue(item.idStatus);
+    const status = statusId === null ? null : mapFsaStatus(statusId);
+    if (externalId === null || status === null) {
+      throw new InvalidRegistryDocumentError('FSA search result identifiers or status are invalid.');
+    }
+    return {
+      externalId: String(externalId),
+      externalStatus: String(statusId),
+      documentName: stringValue(item.number) || '',
+      documentType,
+      status,
+    };
   }
 
   parseCard(
@@ -50,9 +73,24 @@ export class FsaResponseParser {
       validFrom: stringValue(declaration ? card.declRegDate : card.certRegDate) || '',
       validUntil: this.normalizeDate(nullableString(declaration ? card.declEndDate : card.certEndDate)),
       status,
-      productInformation: stringValue(product.fullName) || '',
+      productInformation: this.productInformation(product),
       technicalRegulations: technicalRegulations.map((fsaId) => ({ source: 'FSA' as const, fsaId: fsaId as number })),
     };
+  }
+
+  private findExactSearchItem(body: unknown, title: string): Record<string, unknown> | null {
+    return (
+      asArray(asRecord(body).items)
+        .map(asRecord)
+        .find((item) => stringValue(item.number)?.trim() === title.trim()) || null
+    );
+  }
+
+  private productInformation(product: Record<string, unknown>): string {
+    return asArray(product.identifications)
+      .map((value) => stringValue(asRecord(value).name))
+      .filter((value): value is string => value !== null)
+      .join('\n');
   }
 
   parseTechnicalRegulations(body: unknown): Array<{ fsaId: number; docNum: string; name: string | null }> {

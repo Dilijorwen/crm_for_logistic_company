@@ -18,13 +18,21 @@ describe('permit documents collection', () => {
   it('defines the requested business fields and title field', () => {
     expect(permitDocuments).toMatchObject({
       name: 'permit_documents',
-      titleField: 'title',
+      titleField: 'name',
       createdAt: true,
       updatedAt: true,
     });
     expect(permitDocuments.fields).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ name: 'title', type: 'string', interface: 'input', allowNull: false }),
+        expect.objectContaining({
+          name: 'name',
+          type: 'string',
+          interface: 'input',
+          allowNull: false,
+          length: 300,
+          uiSchema: expect.objectContaining({ title: 'Название', 'x-component-props': { disabled: true } }),
+        }),
         expect.objectContaining({ name: 'document_type', type: 'string', interface: 'select', allowNull: false }),
         expect.objectContaining({ name: 'valid_from', type: 'dateOnly', interface: 'date' }),
         expect.objectContaining({ name: 'valid_until', type: 'dateOnly', interface: 'date' }),

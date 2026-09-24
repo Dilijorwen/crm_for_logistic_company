@@ -16,7 +16,8 @@ import { SchedulePermitDocumentSync } from '../SchedulePermitDocumentSync';
 describe('SchedulePermitDocumentSync', () => {
   it('selects everything due by the daily run and continues after a single queue error', async () => {
     const repository = {
-      listDailyDueIds: vi.fn().mockResolvedValue(['1', '2']),
+      listDailyFullSyncDueIds: vi.fn().mockResolvedValue(['1']),
+      listDailyStatusCheckDueIds: vi.fn().mockResolvedValue(['2']),
     } as unknown as PermitDocumentRepository;
     const queue = {
       enqueue: vi.fn().mockRejectedValueOnce(new Error('queue')).mockResolvedValueOnce(undefined),
@@ -25,8 +26,11 @@ describe('SchedulePermitDocumentSync', () => {
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as SyncLogger;
 
     await expect(new SchedulePermitDocumentSync(repository, queue, clock, logger).enqueueDailyDue()).resolves.toBe(1);
-    expect(repository.listDailyDueIds).toHaveBeenCalledWith(new Date('2026-08-28T10:00:00Z'), 10_000);
+    expect(repository.listDailyFullSyncDueIds).toHaveBeenCalledWith(new Date('2026-08-28T10:00:00Z'), 10_000);
+    expect(repository.listDailyStatusCheckDueIds).toHaveBeenCalledWith(new Date('2026-08-28T10:00:00Z'), 9_999);
     expect(queue.enqueue).toHaveBeenCalledTimes(2);
+    expect(queue.enqueue).toHaveBeenNthCalledWith(1, '1', 'FULL');
+    expect(queue.enqueue).toHaveBeenNthCalledWith(2, '2', 'STATUS_ONLY');
     expect(logger.error).toHaveBeenCalled();
   });
 });

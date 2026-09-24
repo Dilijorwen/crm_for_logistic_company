@@ -8,9 +8,11 @@
  */
 
 import type { Plugin } from '@nocobase/server';
+import { CheckPermitDocumentStatus } from '../application/CheckPermitDocumentStatus';
 import { SchedulePermitDocumentSync } from '../application/SchedulePermitDocumentSync';
 import { SynchronizePermitDocument } from '../application/SynchronizePermitDocument';
 import { FetchJsonTransport } from '../infrastructure/http/FetchJsonTransport';
+import { FetchTextTransport } from '../infrastructure/http/FetchTextTransport';
 import { NocoBasePermitDocumentRepository } from '../infrastructure/nocobase/NocoBasePermitDocumentRepository';
 import { NocoBasePermitDocumentSyncQueue } from '../infrastructure/nocobase/NocoBasePermitDocumentSyncQueue';
 import { NocoBaseSyncLogger, SystemSyncClock } from '../infrastructure/nocobase/SystemSyncSupport';
@@ -20,6 +22,8 @@ import { EaeuResponseParser } from '../infrastructure/registry/EaeuResponseParse
 import { FsaAuthTokenProvider } from '../infrastructure/registry/FsaAuthTokenProvider';
 import { FsaPermitRegistryClient } from '../infrastructure/registry/FsaPermitRegistryClient';
 import { FsaResponseParser } from '../infrastructure/registry/FsaResponseParser';
+import { SwisPermitRegistryClient } from '../infrastructure/registry/SwisPermitRegistryClient';
+import { SwisResponseParser } from '../infrastructure/registry/SwisResponseParser';
 import { PermitDocumentValidationHooks } from '../interfaces/hooks/PermitDocumentValidationHooks';
 import { PermitDocumentManagedFieldsGuard } from '../interfaces/http/PermitDocumentManagedFieldsGuard';
 import { PermitDocumentSubmitSyncMiddleware } from '../interfaces/http/PermitDocumentSubmitSyncMiddleware';
@@ -28,6 +32,7 @@ import { PermitDocumentSyncScheduler } from '../interfaces/scheduling/PermitDocu
 
 const DEFAULT_FSA_BASE_URL = 'https://pub.fsa.gov.ru';
 const DEFAULT_EAEU_BASE_URL = 'https://nsi.eaeunion.org';
+const DEFAULT_SWIS_BASE_URL = 'https://swis.trade.kg';
 
 export class PermitDocumentsModule {
   private scheduler: PermitDocumentSyncScheduler | null = null;
@@ -40,8 +45,10 @@ export class PermitDocumentsModule {
     const logger = new NocoBaseSyncLogger(this.plugin);
     const clock = new SystemSyncClock();
     const transport = new FetchJsonTransport();
+    const textTransport = new FetchTextTransport();
     const fsaBaseUrl = this.urlFromEnvironment('FSA_BASE_URL', DEFAULT_FSA_BASE_URL);
     const eaeuBaseUrl = this.urlFromEnvironment('EAEU_BASE_URL', DEFAULT_EAEU_BASE_URL);
+    const swisBaseUrl = this.urlFromEnvironment('SWIS_BASE_URL', DEFAULT_SWIS_BASE_URL);
     const tokenProvider = new FsaAuthTokenProvider(
       transport,
       fsaBaseUrl,
@@ -55,15 +62,17 @@ export class PermitDocumentsModule {
       new IntlMoscowDateProvider(),
       eaeuBaseUrl,
     );
-    const registry = new CompositePermitRegistryGateway(fsa, eaeu);
+    const swis = new SwisPermitRegistryClient(textTransport, new SwisResponseParser(), swisBaseUrl);
+    const registry = new CompositePermitRegistryGateway(fsa, eaeu, swis);
     const synchronize = new SynchronizePermitDocument(repository, registry, clock, logger);
+    const checkStatus = new CheckPermitDocumentStatus(repository, registry, clock, logger);
     const schedule = new SchedulePermitDocumentSync(repository, queue, clock, logger);
 
     new PermitDocumentValidationHooks(this.plugin, repository).register();
     new PermitDocumentManagedFieldsGuard(this.plugin).register();
     new PermitDocumentSubmitSyncMiddleware(this.plugin, repository, synchronize, logger).register();
     new PermitDocumentSyncController(this.plugin, synchronize).register();
-    this.scheduler = new PermitDocumentSyncScheduler(this.plugin, synchronize, schedule, logger);
+    this.scheduler = new PermitDocumentSyncScheduler(this.plugin, synchronize, checkStatus, schedule, logger);
     this.scheduler.register();
   }
 
@@ -72,7 +81,7 @@ export class PermitDocumentsModule {
     this.scheduler = null;
   }
 
-  private urlFromEnvironment(name: 'FSA_BASE_URL' | 'EAEU_BASE_URL', fallback: string): string {
+  private urlFromEnvironment(name: 'FSA_BASE_URL' | 'EAEU_BASE_URL' | 'SWIS_BASE_URL', fallback: string): string {
     const value = process.env[name]?.trim() || fallback;
     return value.replace(/\/$/, '');
   }

@@ -77,6 +77,7 @@ describe('permit documents persistence', () => {
     });
 
     expect(permitDocument.get('title')).toBe('ЕАЭС N RU Д-CN.РА07.В.50111/26');
+    expect(permitDocument.get('name')).toBe('ЕАЭС N RU Д-CN.РА07.В.50111/26');
     expect(permitDocument.get('sync_status')).toBe('PENDING');
     expect(permitDocument.get('valid_from')).toBeNull();
     const companyDocuments = await database.getRepository('our_companies.permit_documents', company.get('id')).find();
@@ -118,7 +119,7 @@ describe('permit documents persistence', () => {
       database.getRepository('permit_documents').create({
         values: { id: '2004', title: 'DOC-OTHER', document_type: 'other', company: company.get('id') },
       }),
-    ).rejects.toThrow('Validation isIn on document_type failed');
+    ).rejects.toThrow('validation.invalidDocumentType');
   });
 
   it('enforces one join row per document and technical regulation', async () => {

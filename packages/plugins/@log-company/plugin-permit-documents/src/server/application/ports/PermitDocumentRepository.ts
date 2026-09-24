@@ -12,7 +12,7 @@ import type {
   PermitDocumentSyncStatus,
   PermitDocumentType,
 } from '../../domain/permit-document/PermitDocumentPolicy';
-import type { RegistryDocument } from '../../domain/permit-document/RegistryDocument';
+import type { RegistryDocument, RegistryDocumentStatus } from '../../domain/permit-document/RegistryDocument';
 
 export type TransactionContext = unknown;
 
@@ -56,10 +56,18 @@ export interface PermitDocumentRepository {
   applySuccess(
     identity: PermitDocumentIdentity,
     document: RegistryDocument,
+    name: string,
     regulations: readonly TechnicalRegulationCandidate[],
     checkedAt: Date,
   ): Promise<ApplySyncResult>;
+  applyStatusCheck(
+    identity: PermitDocumentIdentity,
+    expectedExternalId: string,
+    document: RegistryDocumentStatus,
+    checkedAt: Date,
+  ): Promise<ApplySyncResult>;
   listPendingIds(limit: number): Promise<string[]>;
-  listDailyDueIds(checkedBefore: Date, limit: number): Promise<string[]>;
+  listDailyFullSyncDueIds(checkedBefore: Date, limit: number): Promise<string[]>;
+  listDailyStatusCheckDueIds(checkedBefore: Date, limit: number): Promise<string[]>;
   clearTechnicalRegulations(documentId: string, transaction?: TransactionContext): Promise<void>;
 }

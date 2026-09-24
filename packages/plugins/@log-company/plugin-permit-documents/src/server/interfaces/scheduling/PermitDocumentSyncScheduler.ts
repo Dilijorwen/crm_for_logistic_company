@@ -9,8 +9,10 @@
 
 import type { CronJob } from 'cron';
 import type { Plugin } from '@nocobase/server';
+import { CheckPermitDocumentStatus } from '../../application/CheckPermitDocumentStatus';
 import { SchedulePermitDocumentSync } from '../../application/SchedulePermitDocumentSync';
 import { SynchronizePermitDocument } from '../../application/SynchronizePermitDocument';
+import type { PermitDocumentSyncMode } from '../../application/ports/PermitDocumentSyncQueue';
 import type { SyncLogger } from '../../application/ports/PermitDocumentSyncSupport';
 import {
   PERMIT_DOCUMENT_SYNC_CHANNEL,
@@ -25,6 +27,7 @@ export class PermitDocumentSyncScheduler {
   constructor(
     private readonly plugin: Plugin,
     private readonly synchronize: SynchronizePermitDocument,
+    private readonly checkStatus: CheckPermitDocumentStatus,
     private readonly schedule: SchedulePermitDocumentSync,
     private readonly logger: SyncLogger,
   ) {}
@@ -34,12 +37,16 @@ export class PermitDocumentSyncScheduler {
       concurrency: 3,
       idle: () => true,
       process: async (message: unknown) => {
-        const documentId = this.documentIdFrom(message);
-        if (!documentId) {
+        const syncMessage = this.parseMessage(message);
+        if (!syncMessage) {
           this.logger.warn('Ignored malformed permit document synchronization message.');
           return;
         }
-        await this.synchronize.execute(documentId);
+        if (syncMessage.mode === 'STATUS_ONLY') {
+          await this.checkStatus.execute(syncMessage.documentId);
+          return;
+        }
+        await this.synchronize.execute(syncMessage.documentId);
       },
     });
     this.cronJob = this.plugin.app.cronJobManager.addJob({
@@ -85,11 +92,17 @@ export class PermitDocumentSyncScheduler {
     this.plugin.app.eventQueue.unsubscribe(PERMIT_DOCUMENT_SYNC_CHANNEL);
   };
 
-  private documentIdFrom(message: unknown): string | null {
+  private parseMessage(message: unknown): PermitDocumentSyncMessage | null {
     if (message === null || typeof message !== 'object') {
       return null;
     }
     const documentId = (message as Partial<PermitDocumentSyncMessage>).documentId;
-    return typeof documentId === 'string' && documentId.trim().length > 0 ? documentId : null;
+    if (typeof documentId !== 'string' || documentId.trim().length === 0) {
+      return null;
+    }
+    const rawMode = (message as Partial<PermitDocumentSyncMessage>).mode;
+    const mode: PermitDocumentSyncMode | null =
+      rawMode === undefined ? 'FULL' : rawMode === 'FULL' || rawMode === 'STATUS_ONLY' ? rawMode : null;
+    return mode ? { documentId, mode } : null;
   }
 }

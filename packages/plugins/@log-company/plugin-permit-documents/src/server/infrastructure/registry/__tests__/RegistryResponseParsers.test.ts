@@ -33,14 +33,59 @@ describe('registry response parsers', () => {
         certRegDate: '2026-08-26',
         certEndDate: '25.08.2031',
         idTechnicalReglaments: [17],
-        product: { fullName: 'Игрушки' },
+        product: {
+          fullName: 'Общее описание, которое не используется',
+          identifications: [{ name: 'Игрушка 1' }, { name: 'Игрушка 2' }],
+        },
       }),
     ).toMatchObject({
       externalId: '2',
       status: 'suspended',
       validUntil: '2031-08-25',
+      productInformation: 'Игрушка 1\nИгрушка 2',
       technicalRegulations: [{ source: 'FSA', fsaId: 17 }],
     });
+  });
+
+  it('parses an open-ended FSA declaration for a single product', () => {
+    expect(
+      new FsaResponseParser().parseCard('declaration_of_conformity', {
+        idDeclaration: 21892284,
+        idStatus: 6,
+        number: 'ЕАЭС N RU Д-RU.РА08.А.38696/26',
+        declRegDate: '2026-09-16',
+        declEndDate: null,
+        idTechnicalReglaments: [6],
+        product: { identifications: [{ name: 'лифт' }] },
+      }),
+    ).toMatchObject({
+      externalId: '21892284',
+      validFrom: '2026-09-16',
+      validUntil: null,
+      status: 'valid',
+    });
+  });
+
+  it('reads document statuses directly from exact search results', () => {
+    expect(
+      new FsaResponseParser().parseSearchStatus(
+        'declaration_of_conformity',
+        { items: [{ id: 101, idStatus: 6, number: 'DOC-1' }] },
+        'DOC-1',
+      ),
+    ).toEqual({
+      externalId: '101',
+      externalStatus: '6',
+      documentName: 'DOC-1',
+      documentType: 'declaration_of_conformity',
+      status: 'valid',
+    });
+    expect(
+      new EaeuResponseParser().parseSearchStatus(
+        [{ id: 'uuid', data: { NUMB_DOC: 'SGR-1', STATUS: { name: 'аннулирован' } } }],
+        'SGR-1',
+      ),
+    ).toMatchObject({ externalId: 'uuid', externalStatus: 'аннулирован', status: 'terminated' });
   });
 
   it('reads an SGR card, ignores dateTo and parses DOC_GIGHARK', () => {

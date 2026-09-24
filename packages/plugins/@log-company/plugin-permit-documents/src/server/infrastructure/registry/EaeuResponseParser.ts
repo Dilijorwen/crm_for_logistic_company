@@ -11,16 +11,36 @@ import {
   InvalidRegistryDocumentError,
   mapEaeuStatus,
   type RegistryDocument,
+  type RegistryDocumentStatus,
 } from '../../domain/permit-document/RegistryDocument';
 import { parseEaeuTechnicalRegulations } from '../../domain/permit-document/TechnicalRegulationParser';
 import { asArray, asRecord, nullableString, stringValue } from './RegistryValueReader';
 
 export class EaeuResponseParser {
   findExactSearchId(body: unknown, title: string): string | null {
-    const exactItem = asArray(body)
-      .map(asRecord)
-      .find((item) => stringValue(asRecord(item.data).NUMB_DOC)?.trim() === title.trim());
+    const exactItem = this.findExactSearchItem(body, title);
     return exactItem ? stringValue(exactItem.id)?.trim() || null : null;
+  }
+
+  parseSearchStatus(body: unknown, title: string): RegistryDocumentStatus | null {
+    const item = this.findExactSearchItem(body, title);
+    if (!item) {
+      return null;
+    }
+    const data = asRecord(item.data);
+    const externalId = stringValue(item.id)?.trim() || '';
+    const statusValue = nullableString(asRecord(data.STATUS).name);
+    const status = mapEaeuStatus(statusValue);
+    if (!externalId || status === null) {
+      throw new InvalidRegistryDocumentError('EAEU search result identity or status is invalid.');
+    }
+    return {
+      externalId,
+      externalStatus: statusValue,
+      documentName: stringValue(data.NUMB_DOC)?.trim() || '',
+      documentType: 'state_registration_certificate',
+      status,
+    };
   }
 
   parseCard(body: unknown): RegistryDocument {
@@ -50,5 +70,13 @@ export class EaeuResponseParser {
         name: item.name,
       })),
     };
+  }
+
+  private findExactSearchItem(body: unknown, title: string): Record<string, unknown> | null {
+    return (
+      asArray(body)
+        .map(asRecord)
+        .find((item) => stringValue(asRecord(item.data).NUMB_DOC)?.trim() === title.trim()) || null
+    );
   }
 }

@@ -111,8 +111,11 @@ export function validatePermitDocument(input: PermitDocumentPolicyInput): void {
     }
     return;
   }
+  if (input.validUntil === null || input.validUntil === undefined) {
+    return;
+  }
   if (validUntil === null) {
-    throw new PermitDocumentValidationError('MISSING_SUCCESS_FIELD');
+    throw new PermitDocumentValidationError('INVALID_DATE');
   }
   if (validUntil < validFrom) {
     throw new PermitDocumentValidationError('INVALID_DATE_RANGE');

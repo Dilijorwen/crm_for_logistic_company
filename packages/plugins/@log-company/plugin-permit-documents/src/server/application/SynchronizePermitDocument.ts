@@ -8,6 +8,7 @@
  */
 
 import {
+  buildPermitDocumentName,
   InvalidRegistryDocumentError,
   validateRegistryDocument,
   type EaeuTechnicalRegulationReference,
@@ -63,7 +64,7 @@ export class SynchronizePermitDocument {
 
     try {
       const registryDocument = snapshot.externalId
-        ? await this.registry.getByExternalId(snapshot.documentType, snapshot.externalId)
+        ? await this.registry.getByExternalId(snapshot.documentType, snapshot.externalId, snapshot.title)
         : await this.registry.findByTitle(snapshot.documentType, snapshot.title);
       if (!registryDocument) {
         if (snapshot.externalId) {
@@ -76,8 +77,14 @@ export class SynchronizePermitDocument {
 
       this.validateIdentity(identity, registryDocument);
       validateRegistryDocument(registryDocument);
+      const name = buildPermitDocumentName(
+        identity.title,
+        registryDocument.documentType,
+        registryDocument.validFrom,
+        registryDocument.validUntil,
+      );
       const regulations = await this.resolveTechnicalRegulations(registryDocument);
-      const result = await this.repository.applySuccess(identity, registryDocument, regulations, checkedAt);
+      const result = await this.repository.applySuccess(identity, registryDocument, name, regulations, checkedAt);
       if (result === 'UPDATED') {
         this.logger.info('Permit document synchronized.', { documentId });
         return 'SUCCESS';

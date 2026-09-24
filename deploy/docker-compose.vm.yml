@@ -53,6 +53,7 @@ services:
       FSA_PASSWORD: ${FSA_PASSWORD:?Set FSA_PASSWORD in .env.production}
       FSA_BASE_URL: ${FSA_BASE_URL:-https://pub.fsa.gov.ru}
       EAEU_BASE_URL: ${EAEU_BASE_URL:-https://nsi.eaeunion.org}
+      SWIS_BASE_URL: ${SWIS_BASE_URL:-https://swis.trade.kg}
     volumes:
       - ../storage:/app/nocobase/storage
     healthcheck:

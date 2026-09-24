@@ -2,8 +2,11 @@
   "name": "@log-company/plugin-permit-documents",
   "displayName": "Permit documents",
   "description": "Permit documents linked to Log Company organizations.",
-  "version": "2.0.60",
+  "version": "2.0.63",
   "main": "dist/server/index.js",
+  "dependencies": {
+    "htmlparser2": "8.0.2"
+  },
   "peerDependencies": {
     "@nocobase/client": "2.x",
     "@nocobase/database": "2.x",

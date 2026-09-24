@@ -8,7 +8,7 @@
  */
 
 import type { PermitDocumentType } from '../../domain/permit-document/PermitDocumentPolicy';
-import type { RegistryDocument } from '../../domain/permit-document/RegistryDocument';
+import type { RegistryDocument, RegistryDocumentStatus } from '../../domain/permit-document/RegistryDocument';
 import { RegistryError } from '../../domain/permit-document/RegistryErrors';
 import type { TechnicalRegulationCandidate } from '../../application/ports/PermitDocumentRepository';
 import type { JsonHttpRequest, JsonHttpResponse, JsonHttpTransport } from '../http/JsonHttpTransport';
@@ -26,6 +26,17 @@ export class FsaPermitRegistryClient {
   ) {}
 
   async findByTitle(documentType: FsaDocumentType, title: string): Promise<RegistryDocument | null> {
+    const response = await this.search(documentType, title);
+    const externalId = this.parser.findExactSearchId(response.body, title);
+    return externalId ? this.getByExternalId(documentType, externalId) : null;
+  }
+
+  async findStatusByTitle(documentType: FsaDocumentType, title: string): Promise<RegistryDocumentStatus | null> {
+    const response = await this.search(documentType, title);
+    return this.parser.parseSearchStatus(documentType, response.body, title);
+  }
+
+  private async search(documentType: FsaDocumentType, title: string): Promise<JsonHttpResponse> {
     const declaration = documentType === 'declaration_of_conformity';
     const response = await this.authorizedRequest({
       method: 'POST',
@@ -43,8 +54,7 @@ export class FsaPermitRegistryClient {
       },
     });
     this.assertSuccess(response);
-    const externalId = this.parser.findExactSearchId(response.body, title);
-    return externalId ? this.getByExternalId(documentType, externalId) : null;
+    return response;
   }
 
   async getByExternalId(documentType: FsaDocumentType, externalId: string): Promise<RegistryDocument | null> {

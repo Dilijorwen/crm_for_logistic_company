@@ -7,6 +7,8 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+export type PermitDocumentSyncMode = 'FULL' | 'STATUS_ONLY';
+
 export interface PermitDocumentSyncQueue {
-  enqueue(documentId: string): Promise<void>;
+  enqueue(documentId: string, mode: PermitDocumentSyncMode): Promise<void>;
 }

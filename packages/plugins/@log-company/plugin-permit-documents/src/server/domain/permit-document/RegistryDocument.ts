@@ -22,6 +22,14 @@ export interface EaeuTechnicalRegulationReference {
 
 export type TechnicalRegulationReference = FsaTechnicalRegulationReference | EaeuTechnicalRegulationReference;
 
+export interface RegistryDocumentStatus {
+  externalId: string;
+  externalStatus: string | null;
+  documentName: string;
+  documentType: PermitDocumentType;
+  status: PermitDocumentStatus;
+}
+
 export interface RegistryDocument {
   externalId: string;
   externalStatus: string | null;
@@ -36,6 +44,32 @@ export interface RegistryDocument {
 
 const FSA_TERMINATED_STATUSES = new Set([1, 10, 11, 14, 20, 42]);
 const FSA_VALID_STATUSES = new Set([3, 5, 6]);
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+export function buildPermitDocumentName(
+  documentNumber: string,
+  documentType: PermitDocumentType,
+  validFrom: string | null,
+  validUntil: string | null,
+): string {
+  const normalizedNumber = documentNumber.trim();
+  const formattedValidFrom = formatDateOnly(validFrom);
+  if (!formattedValidFrom) {
+    return normalizedNumber;
+  }
+  if (documentType === 'state_registration_certificate') {
+    return `${normalizedNumber} от ${formattedValidFrom}`;
+  }
+  const formattedValidUntil = formatDateOnly(validUntil);
+  return formattedValidUntil
+    ? `${normalizedNumber} от ${formattedValidFrom} до ${formattedValidUntil}`
+    : `${normalizedNumber} от ${formattedValidFrom}`;
+}
+
+function formatDateOnly(value: string | null): string | null {
+  const match = value?.match(DATE_ONLY_PATTERN);
+  return match ? `${match[3]}.${match[2]}.${match[1]}` : null;
+}
 
 export function mapFsaStatus(value: number): PermitDocumentStatus | null {
   if (FSA_TERMINATED_STATUSES.has(value)) {
@@ -66,6 +100,23 @@ export function mapEaeuStatus(value: string | null): PermitDocumentStatus | null
   return null;
 }
 
+export function mapSwisStatus(value: string): PermitDocumentStatus | null {
+  const normalized = value.trim().toLocaleLowerCase('ru-RU').replace(/ё/g, 'е');
+  if (
+    normalized === 'действует' ||
+    normalized === 'продлен' ||
+    normalized === 'продлена' ||
+    normalized === 'возобновлен' ||
+    normalized === 'возобновлена'
+  ) {
+    return 'valid';
+  }
+  if (normalized === 'приостановлен' || normalized === 'приостановлена') {
+    return 'suspended';
+  }
+  return normalized === 'прекращен' || normalized === 'прекращена' ? 'terminated' : null;
+}
+
 export function validateRegistryDocument(document: RegistryDocument): void {
   if (document.externalId.trim().length === 0 || document.documentName.trim().length === 0) {
     throw new InvalidRegistryDocumentError('Registry document identity is missing.');
@@ -73,7 +124,7 @@ export function validateRegistryDocument(document: RegistryDocument): void {
   if (document.productInformation.trim().length === 0) {
     throw new InvalidRegistryDocumentError('Registry product information is missing.');
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(document.validFrom)) {
+  if (!DATE_ONLY_PATTERN.test(document.validFrom)) {
     throw new InvalidRegistryDocumentError('Registry registration date is invalid.');
   }
   if (document.documentType === 'state_registration_certificate') {
@@ -82,8 +133,11 @@ export function validateRegistryDocument(document: RegistryDocument): void {
     }
     return;
   }
-  if (document.validUntil === null || !/^\d{4}-\d{2}-\d{2}$/.test(document.validUntil)) {
-    throw new InvalidRegistryDocumentError('Registry end date is missing or invalid.');
+  if (document.validUntil === null) {
+    return;
+  }
+  if (!DATE_ONLY_PATTERN.test(document.validUntil)) {
+    throw new InvalidRegistryDocumentError('Registry end date is invalid.');
   }
   if (document.validUntil < document.validFrom) {
     throw new InvalidRegistryDocumentError('Registry end date is earlier than its registration date.');
