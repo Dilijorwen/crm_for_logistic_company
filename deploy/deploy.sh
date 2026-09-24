@@ -15,7 +15,6 @@ plugins=(
   '@log-company/plugin-process-governance'
   '@log-company/plugin-process-discussion'
   '@log-company/plugin-process-documents'
-  '@log-company/plugin-process-tree'
 )
 
 fail() {
