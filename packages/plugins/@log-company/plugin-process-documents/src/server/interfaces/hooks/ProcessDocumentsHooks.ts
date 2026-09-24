@@ -20,10 +20,10 @@ import type {
 import { ProcessDocumentsError } from '../../domain/documents/DocumentErrors';
 import { parseDraftToken, parseIdentifier, type DocumentScope } from '../../domain/documents/DocumentScope';
 
-const PROCESS_COLLECTION = 'customs_processes';
+const SHIPMENTS_COLLECTION = 'shipments';
 const FOLDERS_COLLECTION = 'process_document_folders';
 const DOCUMENTS_COLLECTION = 'process_documents';
-const DRAFT_FORM_FIELD = '_processDocumentsDraftToken';
+const DRAFT_FORM_FIELD = '_shipmentDocumentsDraftToken';
 
 interface NocoBaseModel {
   isNewRecord?: boolean;
@@ -58,11 +58,11 @@ export class ProcessDocumentsHooks {
 
   register(): void {
     this.plugin.db.on(
-      `${PROCESS_COLLECTION}.afterCreateWithAssociations`,
+      `${SHIPMENTS_COLLECTION}.afterCreateWithAssociations`,
       async (model: NocoBaseModel, options: HookOptions) => {
         await this.attachDraftDocuments.execute({
           draftToken: this.draftTokenFromOptions(options),
-          processId: parseIdentifier(model.get('id')),
+          shipmentId: parseIdentifier(model.get('id')),
           actorId: this.actorIdFromOptions(options),
           isRoot: this.isRootFromOptions(options),
           transaction: options.transaction,
@@ -70,17 +70,17 @@ export class ProcessDocumentsHooks {
       },
     );
 
-    this.plugin.db.on(`${PROCESS_COLLECTION}.afterDestroy`, async (model: NocoBaseModel, options: HookOptions) => {
-      const processId = parseIdentifier(model.get('id'));
-      if (!processId) {
+    this.plugin.db.on(`${SHIPMENTS_COLLECTION}.afterDestroy`, async (model: NocoBaseModel, options: HookOptions) => {
+      const shipmentId = parseIdentifier(model.get('id'));
+      if (!shipmentId) {
         return;
       }
-      await this.deleteProcessDocuments.execute({ processId, transaction: options.transaction });
+      await this.deleteProcessDocuments.execute({ shipmentId, transaction: options.transaction });
     });
 
     this.plugin.db.on(`${FOLDERS_COLLECTION}.beforeSave`, async (model: NocoBaseModel, options: HookOptions) => {
       const previous = await this.previousFolder(model, options.transaction);
-      const scope = this.scopeFromModel(model, previous?.processId ?? null, previous?.draftToken ?? null);
+      const scope = this.scopeFromModel(model, previous?.shipmentId ?? null, previous?.draftToken ?? null);
       await this.validateFolderPlacement.execute({
         folderId: parseIdentifier(model.get('id')),
         parentFolderId:
@@ -94,7 +94,7 @@ export class ProcessDocumentsHooks {
 
     this.plugin.db.on(`${DOCUMENTS_COLLECTION}.beforeSave`, async (model: NocoBaseModel, options: HookOptions) => {
       const previous = await this.previousDocument(model, options.transaction);
-      const scope = this.scopeFromModel(model, previous?.processId ?? null, previous?.draftToken ?? null);
+      const scope = this.scopeFromModel(model, previous?.shipmentId ?? null, previous?.draftToken ?? null);
       await this.validateDocumentPlacement.execute({
         folderId: parseIdentifier(model.get('folder_id') ?? model.get('folder')) ?? previous?.folderId ?? null,
         scope,
@@ -137,18 +137,18 @@ export class ProcessDocumentsHooks {
 
   private scopeFromModel(
     model: NocoBaseModel,
-    previousProcessId: string | null,
+    previousShipmentId: string | null,
     previousDraftToken: string | null,
   ): DocumentScope {
-    const processId = parseIdentifier(model.get('process_id') ?? model.get('process')) ?? previousProcessId;
-    if (processId) {
-      return { mode: 'process', processId };
+    const shipmentId = parseIdentifier(model.get('shipment_id') ?? model.get('shipment')) ?? previousShipmentId;
+    if (shipmentId) {
+      return { mode: 'shipment', shipmentId };
     }
     const draftToken = parseDraftToken(model.get('draft_token')) ?? previousDraftToken;
     if (!draftToken) {
       throw new ProcessDocumentsError(
-        'PROCESS_REQUIRED',
-        'Нельзя создать документ без таможенного процесса или черновика процесса.',
+        'SHIPMENT_REQUIRED',
+        'Нельзя создать документ без поставки или черновика поставки.',
       );
     }
     return { mode: 'draft', draftToken };

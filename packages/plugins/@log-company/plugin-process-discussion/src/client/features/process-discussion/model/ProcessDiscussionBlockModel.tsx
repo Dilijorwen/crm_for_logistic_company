@@ -18,15 +18,23 @@ export class ProcessDiscussionBlockModel extends BlockModel {
       record?: Record<string, unknown> | null;
       filterByTk?: unknown;
       params?: Record<string, unknown>;
+      view?: {
+        inputArgs?: {
+          collectionName?: string;
+          filterByTk?: unknown;
+        };
+      };
     };
+    const viewInputArgs = context.view?.inputArgs;
 
     return (
       <ProcessDiscussionBlock
         modelContext={{
-          collection: context.collection,
+          collection: viewInputArgs?.collectionName ?? context.collection,
           record: context.record,
-          filterByTk: context.filterByTk,
+          filterByTk: viewInputArgs?.filterByTk ?? context.filterByTk,
           params: context.params,
+          model: this,
         }}
       />
     );
@@ -34,6 +42,6 @@ export class ProcessDiscussionBlockModel extends BlockModel {
 }
 
 ProcessDiscussionBlockModel.define({
-  label: 'Обсуждение процесса',
+  label: 'Обсуждение поставки',
   sort: 545,
 });

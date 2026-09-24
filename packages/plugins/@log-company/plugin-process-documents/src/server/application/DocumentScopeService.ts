@@ -1,3 +1,12 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import {
   assertDraftOwner,
   assertRecordMatchesScope,
@@ -15,7 +24,7 @@ import type {
 } from './ports/ProcessDocumentsRepository';
 
 export interface ResolveDocumentScopeInput {
-  processId: string | null;
+  shipmentId: string | null;
   draftToken: string | null;
   operation: ProcessDocumentOperation;
   actor: DocumentActor;
@@ -28,25 +37,25 @@ export class DocumentScopeService {
   ) {}
 
   async resolve(input: ResolveDocumentScopeInput): Promise<DocumentScope> {
-    if (input.processId) {
-      if (!(await this.repository.processExists(input.processId))) {
-        throw new ProcessDocumentsError('PROCESS_NOT_FOUND', 'Таможенный процесс не найден.');
+    if (input.shipmentId) {
+      if (!(await this.repository.shipmentExists(input.shipmentId))) {
+        throw new ProcessDocumentsError('SHIPMENT_NOT_FOUND', 'Поставка не найдена.');
       }
-      await this.access.assertAccess(input.processId, input.operation, input.actor);
-      return { mode: 'process', processId: input.processId };
+      await this.access.assertAccess(input.shipmentId, input.operation, input.actor);
+      return { mode: 'shipment', shipmentId: input.shipmentId };
     }
 
     if (!input.draftToken) {
       throw new ProcessDocumentsError(
-        'PROCESS_REQUIRED',
-        'Сначала сохраните таможенный процесс или откройте форму создания процесса.',
+        'SHIPMENT_REQUIRED',
+        'Сначала сохраните поставку или откройте форму создания поставки.',
       );
     }
     if (
       !input.actor.isRoot &&
       (!input.actor.userId || (await this.repository.draftHasRecordsOwnedByOther(input.draftToken, input.actor.userId)))
     ) {
-      throw new ProcessDocumentsError('DRAFT_ACCESS_DENIED', 'Нет прав для действия с черновыми документами процесса.');
+      throw new ProcessDocumentsError('DRAFT_ACCESS_DENIED', 'Нет прав для действия с черновыми документами поставки.');
     }
     return { mode: 'draft', draftToken: input.draftToken };
   }
@@ -150,16 +159,16 @@ export class DocumentScopeService {
     operation: ProcessDocumentOperation,
     actor: DocumentActor,
   ): Promise<DocumentScope> {
-    if (record.processId) {
-      if (!(await this.repository.processExists(record.processId))) {
-        throw new ProcessDocumentsError('PROCESS_NOT_FOUND', 'Таможенный процесс не найден.');
+    if (record.shipmentId) {
+      if (!(await this.repository.shipmentExists(record.shipmentId))) {
+        throw new ProcessDocumentsError('SHIPMENT_NOT_FOUND', 'Поставка не найдена.');
       }
-      await this.access.assertAccess(record.processId, operation, actor);
-      return { mode: 'process', processId: record.processId };
+      await this.access.assertAccess(record.shipmentId, operation, actor);
+      return { mode: 'shipment', shipmentId: record.shipmentId };
     }
 
     if (!draftToken) {
-      throw new ProcessDocumentsError('DRAFT_ACCESS_DENIED', 'Нет прав для действия с черновыми документами процесса.');
+      throw new ProcessDocumentsError('DRAFT_ACCESS_DENIED', 'Нет прав для действия с черновыми документами поставки.');
     }
     const scope: DocumentScope = { mode: 'draft', draftToken };
     assertDraftOwner(record, scope, actor);

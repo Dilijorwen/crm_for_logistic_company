@@ -1,3 +1,12 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
@@ -22,7 +31,7 @@ import { ProcessDocumentsError, type ProcessDocumentsErrorCode } from '../../dom
 import { normalizeNullableIdentifier, parseDraftToken, parseIdentifier } from '../../domain/documents/DocumentScope';
 
 const RESOURCE = 'processDocuments';
-const DRAFT_FORM_FIELD = '_processDocumentsDraftToken';
+const DRAFT_FORM_FIELD = '_shipmentDocumentsDraftToken';
 
 interface UploadedFile {
   path: string;
@@ -76,7 +85,7 @@ export class ProcessDocumentsController {
     await this.handle(context, async () => {
       const values = this.actionValues(context);
       const result = await this.actions.list.execute({
-        processId: parseIdentifier(values.processId),
+        shipmentId: parseIdentifier(values.shipmentId),
         draftToken: this.draftToken(values),
         folderId: normalizeNullableIdentifier(values.folderId),
         actor: this.actor(context),
@@ -94,7 +103,7 @@ export class ProcessDocumentsController {
     await this.handle(context, async () => {
       const values = this.actionValues(context);
       const folder = await this.actions.createFolder.execute({
-        processId: parseIdentifier(values.processId),
+        shipmentId: parseIdentifier(values.shipmentId),
         draftToken: this.draftToken(values),
         parentFolderId: normalizeNullableIdentifier(values.parentFolderId ?? values.parent_folder_id),
         title: String(values.title || ''),
@@ -112,7 +121,7 @@ export class ProcessDocumentsController {
       try {
         const values = this.actionValues(context);
         const result = await this.actions.uploadFiles.execute({
-          processId: parseIdentifier(values.processId),
+          shipmentId: parseIdentifier(values.shipmentId),
           draftToken: this.draftToken(values),
           folderId: normalizeNullableIdentifier(values.folderId),
           files: files.map(
@@ -243,7 +252,7 @@ export class ProcessDocumentsController {
     return {
       id: folder.id,
       title: folder.title,
-      process_id: folder.processId,
+      shipment_id: folder.shipmentId,
       draft_token: folder.draftToken,
       parent_folder_id: folder.parentFolderId,
       createdById: folder.createdById,
@@ -259,7 +268,7 @@ export class ProcessDocumentsController {
       id: document.id,
       title: document.title,
       original_filename: document.originalFilename,
-      process_id: document.processId,
+      shipment_id: document.shipmentId,
       draft_token: document.draftToken,
       folder_id: document.folderId,
       storage_key: document.storageKey,
@@ -297,10 +306,10 @@ export class ProcessDocumentsController {
   }
 
   private statusFor(code: ProcessDocumentsErrorCode): number {
-    if (code === 'PROCESS_ACCESS_DENIED' || code === 'DRAFT_ACCESS_DENIED') {
+    if (code === 'SHIPMENT_ACCESS_DENIED' || code === 'DRAFT_ACCESS_DENIED') {
       return 403;
     }
-    if (code === 'PROCESS_NOT_FOUND' || code === 'FOLDER_NOT_FOUND' || code === 'DOCUMENT_NOT_FOUND') {
+    if (code === 'SHIPMENT_NOT_FOUND' || code === 'FOLDER_NOT_FOUND' || code === 'DOCUMENT_NOT_FOUND') {
       return 404;
     }
     return 400;

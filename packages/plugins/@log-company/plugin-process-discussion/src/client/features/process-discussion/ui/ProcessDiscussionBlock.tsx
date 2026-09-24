@@ -20,7 +20,12 @@ import {
   useFormBlockContext,
   useRecord,
 } from '@nocobase/client';
-import { getInnermostRouteFilterByTk } from '@log-company/plugin-process-governance/client';
+import { useFlowContext } from '@nocobase/flow-engine';
+import {
+  getFlowModelPopupCollectionMode,
+  getInnermostRouteFilterByTk,
+  getPathRouteFilterByTkValues,
+} from '@log-company/plugin-process-governance/client';
 import { observer } from '@formily/react';
 import {
   Alert,
@@ -47,11 +52,11 @@ import {
 
 const PAGE_SIZE = 50;
 const POLL_INTERVAL = 15000;
-const PROCESS_COLLECTION = 'customs_processes';
-const COMMENTS_COLLECTION = 'process_comments';
-const ASSOCIATION_RESOURCE = 'customs_processes.comments';
-const PROCESS_ASSOCIATION_FIELD = 'process';
-const PROCESS_FOREIGN_KEY = 'process_id';
+const PROCESS_COLLECTION = 'shipments';
+const COMMENTS_COLLECTION = 'shipment_comments';
+const ASSOCIATION_RESOURCE = 'shipments.comments';
+const PROCESS_ASSOCIATION_FIELD = 'shipment';
+const PROCESS_FOREIGN_KEY = 'shipment_id';
 const ATTACHMENT_FIELD = 'attachment';
 
 type ProcessResourceKey = string | number;
@@ -61,6 +66,16 @@ type ProcessDiscussionModelContext = {
   record?: Record<string, unknown> | null;
   filterByTk?: unknown;
   params?: Record<string, unknown>;
+  model?: unknown;
+};
+
+type ProcessFlowContext = {
+  view?: {
+    inputArgs?: {
+      collectionName?: string;
+      filterByTk?: unknown;
+    };
+  };
 };
 
 type ProcessDiscussionBlockProps = {
@@ -281,14 +296,22 @@ function useProcessTarget(
   const formBlockContext = useFormBlockContext();
   const popupRecord = useCurrentPopupRecord();
   const recordContext = useRecord<Record<string, unknown>>();
+  const flowContext = useFlowContext<ProcessFlowContext>();
+  const viewInputArgs = flowContext?.view?.inputArgs;
+  const isProcessView = viewInputArgs?.collectionName === PROCESS_COLLECTION;
+  const viewProcessKey = normalizeFilterByTk(viewInputArgs?.filterByTk);
   const processCollection = getProcessCollection(collectionManager, collection);
   const formBlockCollection = formBlockContext?.collectionName || dataBlockProps?.collection || collection;
   const isProcessFormBlock = isProcessCollection(formBlockCollection);
   const formBlockIsCreate = isProcessFormBlock && isCreateFormBlock(formBlockContext);
   const formBlockIsUpdate = isProcessFormBlock && isUpdateFormBlock(formBlockContext, dataBlockProps);
+  const popupCollectionMode = getFlowModelPopupCollectionMode(modelContext?.model, PROCESS_COLLECTION);
 
-  if (formBlockIsCreate) {
-    return { status: 'new', source: 'form-create' };
+  if (formBlockIsCreate || popupCollectionMode === 'create' || (isProcessView && isEmptyResourceKey(viewProcessKey))) {
+    return {
+      status: 'new',
+      source: formBlockIsCreate ? 'form-create' : isProcessView ? 'view-create' : 'create-popup',
+    };
   }
 
   if (formBlockIsUpdate) {
@@ -348,14 +371,34 @@ function useProcessTarget(
     return { status: 'ready', key: explicitProcessId, source: 'explicit-prop' };
   }
 
+  if (isProcessView && !isEmptyResourceKey(viewProcessKey)) {
+    return { status: 'ready', key: viewProcessKey, source: 'flow-view' };
+  }
+
+  const nestedPopupRouteKeys = getPathRouteFilterByTkValues();
+  if (nestedPopupRouteKeys.length > 1) {
+    return {
+      status: 'ready',
+      key: nestedPopupRouteKeys[nestedPopupRouteKeys.length - 1],
+      source: 'nested-popup-route',
+    };
+  }
+
   const hasProcessContext =
-    isProcessFormBlock || candidates.some((candidate) => isProcessCollection(candidate.collection, candidate.record));
+    isProcessFormBlock ||
+    popupCollectionMode === 'record' ||
+    candidates.some((candidate) => isProcessCollection(candidate.collection, candidate.record));
   const isNewProcess =
     formBlockIsCreate ||
     candidates.some((candidate) => candidate.isNew && isProcessCollection(candidate.collection, candidate.record));
 
   if (isNewProcess) {
     return { status: 'new', source: 'form-record' };
+  }
+
+  const routeKey = normalizeFilterByTk(getInnermostRouteFilterByTk());
+  if (popupCollectionMode === 'record' && !isEmptyResourceKey(routeKey)) {
+    return { status: 'ready', key: routeKey, source: 'popup-route' };
   }
 
   const fallbackKey = normalizeFilterByTk(
@@ -369,8 +412,7 @@ function useProcessTarget(
     return { status: 'ready', key: fallbackKey, source: 'filterByTk' };
   }
 
-  const routeKey = normalizeFilterByTk(getInnermostRouteFilterByTk());
-  if (!isEmptyResourceKey(routeKey)) {
+  if (hasProcessContext && !isEmptyResourceKey(routeKey)) {
     return { status: 'ready', key: routeKey, source: 'route' };
   }
 
@@ -780,7 +822,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
       formData.append(PROCESS_DISCUSSION_ATTACHMENT_PURPOSE_FIELD, PROCESS_DISCUSSION_ATTACHMENT_PURPOSE);
       try {
         const response = await api.request({
-          url: `attachments:create?attachmentField=process_comments.${ATTACHMENT_FIELD}`,
+          url: `attachments:create?attachmentField=shipment_comments.${ATTACHMENT_FIELD}`,
           method: 'post',
           data: formData,
           onUploadProgress: ({ total, loaded }) => {
@@ -898,7 +940,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
   }
 
   if (processTarget.status !== 'ready') {
-    return <Alert type="info" showIcon message="Сначала сохраните процесс, чтобы открыть обсуждение." />;
+    return <Alert type="info" showIcon message="Сначала сохраните поставку, чтобы открыть обсуждение." />;
   }
 
   return (

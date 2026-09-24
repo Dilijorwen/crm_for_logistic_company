@@ -31,6 +31,25 @@ function decodePathSegment(value: string) {
   }
 }
 
+export function getPathRouteFilterByTkValues(location: RouteLocationLike | undefined = getCurrentLocation()) {
+  if (!location) {
+    return [];
+  }
+
+  const values: string[] = [];
+  const pathSegments = location.pathname.split('/').filter(Boolean);
+  for (let index = 0; index < pathSegments.length - 1; index += 1) {
+    const segment = pathSegments[index].toLowerCase();
+    if (segment === 'filterbytk' || segment === 'filter-by-tk' || segment === 'filterbytk[]') {
+      const value = decodePathSegment(pathSegments[index + 1]);
+      if (value !== '') {
+        values.push(value);
+      }
+    }
+  }
+  return values;
+}
+
 /**
  * Returns the record key belonging to the innermost popup represented by the route.
  * NocoBase appends another `filterbytk/<key>` pair for each nested popup, so the
@@ -52,16 +71,6 @@ export function getInnermostRouteFilterByTk(location: RouteLocationLike | undefi
     }
   }
 
-  const pathSegments = location.pathname.split('/').filter(Boolean);
-  for (let index = pathSegments.length - 2; index >= 0; index -= 1) {
-    const segment = pathSegments[index].toLowerCase();
-    if (segment === 'filterbytk' || segment === 'filter-by-tk' || segment === 'filterbytk[]') {
-      const value = decodePathSegment(pathSegments[index + 1]);
-      if (value !== '') {
-        return value;
-      }
-    }
-  }
-
-  return undefined;
+  const pathValues = getPathRouteFilterByTkValues(location);
+  return pathValues[pathValues.length - 1];
 }

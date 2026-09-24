@@ -49,25 +49,25 @@ function hookFixture() {
   return { handlers, deleteProcessDocumentsExecute };
 }
 
-describe('ProcessDocumentsHooks process deletion', () => {
-  it('cleans documents after a customs process is destroyed', async () => {
+describe('ProcessDocumentsHooks shipment deletion', () => {
+  it('cleans documents after a shipment is destroyed', async () => {
     const { handlers, deleteProcessDocumentsExecute } = hookFixture();
-    const handler = handlers.get('customs_processes.afterDestroy');
+    const handler = handlers.get('shipments.afterDestroy');
     const transaction: TransactionContext = {};
     if (!handler) {
-      throw new Error('customs_processes.afterDestroy hook was not registered');
+      throw new Error('shipments.afterDestroy hook was not registered');
     }
 
-    await handler({ get: () => 'process-1' }, { transaction });
+    await handler({ get: () => 'shipment-1' }, { transaction });
 
-    expect(deleteProcessDocumentsExecute).toHaveBeenCalledWith({ processId: 'process-1', transaction });
+    expect(deleteProcessDocumentsExecute).toHaveBeenCalledWith({ shipmentId: 'shipment-1', transaction });
   });
 
-  it('ignores a destroyed process without an identifier', async () => {
+  it('ignores a destroyed shipment without an identifier', async () => {
     const { handlers, deleteProcessDocumentsExecute } = hookFixture();
-    const handler = handlers.get('customs_processes.afterDestroy');
+    const handler = handlers.get('shipments.afterDestroy');
     if (!handler) {
-      throw new Error('customs_processes.afterDestroy hook was not registered');
+      throw new Error('shipments.afterDestroy hook was not registered');
     }
 
     await handler({ get: () => null }, {});

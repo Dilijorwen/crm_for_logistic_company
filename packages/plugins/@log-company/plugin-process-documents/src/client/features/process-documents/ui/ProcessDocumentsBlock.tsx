@@ -29,14 +29,19 @@ import {
   useFormBlockContext,
   useRecord,
 } from '@nocobase/client';
-import { getInnermostRouteFilterByTk } from '@log-company/plugin-process-governance/client';
+import { useFlowContext } from '@nocobase/flow-engine';
+import {
+  getFlowModelPopupCollectionMode,
+  getInnermostRouteFilterByTk,
+  getPathRouteFilterByTkValues,
+} from '@log-company/plugin-process-governance/client';
 import { observer } from '@formily/react';
 import { Alert, Button, Dropdown, Empty, Modal, Spin, Tooltip, message, theme as antdTheme } from 'antd';
 import dayjs from 'dayjs';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ensureProcessDocumentsDraftToken } from '../model/draftToken';
 
-const PROCESS_COLLECTION = 'customs_processes';
+const PROCESS_COLLECTION = 'shipments';
 
 type ProcessResourceKey = string | number;
 
@@ -50,6 +55,15 @@ type ProcessDocumentsModelContext = {
   filterByTk?: unknown;
   params?: Record<string, unknown>;
   model?: unknown;
+};
+
+type ProcessFlowContext = {
+  view?: {
+    inputArgs?: {
+      collectionName?: string;
+      filterByTk?: unknown;
+    };
+  };
 };
 
 type ProcessTarget =
@@ -219,33 +233,6 @@ function isCreateFormBlock(formBlockContext: unknown) {
   return asRecord(formBlockContext).type === 'create';
 }
 
-function isProcessCreatePopupModel(model: unknown) {
-  let cursor = model;
-  const seen = new Set<unknown>();
-  for (let depth = 0; cursor && depth < 24 && !seen.has(cursor); depth += 1) {
-    seen.add(cursor);
-    const cursorRecord = asRecord(cursor);
-    const stepParams = asRecord(cursorRecord.stepParams);
-    const createCollection =
-      asRecord(asRecord(stepParams.resourceSettings).init).collectionName ||
-      asRecord(asRecord(stepParams.popupSettings).openView).collectionName ||
-      asRecord(cursorRecord.props).collection ||
-      asRecord(cursorRecord.context).collectionName;
-    if (
-      (cursorRecord.use === 'CreateFormModel' || cursorRecord.use === 'AddNewActionModel') &&
-      createCollection === PROCESS_COLLECTION
-    ) {
-      return true;
-    }
-    cursor =
-      cursorRecord.parent ||
-      (cursorRecord.parentId
-        ? callMethod(cursorRecord.flowEngine, 'getModel', cursorRecord.parentId, true)
-        : undefined);
-  }
-  return false;
-}
-
 function useProcessTarget(
   modelContext?: ProcessDocumentsModelContext,
   explicitProcessId?: ProcessResourceKey | null,
@@ -257,15 +244,23 @@ function useProcessTarget(
   const formBlockContext = useFormBlockContext();
   const popupRecord = useCurrentPopupRecord();
   const recordContext = useRecord<Record<string, unknown>>();
+  const flowContext = useFlowContext<ProcessFlowContext>();
+  const viewInputArgs = flowContext?.view?.inputArgs;
+  const isProcessView = viewInputArgs?.collectionName === PROCESS_COLLECTION;
+  const viewProcessKey = normalizeFilterByTk(viewInputArgs?.filterByTk);
   const processCollection = getProcessCollection(collectionManager, collection);
   const formBlockCollection = formBlockContext?.collectionName || dataBlockProps?.collection || collection;
   const isProcessFormBlock = isProcessCollection(formBlockCollection);
   const formBlockIsCreate = isProcessFormBlock && isCreateFormBlock(formBlockContext);
   const formBlockIsUpdate = isProcessFormBlock && isUpdateFormBlock(formBlockContext, dataBlockProps);
-  const blockIsInProcessCreatePopup = isProcessCreatePopupModel(modelContext?.model);
+  const popupCollectionMode = getFlowModelPopupCollectionMode(modelContext?.model, PROCESS_COLLECTION);
+  const blockIsInProcessCreatePopup = popupCollectionMode === 'create';
 
-  if (formBlockIsCreate || blockIsInProcessCreatePopup) {
-    return { status: 'new', source: formBlockIsCreate ? 'form-create' : 'create-popup' };
+  if (formBlockIsCreate || blockIsInProcessCreatePopup || (isProcessView && isEmptyResourceKey(viewProcessKey))) {
+    return {
+      status: 'new',
+      source: formBlockIsCreate ? 'form-create' : isProcessView ? 'view-create' : 'create-popup',
+    };
   }
 
   if (formBlockIsUpdate) {
@@ -313,14 +308,34 @@ function useProcessTarget(
     return { status: 'ready', key: explicitProcessId, source: 'explicit-prop' };
   }
 
+  if (isProcessView && !isEmptyResourceKey(viewProcessKey)) {
+    return { status: 'ready', key: viewProcessKey, source: 'flow-view' };
+  }
+
+  const nestedPopupRouteKeys = getPathRouteFilterByTkValues();
+  if (nestedPopupRouteKeys.length > 1) {
+    return {
+      status: 'ready',
+      key: nestedPopupRouteKeys[nestedPopupRouteKeys.length - 1],
+      source: 'nested-popup-route',
+    };
+  }
+
   const hasProcessContext =
-    isProcessFormBlock || candidates.some((candidate) => isProcessCollection(candidate.collection, candidate.record));
+    isProcessFormBlock ||
+    popupCollectionMode === 'record' ||
+    candidates.some((candidate) => isProcessCollection(candidate.collection, candidate.record));
   const isNewProcess =
     formBlockIsCreate ||
     candidates.some((candidate) => candidate.isNew && isProcessCollection(candidate.collection, candidate.record));
 
   if (isNewProcess) {
     return { status: 'new', source: 'form-record' };
+  }
+
+  const routeKey = normalizeFilterByTk(getInnermostRouteFilterByTk());
+  if (popupCollectionMode === 'record' && !isEmptyResourceKey(routeKey)) {
+    return { status: 'ready', key: routeKey, source: 'popup-route' };
   }
 
   const fallbackKey = normalizeFilterByTk(
@@ -334,8 +349,7 @@ function useProcessTarget(
     return { status: 'ready', key: fallbackKey, source: 'filterByTk' };
   }
 
-  const routeKey = normalizeFilterByTk(getInnermostRouteFilterByTk());
-  if (!isEmptyResourceKey(routeKey)) {
+  if (hasProcessContext && !isEmptyResourceKey(routeKey)) {
     return { status: 'ready', key: routeKey, source: 'route' };
   }
 
@@ -495,15 +509,15 @@ const blockClass = css`
 `;
 
 function ProcessDocumentsBlockComponent({
-  processId,
+  shipmentId,
   modelContext,
 }: {
-  processId?: ProcessResourceKey | null;
+  shipmentId?: ProcessResourceKey | null;
   modelContext?: ProcessDocumentsModelContext;
 }) {
   const api = useAPIClient();
   const { token } = antdTheme.useToken();
-  const processTarget: ProcessTarget = useProcessTarget(modelContext, processId);
+  const processTarget: ProcessTarget = useProcessTarget(modelContext, shipmentId);
   const processKey = processTarget.status === 'ready' ? processTarget.key : undefined;
   const [draftToken, setDraftToken] = useState<string>();
   const [folderId, setFolderId] = useState<string | number | null>(null);
@@ -542,7 +556,7 @@ function ProcessDocumentsBlockComponent({
 
   const requestScope = useMemo(() => {
     if (!isEmptyResourceKey(processKey)) {
-      return { processId: processKey };
+      return { shipmentId: processKey };
     }
     if (processTarget.status === 'new' && draftToken) {
       return { draftToken };
@@ -550,8 +564,8 @@ function ProcessDocumentsBlockComponent({
     return null;
   }, [draftToken, processKey, processTarget.status]);
 
-  const scopeKey = requestScope?.processId
-    ? `process:${requestScope.processId}`
+  const scopeKey = requestScope?.shipmentId
+    ? `shipment:${requestScope.shipmentId}`
     : requestScope?.draftToken
       ? `draft:${requestScope.draftToken}`
       : '';
@@ -576,7 +590,7 @@ function ProcessDocumentsBlockComponent({
       setCanDelete(!!data.permissions?.canDelete);
       setError(null);
     } catch (err) {
-      setError(getErrorText(err, 'Не удалось загрузить документы процесса'));
+      setError(getErrorText(err, 'Не удалось загрузить документы поставки'));
       setCanWrite(false);
       setCanDelete(false);
     } finally {
@@ -595,7 +609,7 @@ function ProcessDocumentsBlockComponent({
   }, [scopeKey]);
 
   useEffect(() => {
-    load().catch((loadError) => setError(getErrorText(loadError, 'Не удалось загрузить документы процесса')));
+    load().catch((loadError) => setError(getErrorText(loadError, 'Не удалось загрузить документы поставки')));
   }, [load]);
 
   const uploadFiles = useCallback(
@@ -604,8 +618,8 @@ function ProcessDocumentsBlockComponent({
         return;
       }
       const formData = new FormData();
-      if (requestScope.processId) {
-        formData.append('processId', String(requestScope.processId));
+      if (requestScope.shipmentId) {
+        formData.append('shipmentId', String(requestScope.shipmentId));
       } else if (requestScope.draftToken) {
         formData.append('draftToken', requestScope.draftToken);
       }
@@ -730,7 +744,7 @@ function ProcessDocumentsBlockComponent({
   }
 
   if (processTarget.status !== 'ready' && processTarget.status !== 'new') {
-    return <Alert type="info" showIcon message="Сначала сохраните процесс, чтобы открыть документы." />;
+    return <Alert type="info" showIcon message="Сначала сохраните поставку, чтобы открыть документы." />;
   }
 
   return (
@@ -738,7 +752,7 @@ function ProcessDocumentsBlockComponent({
       <div className="process-documents-shell">
         {error ? <Alert type="warning" showIcon message={error} /> : null}
         {processTarget.status === 'new' ? (
-          <Alert type="info" showIcon message="Документы будут прикреплены к процессу после сохранения формы." />
+          <Alert type="info" showIcon message="Документы будут прикреплены к поставке после сохранения формы." />
         ) : null}
         <div className="process-documents-toolbar">
           {effectiveCanWrite ? (

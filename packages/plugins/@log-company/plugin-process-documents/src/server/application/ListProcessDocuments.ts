@@ -1,8 +1,17 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import type { DocumentActor, ProcessDocumentsRepository } from './ports/ProcessDocumentsRepository';
 import { DocumentScopeService } from './DocumentScopeService';
 
 export interface ListProcessDocumentsInput {
-  processId: string | null;
+  shipmentId: string | null;
   draftToken: string | null;
   folderId: string | null;
   actor: DocumentActor;

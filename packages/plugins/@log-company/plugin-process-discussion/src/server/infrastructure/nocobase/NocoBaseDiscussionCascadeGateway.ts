@@ -1,11 +1,20 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import type { Plugin } from '@nocobase/server';
 import type { DiscussionCascadeGateway } from '../../application/ports/DiscussionCascadeGateway';
 
-const PROCESS_COLLECTION = 'customs_processes';
-const COMMENTS_COLLECTION = 'process_comments';
+const PROCESS_COLLECTION = 'shipments';
+const COMMENTS_COLLECTION = 'shipment_comments';
 const PROCESS_COMMENTS_FIELD = 'comments';
-const COMMENT_PROCESS_FIELD = 'process';
-const COMMENT_PROCESS_FOREIGN_KEY = 'process_id';
+const COMMENT_PROCESS_FIELD = 'shipment';
+const COMMENT_PROCESS_FOREIGN_KEY = 'shipment_id';
 
 export class NocoBaseDiscussionCascadeGateway implements DiscussionCascadeGateway {
   constructor(private readonly plugin: Plugin) {}

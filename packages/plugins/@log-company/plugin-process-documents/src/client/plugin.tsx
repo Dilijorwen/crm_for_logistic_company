@@ -1,3 +1,12 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import { Plugin } from '@nocobase/client';
 import models from './features/process-documents/model';
 import {
@@ -16,11 +25,10 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
-function isCustomsProcessCreate(config: unknown): boolean {
+function isShipmentCreate(config: unknown): boolean {
   const request = asRecord(config) as RequestConfig;
   return (
-    String(request.url || '').includes('customs_processes:create') &&
-    String(request.method || 'get').toLowerCase() === 'post'
+    String(request.url || '').includes('shipments:create') && String(request.method || 'get').toLowerCase() === 'post'
   );
 }
 
@@ -50,7 +58,7 @@ export class PluginProcessDocumentsClient extends Plugin {
     this.removeInterceptors();
 
     this.requestInterceptorId = this.app.apiClient.axios.interceptors.request.use((config) => {
-      if (!isCustomsProcessCreate(config)) {
+      if (!isShipmentCreate(config)) {
         return config;
       }
       const token = getProcessDocumentsDraftToken();
@@ -66,7 +74,7 @@ export class PluginProcessDocumentsClient extends Plugin {
     });
 
     this.responseInterceptorId = this.app.apiClient.axios.interceptors.response.use((response) => {
-      if (isCustomsProcessCreate(response.config)) {
+      if (isShipmentCreate(response.config)) {
         clearProcessDocumentsDraftToken(getConfigDraftToken(response.config));
       }
       return response;

@@ -21,10 +21,10 @@ const document: ProcessDocumentRecord = {
   id: '101',
   title: 'invoice.pdf',
   originalFilename: 'invoice.pdf',
-  processId: '202',
+  shipmentId: '202',
   draftToken: null,
   folderId: null,
-  storageKey: 'processes/202/invoice.pdf',
+  storageKey: 'shipments/202/invoice.pdf',
   mimeType: 'application/pdf',
   fileSize: 128,
   createdById: '7',
@@ -38,7 +38,7 @@ function dependencies() {
   );
   const repository = { withTransaction, deleteDocument } as unknown as ProcessDocumentsRepository;
   const requireDocument = vi.fn().mockResolvedValue(document);
-  const resolveForDocument = vi.fn().mockResolvedValue({ mode: 'process', processId: '202' });
+  const resolveForDocument = vi.fn().mockResolvedValue({ mode: 'shipment', shipmentId: '202' });
   const scopeService = { requireDocument, resolveForDocument } as unknown as DocumentScopeService;
   const storageDelete = vi.fn().mockResolvedValue(true);
   const storage = { delete: storageDelete } as unknown as DocumentStorage;

@@ -1,5 +1,14 @@
-export const PROCESS_DOCUMENTS_DRAFT_FIELD = '_processDocumentsDraftToken';
-const STORAGE_KEY = 'log-company:process-documents:draft-token';
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
+export const PROCESS_DOCUMENTS_DRAFT_FIELD = '_shipmentDocumentsDraftToken';
+const STORAGE_KEY = 'log-company:shipment-documents:draft-token';
 
 function isValidToken(value: unknown): value is string {
   return typeof value === 'string' && /^[a-zA-Z0-9_-]{16,120}$/.test(value);

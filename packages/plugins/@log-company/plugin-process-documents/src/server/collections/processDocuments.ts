@@ -1,8 +1,17 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import { defineCollection } from '@nocobase/database';
 
 export default defineCollection({
   name: 'process_documents',
-  title: 'Документы процесса',
+  title: 'Документы поставки',
   template: 'general',
   view: false,
   autoGenId: false,
@@ -22,7 +31,7 @@ export default defineCollection({
       allowNull: false,
       uiSchema: {
         type: 'number',
-        title: '{{t("ID")}}',
+        title: 'ID',
         'x-component': 'InputNumber',
         'x-component-props': { stringMode: true, separator: '0.00', step: '1' },
         'x-validator': 'integer',
@@ -44,16 +53,30 @@ export default defineCollection({
     },
     {
       type: 'bigInt',
+      name: 'shipment_id',
+      interface: 'integer',
+      isForeignKey: true,
+      hidden: true,
+      uiSchema: { type: 'number', title: 'Поставка', 'x-component': 'InputNumber', 'x-read-pretty': true },
+    },
+    {
+      type: 'bigInt',
       name: 'process_id',
       interface: 'integer',
       isForeignKey: true,
-      uiSchema: { type: 'number', title: 'process_id', 'x-component': 'InputNumber', 'x-read-pretty': true },
+      hidden: true,
+      uiSchema: {
+        type: 'number',
+        title: 'Старая связь с таможенным процессом',
+        'x-component': 'InputNumber',
+        'x-read-pretty': true,
+      },
     },
     {
       type: 'string',
       name: 'draft_token',
       interface: 'input',
-      uiSchema: { type: 'string', title: 'Черновик процесса', 'x-component': 'Input', 'x-read-pretty': true },
+      uiSchema: { type: 'string', title: 'Черновик поставки', 'x-component': 'Input', 'x-read-pretty': true },
     },
     {
       type: 'bigInt',

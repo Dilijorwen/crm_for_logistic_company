@@ -8,7 +8,11 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { getInnermostRouteFilterByTk, type RouteLocationLike } from '../getInnermostRouteFilterByTk';
+import {
+  getInnermostRouteFilterByTk,
+  getPathRouteFilterByTkValues,
+  type RouteLocationLike,
+} from '../getInnermostRouteFilterByTk';
 
 function route(pathname: string, search = '', hash = ''): RouteLocationLike {
   return { pathname, search, hash };
@@ -21,6 +25,7 @@ describe('getInnermostRouteFilterByTk', () => {
       'tab/ad77a1644da/filterbytk/379173154324480/sourceid/370463144542208';
 
     expect(getInnermostRouteFilterByTk(route(pathname))).toBe('379173154324480');
+    expect(getPathRouteFilterByTkValues(route(pathname))).toEqual(['370463144542208', '379173154324480']);
   });
 
   it('keeps the only popup key for a non-nested route', () => {

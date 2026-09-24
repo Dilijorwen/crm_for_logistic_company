@@ -1,3 +1,12 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import { BlockModel } from '@nocobase/client';
 import React from 'react';
 import { ProcessDocumentsBlock } from '../ui/ProcessDocumentsBlock';
@@ -9,14 +18,21 @@ export class ProcessDocumentsBlockModel extends BlockModel {
       record?: Record<string, unknown> | null;
       filterByTk?: unknown;
       params?: Record<string, unknown>;
+      view?: {
+        inputArgs?: {
+          collectionName?: string;
+          filterByTk?: unknown;
+        };
+      };
     };
+    const viewInputArgs = context.view?.inputArgs;
 
     return (
       <ProcessDocumentsBlock
         modelContext={{
-          collection: context.collection,
+          collection: viewInputArgs?.collectionName ?? context.collection,
           record: context.record,
-          filterByTk: context.filterByTk,
+          filterByTk: viewInputArgs?.filterByTk ?? context.filterByTk,
           params: context.params,
           model: this,
         }}
@@ -26,6 +42,6 @@ export class ProcessDocumentsBlockModel extends BlockModel {
 }
 
 ProcessDocumentsBlockModel.define({
-  label: 'Документы процесса',
+  label: 'Документы поставки',
   sort: 547,
 });

@@ -7,6 +7,7 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import type React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 const { define } = vi.hoisted(() => ({ define: vi.fn() }));
@@ -23,13 +24,44 @@ vi.mock('../../ui/ProcessDiscussionBlock', () => ({
   ProcessDiscussionBlock: () => null,
 }));
 
-import '../ProcessDiscussionBlockModel';
+import { ProcessDiscussionBlockModel } from '../ProcessDiscussionBlockModel';
+
+interface DiscussionElementProps {
+  modelContext: {
+    collection?: unknown;
+    record?: Record<string, unknown> | null;
+    filterByTk?: unknown;
+    params?: Record<string, unknown>;
+    model?: unknown;
+  };
+}
+
+function renderModel(context: unknown): DiscussionElementProps {
+  const instance = Object.assign(Object.create(ProcessDiscussionBlockModel.prototype), {
+    context,
+  }) as ProcessDiscussionBlockModel;
+  return (instance.renderComponent() as React.ReactElement<DiscussionElementProps>).props;
+}
 
 describe('ProcessDiscussionBlockModel', () => {
   it('registers a readable Russian label without a translation key', () => {
     expect(define).toHaveBeenCalledWith({
-      label: 'Обсуждение процесса',
+      label: 'Обсуждение поставки',
       sort: 545,
+    });
+  });
+
+  it('uses the current shipment popup arguments instead of the outer run context', () => {
+    const props = renderModel({
+      collection: { name: 'transport_runs' },
+      filterByTk: 'run-17',
+      view: { inputArgs: { collectionName: 'shipments', filterByTk: 'shipment-42' } },
+    });
+
+    expect(props.modelContext).toMatchObject({
+      collection: 'shipments',
+      filterByTk: 'shipment-42',
+      model: expect.any(ProcessDiscussionBlockModel),
     });
   });
 });

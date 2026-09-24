@@ -22,7 +22,7 @@ export interface DocumentActor {
 export interface DocumentFolderRecord {
   id: string;
   title: string;
-  processId: string | null;
+  shipmentId: string | null;
   draftToken: string | null;
   parentFolderId: string | null;
   createdById: string | null;
@@ -35,7 +35,7 @@ export interface ProcessDocumentRecord {
   id: string;
   title: string;
   originalFilename: string;
-  processId: string | null;
+  shipmentId: string | null;
   draftToken: string | null;
   folderId: string | null;
   storageKey: string;
@@ -69,7 +69,7 @@ export interface CreateDocumentRecordInput {
 
 export interface ProcessDocumentsRepository {
   withTransaction<T>(work: (transaction: TransactionContext) => Promise<T>): Promise<T>;
-  processExists(processId: string, transaction?: TransactionContext): Promise<boolean>;
+  shipmentExists(shipmentId: string, transaction?: TransactionContext): Promise<boolean>;
   draftHasRecordsOwnedByOther(draftToken: string, actorId: string): Promise<boolean>;
   findFolderById(id: string, transaction?: TransactionContext): Promise<DocumentFolderRecord | null>;
   findDocumentById(id: string, transaction?: TransactionContext): Promise<ProcessDocumentRecord | null>;
@@ -95,12 +95,12 @@ export interface ProcessDocumentsRepository {
     folderIds: string[],
     transaction?: TransactionContext,
   ): Promise<ProcessDocumentRecord[]>;
-  listDocumentsByProcessId(processId: string, transaction?: TransactionContext): Promise<ProcessDocumentRecord[]>;
+  listDocumentsByShipmentId(shipmentId: string, transaction?: TransactionContext): Promise<ProcessDocumentRecord[]>;
   createFolder(input: CreateFolderRecordInput, transaction?: TransactionContext): Promise<DocumentFolderRecord>;
   createDocument(input: CreateDocumentRecordInput, transaction?: TransactionContext): Promise<ProcessDocumentRecord>;
   deleteFolder(id: string, transaction?: TransactionContext): Promise<void>;
   deleteDocument(id: string, transaction?: TransactionContext): Promise<void>;
-  deleteDocumentsByProcessId(processId: string, transaction?: TransactionContext): Promise<void>;
-  deleteFoldersByProcessId(processId: string, transaction?: TransactionContext): Promise<void>;
-  attachDraftToProcess(draftToken: string, processId: string, transaction?: TransactionContext): Promise<void>;
+  deleteDocumentsByShipmentId(shipmentId: string, transaction?: TransactionContext): Promise<void>;
+  deleteFoldersByShipmentId(shipmentId: string, transaction?: TransactionContext): Promise<void>;
+  attachDraftToShipment(draftToken: string, shipmentId: string, transaction?: TransactionContext): Promise<void>;
 }

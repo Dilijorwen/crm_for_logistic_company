@@ -1,8 +1,8 @@
 {
   "name": "@log-company/plugin-process-discussion",
-  "displayName": "Process discussion",
-  "description": "Custom discussion block for customs process records.",
-  "version": "2.0.62",
+  "displayName": "Обсуждения поставок",
+  "description": "Блок обсуждений и вложений для поставок.",
+  "version": "2.0.68",
   "main": "dist/server/index.js",
   "dependencies": {},
   "peerDependencies": {
@@ -11,6 +11,7 @@
     "@nocobase/actions": "2.x",
     "@nocobase/client": "2.x",
     "@nocobase/database": "2.x",
+    "@nocobase/flow-engine": "2.x",
     "@log-company/plugin-process-governance": "2.x",
     "@nocobase/server": "2.x",
     "@nocobase/test": "2.x",

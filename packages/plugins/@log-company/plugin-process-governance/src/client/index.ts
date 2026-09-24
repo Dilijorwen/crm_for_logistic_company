@@ -8,35 +8,27 @@
  */
 
 import { Plugin } from '@nocobase/client';
-import { ProcessStatusSelect } from './processStatus/ProcessStatusSelect';
-import { ProcessStatusSelectFieldModel } from './processStatus/ProcessStatusSelectFieldModel';
+import enUS from '../locale/en-US.json';
+import ruRU from '../locale/ru-RU.json';
+import { LogisticsPage } from './logistics/LogisticsPage';
+import { RunTreeActionModel } from './logistics/runTree/RunTreeActionModel';
+import { RunTreeBlockModel } from './logistics/runTree/RunTreeBlockModel';
+
+const NAMESPACE = '@log-company/plugin-process-governance';
 
 export * from './processContext/getInnermostRouteFilterByTk';
+export * from './processContext/getFlowModelPopupCollectionMode';
 export * from './processStatus/processStatusOptions';
 
 export class PluginProcessGovernanceClient extends Plugin {
-  private readonly registerLegacyProcessStatusComponent = (): void => {
-    const statusField = this.app.dataSourceManager
-      .getDataSource('main')
-      ?.collectionManager.getCollection('customs_processes')
-      ?.getField('status');
-    if (statusField?.uiSchema) {
-      statusField.uiSchema['x-component'] = 'ProcessStatusSelect';
-    }
-  };
-
   async load(): Promise<void> {
-    this.flowEngine.registerModels({
-      SelectFieldModel: ProcessStatusSelectFieldModel,
+    this.flowEngine.registerModels({ RunTreeBlockModel, RunTreeActionModel });
+    this.app.i18n.addResources('en-US', NAMESPACE, enUS);
+    this.app.i18n.addResources('ru-RU', NAMESPACE, ruRU);
+    this.app.router.add('admin.customs-clearance', {
+      path: '/admin/customs-clearance',
+      Component: LogisticsPage,
     });
-    this.app.addComponents({
-      ProcessStatusSelect,
-    });
-
-    const mainDataSource = this.app.dataSourceManager.getDataSource('main');
-    mainDataSource?.removeReloadCallback(this.registerLegacyProcessStatusComponent);
-    mainDataSource?.addReloadCallback(this.registerLegacyProcessStatusComponent);
-    this.registerLegacyProcessStatusComponent();
   }
 }
 

@@ -19,14 +19,14 @@ import type {
   TransactionContext,
 } from '../../../application/ports/ProcessDocumentsRepository';
 
-const PROCESS_COLLECTION = 'customs_processes';
+const SHIPMENTS_COLLECTION = 'shipments';
 const FOLDERS_COLLECTION = 'process_document_folders';
 const DOCUMENTS_COLLECTION = 'process_documents';
 
 interface FolderRow {
   id: string | number | bigint;
   title: string;
-  process_id: string | number | bigint | null;
+  shipment_id: string | number | bigint | null;
   draft_token: string | null;
   parent_folder_id: string | number | bigint | null;
   createdById: string | number | bigint | null;
@@ -39,7 +39,7 @@ interface DocumentRow {
   id: string | number | bigint;
   title: string;
   original_filename: string;
-  process_id: string | number | bigint | null;
+  shipment_id: string | number | bigint | null;
   draft_token: string | null;
   folder_id: string | number | bigint | null;
   storage_key: string;
@@ -58,11 +58,11 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
     return this.plugin.db.sequelize.transaction((transaction) => work(transaction));
   }
 
-  async processExists(processId: string, transaction?: TransactionContext): Promise<boolean> {
+  async shipmentExists(shipmentId: string, transaction?: TransactionContext): Promise<boolean> {
     const [rows] = (await this.plugin.db.sequelize.query(
-      `select id from ${PROCESS_COLLECTION} where id = :processId limit 1`,
+      `select id from ${SHIPMENTS_COLLECTION} where id = :shipmentId limit 1`,
       {
-        replacements: { processId },
+        replacements: { shipmentId },
         transaction: this.asTransaction(transaction),
       },
     )) as [Array<{ id: string }>, unknown];
@@ -74,9 +74,9 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
       `
         select 1
         from (
-          select "createdById" from ${FOLDERS_COLLECTION} where process_id is null and draft_token = :draftToken
+          select "createdById" from ${FOLDERS_COLLECTION} where shipment_id is null and draft_token = :draftToken
           union all
-          select "createdById" from ${DOCUMENTS_COLLECTION} where process_id is null and draft_token = :draftToken
+          select "createdById" from ${DOCUMENTS_COLLECTION} where shipment_id is null and draft_token = :draftToken
         ) draft_records
         where "createdById" is null or "createdById" <> :actorId
         limit 1
@@ -213,14 +213,14 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
     return rows.map((row) => this.mapDocument(row));
   }
 
-  async listDocumentsByProcessId(
-    processId: string,
+  async listDocumentsByShipmentId(
+    shipmentId: string,
     transaction?: TransactionContext,
   ): Promise<ProcessDocumentRecord[]> {
     const [rows] = (await this.plugin.db.sequelize.query(
-      `select * from ${DOCUMENTS_COLLECTION} where process_id = :processId order by id asc`,
+      `select * from ${DOCUMENTS_COLLECTION} where shipment_id = :shipmentId order by id asc`,
       {
-        replacements: { processId },
+        replacements: { shipmentId },
         transaction: this.asTransaction(transaction),
       },
     )) as [DocumentRow[], unknown];
@@ -229,21 +229,21 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
 
   async createFolder(input: CreateFolderRecordInput, transaction?: TransactionContext): Promise<DocumentFolderRecord> {
     const now = new Date();
-    const processId = input.scope.mode === 'process' ? input.scope.processId : null;
+    const shipmentId = input.scope.mode === 'shipment' ? input.scope.shipmentId : null;
     const draftToken = input.scope.mode === 'draft' ? input.scope.draftToken : null;
     const [rows] = (await this.plugin.db.sequelize.query(
       `
         insert into ${FOLDERS_COLLECTION}
-          (id, title, process_id, draft_token, parent_folder_id, "createdAt", "updatedAt", "createdById", "updatedById")
+          (id, title, shipment_id, draft_token, parent_folder_id, "createdAt", "updatedAt", "createdById", "updatedById")
         values
-          (:id, :title, :processId, :draftToken, :parentFolderId, :now, :now, :actorId, :actorId)
+          (:id, :title, :shipmentId, :draftToken, :parentFolderId, :now, :now, :actorId, :actorId)
         returning *
       `,
       {
         replacements: {
           id: input.id,
           title: input.title,
-          processId,
+          shipmentId,
           draftToken,
           parentFolderId: input.parentFolderId,
           actorId: input.actorId,
@@ -260,18 +260,18 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
     transaction?: TransactionContext,
   ): Promise<ProcessDocumentRecord> {
     const now = new Date();
-    const processId = input.scope.mode === 'process' ? input.scope.processId : null;
+    const shipmentId = input.scope.mode === 'shipment' ? input.scope.shipmentId : null;
     const draftToken = input.scope.mode === 'draft' ? input.scope.draftToken : null;
     const [rows] = (await this.plugin.db.sequelize.query(
       `
         insert into ${DOCUMENTS_COLLECTION}
           (
-            id, title, original_filename, process_id, draft_token, folder_id, storage_key, mime_type,
+            id, title, original_filename, shipment_id, draft_token, folder_id, storage_key, mime_type,
             file_size, "createdAt", "updatedAt", "createdById", "updatedById"
           )
         values
           (
-            :id, :title, :originalFilename, :processId, :draftToken, :folderId, :storageKey, :mimeType,
+            :id, :title, :originalFilename, :shipmentId, :draftToken, :folderId, :storageKey, :mimeType,
             :fileSize, :now, :now, :actorId, :actorId
           )
         returning *
@@ -281,7 +281,7 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
           id: input.id,
           title: input.title,
           originalFilename: input.originalFilename,
-          processId,
+          shipmentId,
           draftToken,
           folderId: input.folderId,
           storageKey: input.storageKey,
@@ -310,38 +310,38 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
     });
   }
 
-  async deleteDocumentsByProcessId(processId: string, transaction?: TransactionContext): Promise<void> {
-    await this.plugin.db.sequelize.query(`delete from ${DOCUMENTS_COLLECTION} where process_id = :processId`, {
-      replacements: { processId },
+  async deleteDocumentsByShipmentId(shipmentId: string, transaction?: TransactionContext): Promise<void> {
+    await this.plugin.db.sequelize.query(`delete from ${DOCUMENTS_COLLECTION} where shipment_id = :shipmentId`, {
+      replacements: { shipmentId },
       transaction: this.asTransaction(transaction),
     });
   }
 
-  async deleteFoldersByProcessId(processId: string, transaction?: TransactionContext): Promise<void> {
-    await this.plugin.db.sequelize.query(`delete from ${FOLDERS_COLLECTION} where process_id = :processId`, {
-      replacements: { processId },
+  async deleteFoldersByShipmentId(shipmentId: string, transaction?: TransactionContext): Promise<void> {
+    await this.plugin.db.sequelize.query(`delete from ${FOLDERS_COLLECTION} where shipment_id = :shipmentId`, {
+      replacements: { shipmentId },
       transaction: this.asTransaction(transaction),
     });
   }
 
-  async attachDraftToProcess(draftToken: string, processId: string, transaction?: TransactionContext): Promise<void> {
+  async attachDraftToShipment(draftToken: string, shipmentId: string, transaction?: TransactionContext): Promise<void> {
     const queryOptions = {
-      replacements: { processId, draftToken },
+      replacements: { shipmentId, draftToken },
       transaction: this.asTransaction(transaction),
     };
     await this.plugin.db.sequelize.query(
       `
         update ${FOLDERS_COLLECTION}
-        set process_id = :processId, draft_token = null, "updatedAt" = now()
-        where process_id is null and draft_token = :draftToken
+        set shipment_id = :shipmentId, draft_token = null, "updatedAt" = now()
+        where shipment_id is null and draft_token = :draftToken
       `,
       queryOptions,
     );
     await this.plugin.db.sequelize.query(
       `
         update ${DOCUMENTS_COLLECTION}
-        set process_id = :processId, draft_token = null, "updatedAt" = now()
-        where process_id is null and draft_token = :draftToken
+        set shipment_id = :shipmentId, draft_token = null, "updatedAt" = now()
+        where shipment_id is null and draft_token = :draftToken
       `,
       queryOptions,
     );
@@ -349,13 +349,13 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
 
   private scopePredicate(scope: DocumentScope, alias = ''): string {
     const prefix = alias ? `${alias}.` : '';
-    return scope.mode === 'process'
-      ? `${prefix}process_id = :processId`
-      : `${prefix}process_id is null and ${prefix}draft_token = :draftToken`;
+    return scope.mode === 'shipment'
+      ? `${prefix}shipment_id = :shipmentId`
+      : `${prefix}shipment_id is null and ${prefix}draft_token = :draftToken`;
   }
 
   private scopeReplacements(scope: DocumentScope): Record<string, string> {
-    return scope.mode === 'process' ? { processId: scope.processId } : { draftToken: scope.draftToken };
+    return scope.mode === 'shipment' ? { shipmentId: scope.shipmentId } : { draftToken: scope.draftToken };
   }
 
   private asTransaction(transaction?: TransactionContext): Transaction | undefined {
@@ -366,7 +366,7 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
     return {
       id: String(row.id),
       title: row.title,
-      processId: row.process_id == null ? null : String(row.process_id),
+      shipmentId: row.shipment_id == null ? null : String(row.shipment_id),
       draftToken: row.draft_token || null,
       parentFolderId: row.parent_folder_id == null ? null : String(row.parent_folder_id),
       createdById: row.createdById == null ? null : String(row.createdById),
@@ -381,7 +381,7 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
       id: String(row.id),
       title: row.title,
       originalFilename: row.original_filename,
-      processId: row.process_id == null ? null : String(row.process_id),
+      shipmentId: row.shipment_id == null ? null : String(row.shipment_id),
       draftToken: row.draft_token || null,
       folderId: row.folder_id == null ? null : String(row.folder_id),
       storageKey: row.storage_key,

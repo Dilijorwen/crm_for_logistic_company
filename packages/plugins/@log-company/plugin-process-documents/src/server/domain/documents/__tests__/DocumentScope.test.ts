@@ -1,3 +1,12 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import { describe, expect, it } from 'vitest';
 import { ProcessDocumentsError } from '../DocumentErrors';
 import { assertDraftOwner, assertRecordMatchesScope, parseDraftToken, parseIdentifier } from '../DocumentScope';
@@ -9,18 +18,18 @@ describe('DocumentScope', () => {
     expect(parseDraftToken('../invalid')).toBeNull();
   });
 
-  it('rejects a record from another process', () => {
+  it('rejects a record from another shipment', () => {
     expect(() =>
-      assertRecordMatchesScope({ processId: '2', draftToken: null }, { mode: 'process', processId: '1' }),
+      assertRecordMatchesScope({ shipmentId: '2', draftToken: null }, { mode: 'shipment', shipmentId: '1' }),
     ).toThrowError(ProcessDocumentsError);
   });
 
   it('allows only the draft owner or root', () => {
-    const record = { processId: null, draftToken: 'valid_draft-token-1234', createdById: '7' };
+    const record = { shipmentId: null, draftToken: 'valid_draft-token-1234', createdById: '7' };
     const scope = { mode: 'draft', draftToken: 'valid_draft-token-1234' } as const;
     expect(() => assertDraftOwner(record, scope, { userId: '7', isRoot: false })).not.toThrow();
     expect(() => assertDraftOwner(record, scope, { userId: '8', isRoot: false })).toThrowError(
-      'Нет прав для действия с черновыми документами процесса.',
+      'Нет прав для действия с черновыми документами поставки.',
     );
   });
 });

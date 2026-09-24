@@ -11,7 +11,7 @@ import type { ApplicationLogger, DocumentStorage } from './ports/DocumentStorage
 import type { ProcessDocumentsRepository, TransactionContext } from './ports/ProcessDocumentsRepository';
 
 export interface DeleteProcessDocumentsForProcessInput {
-  processId: string;
+  shipmentId: string;
   transaction?: TransactionContext;
 }
 
@@ -23,21 +23,21 @@ export class DeleteProcessDocumentsForProcess {
   ) {}
 
   async execute(input: DeleteProcessDocumentsForProcessInput): Promise<void> {
-    const documents = await this.repository.listDocumentsByProcessId(input.processId, input.transaction);
-    let processPrefixKeys: string[];
+    const documents = await this.repository.listDocumentsByShipmentId(input.shipmentId, input.transaction);
+    let shipmentPrefixKeys: string[];
     try {
-      processPrefixKeys = await this.storage.listKeys(`processes/${input.processId}/`);
+      shipmentPrefixKeys = await this.storage.listKeys(`shipments/${input.shipmentId}/`);
     } catch (error) {
-      this.logger.error('Не удалось получить список объектов удаляемого процесса в хранилище', error, {
-        processId: input.processId,
+      this.logger.error('Не удалось получить список объектов удаляемой поставки в хранилище', error, {
+        shipmentId: input.shipmentId,
       });
       throw error;
     }
-    await this.repository.deleteDocumentsByProcessId(input.processId, input.transaction);
-    await this.repository.deleteFoldersByProcessId(input.processId, input.transaction);
+    await this.repository.deleteDocumentsByShipmentId(input.shipmentId, input.transaction);
+    await this.repository.deleteFoldersByShipmentId(input.shipmentId, input.transaction);
 
     const storageKeys = new Map(documents.map((document) => [document.storageKey, document.id]));
-    for (const storageKey of processPrefixKeys) {
+    for (const storageKey of shipmentPrefixKeys) {
       if (!storageKeys.has(storageKey)) {
         storageKeys.set(storageKey, null);
       }
@@ -48,15 +48,15 @@ export class DeleteProcessDocumentsForProcess {
         try {
           const deleted = await this.storage.delete(storageKey);
           if (!deleted) {
-            this.logger.warn('Объект документа удалённого процесса уже отсутствовал в хранилище', {
-              processId: input.processId,
+            this.logger.warn('Объект документа удалённой поставки уже отсутствовал в хранилище', {
+              shipmentId: input.shipmentId,
               documentId,
               storageKey,
             });
           }
         } catch (error) {
-          this.logger.error('После удаления процесса остался объект документа в хранилище', error, {
-            processId: input.processId,
+          this.logger.error('После удаления поставки остался объект документа в хранилище', error, {
+            shipmentId: input.shipmentId,
             documentId,
             storageKey,
           });

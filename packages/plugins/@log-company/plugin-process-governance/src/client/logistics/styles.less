@@ -1,0 +1,52 @@
+.lc-logistics-page {
+  min-height: calc(100vh - 64px);
+  padding: 20px;
+  background: var(--colorBgLayout, #f5f5f5);
+}
+
+.lc-logistics-header {
+  margin-bottom: 16px;
+}
+
+.lc-logistics-title.ant-typography {
+  margin: 0 0 4px;
+}
+
+.lc-logistics-card {
+  margin-top: 16px;
+}
+
+.lc-logistics-loading {
+  display: grid;
+  min-height: 240px;
+  place-items: center;
+}
+
+.lc-logistics-panel-alert,
+.lc-logistics-error {
+  margin-bottom: 16px;
+}
+
+.lc-logistics-error {
+  color: var(--colorError, #ff4d4f);
+}
+
+.lc-logistics-panel-toolbar {
+  margin-bottom: 16px;
+}
+
+.lc-logistics-run-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+
+@media (max-width: 768px) {
+  .lc-logistics-page {
+    padding: 12px;
+  }
+
+  .lc-logistics-run-form {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,3 +1,12 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import { createUniqueDocumentName, splitRelativeDocumentName } from '../domain/documents/DocumentName';
 import { ProcessDocumentsError } from '../domain/documents/DocumentErrors';
 import { DocumentFolderService } from './DocumentFolderService';
@@ -23,7 +32,7 @@ export interface UploadedDocumentFile {
 }
 
 export interface UploadProcessDocumentsInput {
-  processId: string | null;
+  shipmentId: string | null;
   draftToken: string | null;
   folderId: string | null;
   files: UploadedDocumentFile[];
@@ -75,7 +84,8 @@ export class UploadProcessDocuments {
 
           const existingTitles = await this.repository.listDocumentTitles(scope, uploadFolder.folderId, transaction);
           const title = createUniqueDocumentName(filename, existingTitles, true);
-          const ownerPath = scope.mode === 'process' ? scope.processId : `drafts/${scope.draftToken}`;
+          const ownerPath =
+            scope.mode === 'shipment' ? `shipments/${scope.shipmentId}` : `shipments/drafts/${scope.draftToken}`;
           const storageKey = this.storageKeyGenerator.generate(ownerPath, filename);
 
           try {
