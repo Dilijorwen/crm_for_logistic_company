@@ -146,7 +146,7 @@ export function RunModal({ open, run, runs, referenceData, service, permissions,
                 >
                   <Input autoComplete="off" maxLength={32} />
                 </Form.Item>
-                <Form.Item name="status" label="Статус" rules={[{ required: true, message: 'Выберите статус' }]}>
+                <Form.Item name="status" label="Статус">
                   <Select
                     options={LOGISTICS_STATUS_VALUES.map((value) => ({
                       value,

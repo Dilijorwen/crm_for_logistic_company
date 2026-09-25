@@ -32,12 +32,10 @@ export const statusField: FieldOptions = {
   allowNull: false,
   defaultValue: 'queue',
   validate: { isIn: [[...LOGISTICS_STATUS_VALUES]] },
-  validation: { type: 'string', rules: [{ key: 'transport_run_status_required', name: 'required' }] },
   uiSchema: {
     type: 'string',
     title: 'Статус',
     'x-component': 'Select',
-    required: true,
     enum: LOGISTICS_STATUS_VALUES.map((value) => ({ value, label: LOGISTICS_STATUS_LABELS[value] })),
   },
 };
