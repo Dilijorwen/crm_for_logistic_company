@@ -152,9 +152,13 @@ echo 'Building Log Company plugins...'
 corepack yarn build "${plugins[@]}"
 corepack yarn tar "${plugins[@]}"
 
+echo 'Refreshing service images when available...'
+if ! "${compose[@]}" pull; then
+  echo 'Warning: some service images could not be pulled; continuing with locally cached images.' >&2
+fi
+
 echo 'Starting database, object storage, and NocoBase...'
-"${compose[@]}" pull
-"${compose[@]}" up -d postgres minio app
+"${compose[@]}" up -d --pull never postgres minio app
 wait_for_app
 
 new_plugins=()
@@ -199,7 +203,7 @@ if [[ "${plugins_changed}" == true ]]; then
 fi
 
 echo 'Starting the public HTTPS reverse proxy...'
-"${compose[@]}" up -d caddy
+"${compose[@]}" up -d --pull never caddy
 "${compose[@]}" ps
 
 echo "Deployment completed: $(read_env_value APP_PUBLIC_URL)"
