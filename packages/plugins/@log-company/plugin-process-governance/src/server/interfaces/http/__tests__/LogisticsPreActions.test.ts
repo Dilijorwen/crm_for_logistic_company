@@ -41,6 +41,51 @@ function setup(linkedRunCount = 0) {
 }
 
 describe('LogisticsPreActions', () => {
+  it('keeps shipment forms from updating selected reference records', async () => {
+    const { handlers } = setup();
+    const next = vi.fn(async () => undefined);
+    const handler = handlers.get('shipments:update');
+    if (!handler) {
+      throw new Error('shipments:update pre-action was not registered');
+    }
+    const params = {
+      values: {
+        chinese_client: { name: 'Клиент без доступного ID' },
+        company: { id: 'company-1', name: 'Компания' },
+        invoice_number: 'INV-1',
+      },
+      updateAssociationValues: ['chinese_client', 'company', 'company.responsible_user', 'comments'],
+    };
+
+    await handler({ action: { actionName: 'update', params } }, next);
+
+    expect(params.values).toEqual({ company: 'company-1', invoice_number: 'INV-1' });
+    expect(params.updateAssociationValues).toEqual(['comments']);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('converts reference objects to IDs when a shipment is created inside a run', async () => {
+    const { handlers } = setup();
+    const next = vi.fn(async () => undefined);
+    const handler = handlers.get('transport_runs.shipments:create');
+    if (!handler) {
+      throw new Error('transport_runs.shipments:create pre-action was not registered');
+    }
+    const params = {
+      values: {
+        chinese_client: { id: 'client-1', name: 'Клиент' },
+        company: { id: 'company-1', name: 'Компания' },
+      },
+      updateAssociationValues: ['chinese_client', 'company'],
+    };
+
+    await handler({ action: { actionName: 'create', params } }, next);
+
+    expect(params.values).toEqual({ chinese_client: 'client-1', company: 'company-1' });
+    expect(params.updateAssociationValues).toEqual([]);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
   it('denies manual creation of shipment history even if ACL was configured incorrectly', async () => {
     const { handlers } = setup();
     const next = vi.fn(async () => undefined);

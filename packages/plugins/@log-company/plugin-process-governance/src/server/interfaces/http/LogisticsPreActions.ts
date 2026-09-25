@@ -30,6 +30,8 @@ interface ActionContext {
   };
 }
 
+const SHIPMENT_REFERENCE_FIELDS = ['chinese_client', 'company', 'contract_record', 'customs_warehouse'] as const;
+
 export class LogisticsPreActions {
   constructor(
     private readonly plugin: Plugin,
@@ -41,6 +43,10 @@ export class LogisticsPreActions {
   register(): void {
     this.plugin.app.resourcer.registerPreActionHandler(`${LOGISTICS_COLLECTIONS.runs}:create`, this.runAction);
     this.plugin.app.resourcer.registerPreActionHandler(`${LOGISTICS_COLLECTIONS.runs}:update`, this.runAction);
+    for (const resource of [LOGISTICS_COLLECTIONS.shipments, `${LOGISTICS_COLLECTIONS.runs}.shipments`]) {
+      this.plugin.app.resourcer.registerPreActionHandler(`${resource}:create`, this.shipmentWrite);
+      this.plugin.app.resourcer.registerPreActionHandler(`${resource}:update`, this.shipmentWrite);
+    }
     this.plugin.app.resourcer.registerPreActionHandler(
       `${LOGISTICS_COLLECTIONS.runs}.parent_runs:add`,
       this.parentRelation,
@@ -124,6 +130,44 @@ export class LogisticsPreActions {
       }
       await next();
     });
+  };
+
+  private readonly shipmentWrite = async (context: ActionContext, next: () => Promise<unknown>): Promise<void> => {
+    const params = context.action?.params;
+    if (!params) {
+      await next();
+      return;
+    }
+
+    const rawValues = params.values;
+    const rows = Array.isArray(rawValues) ? rawValues : [rawValues];
+    for (const rawRow of rows) {
+      const values = this.asRecord(rawRow);
+      for (const field of SHIPMENT_REFERENCE_FIELDS) {
+        if (!Object.prototype.hasOwnProperty.call(values, field)) {
+          continue;
+        }
+        const value = values[field];
+        if (value === null) {
+          continue;
+        }
+        const identifier = extractIdentifier(value);
+        if (identifier !== null) {
+          values[field] = identifier;
+        } else if (context.action?.actionName === 'update') {
+          delete values[field];
+        }
+      }
+    }
+
+    if (Array.isArray(params.updateAssociationValues)) {
+      params.updateAssociationValues = params.updateAssociationValues.filter(
+        (value): value is string =>
+          typeof value === 'string' &&
+          !SHIPMENT_REFERENCE_FIELDS.some((field) => value === field || value.startsWith(`${field}.`)),
+      );
+    }
+    await next();
   };
 
   private readonly denyHistoryWrite = async (context: ActionContext): Promise<void> => {
