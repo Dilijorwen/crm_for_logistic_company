@@ -127,6 +127,28 @@ describe('LogisticsHooks', () => {
     expect(actions.resolveRunVehicle.execute).not.toHaveBeenCalled();
   });
 
+  it('creates shipment history and title from the model creation hook', async () => {
+    const { actions, handlers } = setup();
+    const handler = handlers.get('shipments.afterCreate');
+    if (!handler) {
+      throw new Error('shipments.afterCreate hook was not registered');
+    }
+    expect(handlers.has('shipments.afterCreateWithAssociations')).toBe(false);
+    const model = createModel({ id: 'shipment-1' });
+    model.dataValues = model.values;
+
+    await handler(model, {});
+
+    expect(actions.recordCreated.execute).toHaveBeenCalledWith({
+      entityKind: 'shipment',
+      entityId: 'shipment-1',
+      transaction: undefined,
+      context: undefined,
+    });
+    expect(actions.refreshShipmentDisplayName.execute).toHaveBeenCalledWith('shipment-1', undefined);
+    expect(model.values.display_name).toBe('17/Клиент/—/—/—');
+  });
+
   it('projects shipment associations into foreign keys before Sequelize validates required columns', async () => {
     const { actions, handlers } = setup();
     const handler = handlers.get('shipments.beforeValidate');

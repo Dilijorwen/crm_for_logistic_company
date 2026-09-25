@@ -16,6 +16,7 @@ import { NormalizeShipmentNumericFields } from '../../../application/logistics/N
 import { RecordLogisticsCreated } from '../../../application/logistics/RecordLogisticsCreated';
 import { RecordLogisticsFieldChanges } from '../../../application/logistics/RecordLogisticsFieldChanges';
 import { RecordLogisticsRelationChange } from '../../../application/logistics/RecordLogisticsRelationChange';
+import { RefreshShipmentDisplayName } from '../../../application/logistics/RefreshShipmentDisplayName';
 import { WriteLogisticsHistory } from '../../../application/logistics/WriteLogisticsHistory';
 import { logisticsReverseShipmentAssociationFields } from '../../../infrastructure/metadata/LogisticsAssociationFields';
 import { NocoBaseLogisticsRepository } from '../../../infrastructure/persistence/nocobase/NocoBaseLogisticsRepository';
@@ -48,6 +49,10 @@ function reverseShipmentField(collectionName: string) {
 }
 
 function registerCollections(db: Database): void {
+  db.collection({
+    name: 'transport_run_shipments',
+    timestamps: false,
+  });
   db.collection({
     name: 'vehicles',
     titleField: 'registration_number',
@@ -100,12 +105,21 @@ function registerCollections(db: Database): void {
         foreignKey: 'departure_city_id',
         uiSchema: { title: 'Город отправления' },
       },
+      {
+        type: 'belongsToMany',
+        name: 'shipments',
+        target: 'shipments',
+        through: 'transport_run_shipments',
+        foreignKey: 'transport_run_id',
+        otherKey: 'shipment_id',
+      },
     ],
   });
   db.collection({
     name: 'shipments',
     fields: [
       { type: 'integer', name: 'shipment_number' },
+      { type: 'string', name: 'display_name' },
       { type: 'integer', name: 'chinese_client_id', isForeignKey: true },
       {
         type: 'belongsTo',
@@ -123,6 +137,8 @@ function registerCollections(db: Database): void {
         uiSchema: { title: 'Наша компания' },
       },
       { type: 'string', name: 'invoice_number', uiSchema: { title: 'Номер инвойса' } },
+      { type: 'string', name: 'application_number', uiSchema: { title: 'Номер заявления' } },
+      { type: 'string', name: 'declaration_number', uiSchema: { title: 'Номер декларации' } },
       { type: 'double', name: 'invoice_value', uiSchema: { title: 'Стоимость по инвойсу' } },
       { type: 'boolean', name: 'documents_in_badis', uiSchema: { title: 'Документы в БАДИС' } },
     ],
@@ -172,7 +188,11 @@ describe('Logistics history database integration', () => {
     const firstCompany = await db.getRepository('our_companies').create({ values: { name: 'Компания' } });
     const secondCompany = await db.getRepository('our_companies').create({ values: { name: 'Компания' } });
     const actions = {
-      assignNumber: { execute: vi.fn(async () => ++nextNumber) },
+      assignNumber: {
+        execute: vi.fn(async (input: { isNewRecord: boolean; currentNumber: unknown }) =>
+          input.isNewRecord ? ++nextNumber : input.currentNumber,
+        ),
+      },
       resolveRunVehicle: {
         execute: vi.fn(async () => ({ vehicleId: vehicle.get('id'), registrationNumber: 'AB123CD' })),
       },
@@ -184,10 +204,7 @@ describe('Logistics history database integration', () => {
       validateRunParents: { execute: vi.fn(async () => undefined) },
       validateShipmentContract: { execute: vi.fn(async () => undefined) },
       validateShipmentDeletion: { execute: vi.fn(async () => undefined) },
-      refreshShipmentDisplayName: {
-        execute: vi.fn(async () => ''),
-        executeForClient: vi.fn(async () => undefined),
-      },
+      refreshShipmentDisplayName: new RefreshShipmentDisplayName(repository),
     } as unknown as LogisticsHookActions;
     new LogisticsHooks(plugin, repository, actions).register();
 
@@ -208,12 +225,16 @@ describe('Logistics history database integration', () => {
         chinese_client_id: client.get('id'),
         company_id: firstCompany.get('id'),
         invoice_number: 'INV-OLD',
+        application_number: 'ЗВ-OLD',
         invoice_value: '1,0',
         documents_in_badis: false,
       },
     });
     const createdShipment = await db.getRepository('shipments').findOne({ filterByTk: shipment.get('id') });
     expect(createdShipment?.get('invoice_value')).toBe(1);
+    expect(createdShipment?.get('display_name')).toBe(
+      `${String(shipment.get('shipment_number'))}/Клиент/INV-OLD/ЗВ-OLD/—`,
+    );
     const clientShipments = await db.getRepository('chinese_clients.shipments', client.get('id')).find();
     const companyShipments = await db.getRepository('our_companies.shipments', firstCompany.get('id')).find();
     expect(clientShipments.map((record) => record.get('id'))).toEqual([shipment.get('id')]);
@@ -223,12 +244,41 @@ describe('Logistics history database integration', () => {
       values: {
         company: { id: secondCompany.get('id') },
         invoice_number: 'INV-NEW',
+        declaration_number: 'ДТ-NEW',
         invoice_value: '2.5',
         documents_in_badis: true,
       },
     });
     const updatedShipment = await db.getRepository('shipments').findOne({ filterByTk: shipment.get('id') });
     expect(updatedShipment?.get('invoice_value')).toBe(2.5);
+    expect(updatedShipment?.get('display_name')).toBe(
+      `${String(shipment.get('shipment_number'))}/Клиент/INV-NEW/ЗВ-OLD/ДТ-NEW`,
+    );
+
+    const relatedShipment = await db.getRepository('transport_runs.shipments', run.get('id')).create({
+      values: {
+        chinese_client: client.get('id'),
+        company: firstCompany.get('id'),
+        invoice_number: 'INV-MANAGER',
+        application_number: 'ЗВ-MANAGER',
+      },
+      whitelist: ['chinese_client', 'company', 'invoice_number', 'application_number'],
+    });
+    const persistedRelatedShipment = await db
+      .getRepository('shipments')
+      .findOne({ filterByTk: relatedShipment.get('id') });
+    expect(persistedRelatedShipment?.get('display_name')).toBe(
+      `${String(relatedShipment.get('shipment_number'))}/Клиент/INV-MANAGER/ЗВ-MANAGER/—`,
+    );
+    expect(await historyRows(db, 'shipment_history', { shipment_id: relatedShipment.get('id') })).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event_type: 'field_initialized',
+          field_name: 'invoice_number',
+          new_value: 'INV-MANAGER',
+        }),
+      ]),
+    );
 
     const runHistory = await historyRows(db, 'transport_run_history', { transport_run_id: run.get('id') });
     const shipmentHistory = await historyRows(db, 'shipment_history', { shipment_id: shipment.get('id') });

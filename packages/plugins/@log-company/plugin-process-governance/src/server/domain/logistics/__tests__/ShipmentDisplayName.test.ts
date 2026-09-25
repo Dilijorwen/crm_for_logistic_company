@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { buildShipmentDisplayName } from '../ShipmentDisplayName';
 
 describe('buildShipmentDisplayName', () => {
-  it('builds the stable global shipment title', () => {
+  it('includes the application and declaration numbers when both exist', () => {
     expect(
       buildShipmentDisplayName({
         shipmentNumber: 35,

@@ -2,7 +2,7 @@
   "name": "@log-company/plugin-process-governance",
   "displayName": "Рейсы и поставки",
   "description": "Управление рейсами, поставками, машинами, связями и историей изменений.",
-  "version": "2.0.85",
+  "version": "2.0.87",
   "main": "dist/server/index.js",
   "peerDependencies": {
     "@ant-design/icons": "*",

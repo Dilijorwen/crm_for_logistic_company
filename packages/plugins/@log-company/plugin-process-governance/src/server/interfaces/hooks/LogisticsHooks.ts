@@ -209,29 +209,26 @@ export class LogisticsHooks {
       });
     });
 
-    this.plugin.db.on(
-      `${collection}.afterCreateWithAssociations`,
-      async (model: NocoBaseModel, options: HookOptions) => {
-        await this.actions.recordCreated.execute({
-          entityKind,
-          entityId: this.requiredIdentifier(model.get('id'), entityKind),
-          transaction: options.transaction,
-          context: options.context,
-        });
-        if (entityKind === 'shipment') {
-          const displayName = await this.actions.refreshShipmentDisplayName.execute(
-            this.requiredIdentifier(model.get('id'), entityKind),
-            options.transaction,
-          );
-          if (displayName) {
-            model.set('display_name', displayName);
-            if (model.dataValues) {
-              model.dataValues.display_name = displayName;
-            }
+    this.plugin.db.on(`${collection}.afterCreate`, async (model: NocoBaseModel, options: HookOptions) => {
+      await this.actions.recordCreated.execute({
+        entityKind,
+        entityId: this.requiredIdentifier(model.get('id'), entityKind),
+        transaction: options.transaction,
+        context: options.context,
+      });
+      if (entityKind === 'shipment') {
+        const displayName = await this.actions.refreshShipmentDisplayName.execute(
+          this.requiredIdentifier(model.get('id'), entityKind),
+          options.transaction,
+        );
+        if (displayName) {
+          model.set('display_name', displayName);
+          if (model.dataValues) {
+            model.dataValues.display_name = displayName;
           }
         }
-      },
-    );
+      }
+    });
 
     this.plugin.db.on(
       `${collection}.afterUpdateWithAssociations`,
