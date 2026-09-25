@@ -34,16 +34,16 @@ export function normalizeVehicleRegistrationNumber(value: unknown): string {
   const normalized = Array.from(value.normalize('NFKC').trim().toUpperCase())
     .map((character) => CYRILLIC_LOOKALIKE_TO_LATIN[character] ?? character)
     .join('')
-    .replace(/[\s-]+/g, '');
+    .replace(/\s+/gu, '');
 
   if (
     normalized.length < MIN_REGISTRATION_NUMBER_LENGTH ||
     normalized.length > MAX_REGISTRATION_NUMBER_LENGTH ||
-    !/^[A-Z0-9]+$/.test(normalized)
+    !/^[\x21-\x7e]+$/.test(normalized)
   ) {
     throw new LogisticsError(
       'INVALID_REGISTRATION_NUMBER',
-      'Номер машины должен содержать от 2 до 32 латинских букв или цифр.',
+      'Номер машины должен содержать от 2 до 32 латинских букв, цифр или спецсимволов без пробелов.',
     );
   }
 

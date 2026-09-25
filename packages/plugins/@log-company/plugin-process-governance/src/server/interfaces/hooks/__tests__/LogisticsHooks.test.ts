@@ -51,7 +51,7 @@ function setup() {
   const actions = {
     assignNumber: { execute: vi.fn(async () => 17) },
     resolveRunVehicle: {
-      execute: vi.fn(async () => ({ vehicleId: 'vehicle-1', registrationNumber: 'AB123CD' })),
+      execute: vi.fn(async () => ({ vehicleId: 'vehicle-1', registrationNumber: 'AB/123-CD' })),
     },
     captureSnapshot: { execute: vi.fn(async () => undefined) },
     normalizeShipmentNumericFields: new NormalizeShipmentNumericFields(),
@@ -78,19 +78,19 @@ describe('LogisticsHooks', () => {
     if (!handler) {
       throw new Error('transport_runs.beforeValidate hook was not registered');
     }
-    const model = createModel({ registration_number_input: 'АВ-123-СD' });
+    const model = createModel({ registration_number_input: 'АВ/123-СD' });
 
-    await handler(model, { inputValues: { registration_number_input: 'АВ-123-СD' } });
+    await handler(model, { inputValues: { registration_number_input: 'АВ/123-СD' } });
 
     expect(model.values).toMatchObject({
       run_number: 17,
       vehicle_id: 'vehicle-1',
-      registration_number_input: 'AB123CD',
+      registration_number_input: 'AB/123-CD',
       status: 'queue',
     });
     expect(actions.assignNumber.execute).toHaveBeenCalledOnce();
     expect(actions.resolveRunVehicle.execute).toHaveBeenCalledWith({
-      registrationNumber: 'АВ-123-СD',
+      registrationNumber: 'АВ/123-СD',
       transaction: undefined,
     });
   });

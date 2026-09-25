@@ -18,11 +18,11 @@ describe('ResolveRunVehicle', () => {
     } as unknown as LogisticsRepository;
     const action = new ResolveRunVehicle(repository);
 
-    await expect(action.execute({ registrationNumber: ' а-123-вс ' })).resolves.toEqual({
+    await expect(action.execute({ registrationNumber: ' а/123-вс ' })).resolves.toEqual({
       vehicleId: 'vehicle-1',
-      registrationNumber: 'A123BC',
+      registrationNumber: 'A/123-BC',
     });
-    expect(repository.findOrCreateVehicle).toHaveBeenCalledWith('A123BC', undefined);
+    expect(repository.findOrCreateVehicle).toHaveBeenCalledWith('A/123-BC', undefined);
   });
 
   it('rejects a registration number outside the supported international format', async () => {

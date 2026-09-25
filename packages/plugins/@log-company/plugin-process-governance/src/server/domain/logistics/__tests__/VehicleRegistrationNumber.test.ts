@@ -11,15 +11,15 @@ import { describe, expect, it } from 'vitest';
 import { normalizeVehicleRegistrationNumber } from '../VehicleRegistrationNumber';
 
 describe('normalizeVehicleRegistrationNumber', () => {
-  it('normalizes latin case and separators', () => {
-    expect(normalizeVehicleRegistrationNumber(' ab-123 cd ')).toBe('AB123CD');
+  it('normalizes latin case, removes spaces and preserves special characters', () => {
+    expect(normalizeVehicleRegistrationNumber(' ab/123.cd_45\\6 ')).toBe('AB/123.CD_45\\6');
   });
 
   it('normalizes visually identical Cyrillic plate letters', () => {
-    expect(normalizeVehicleRegistrationNumber('а 123 вс-125')).toBe('A123BC125');
+    expect(normalizeVehicleRegistrationNumber('а 123 вс-125')).toBe('A123BC-125');
   });
 
-  it.each(['', 'A', '京A12345', 'ABC_123', null])('rejects an unsupported registration number: %s', (value) => {
+  it.each(['', 'A', '京A/12345', 'AB😀123', null])('rejects an unsupported registration number: %s', (value) => {
     expect(() => normalizeVehicleRegistrationNumber(value)).toThrow();
   });
 });

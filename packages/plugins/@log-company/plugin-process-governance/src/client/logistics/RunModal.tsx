@@ -141,7 +141,7 @@ export function RunModal({ open, run, runs, referenceData, service, permissions,
                 <Form.Item
                   name="registrationNumber"
                   label="Номер машины"
-                  extra="Допустимы латинские буквы и цифры. Пробелы и дефисы будут удалены, похожие русские буквы — приведены к латинским."
+                  extra="Допустимы латинские буквы, цифры и спецсимволы. Удаляются только пробелы, похожие русские буквы — приводятся к латинским."
                   rules={[{ required: true, message: 'Укажите номер машины' }]}
                 >
                   <Input autoComplete="off" maxLength={32} />
