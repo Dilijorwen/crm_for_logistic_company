@@ -31,6 +31,7 @@ interface ActionContext {
 }
 
 const SHIPMENT_REFERENCE_FIELDS = ['chinese_client', 'company', 'contract_record', 'customs_warehouse'] as const;
+const RUN_SHIPMENTS_FIELD = 'shipments';
 
 export class LogisticsPreActions {
   constructor(
@@ -74,7 +75,9 @@ export class LogisticsPreActions {
 
   private readonly runAction = async (context: ActionContext, next: () => Promise<unknown>): Promise<void> => {
     await this.mapErrors(context, async () => {
-      const values = this.asRecord(context.action?.params?.values);
+      const params = context.action?.params;
+      const values = this.asRecord(params?.values);
+      this.normalizeRunShipmentReferences(params, values);
       if (Object.prototype.hasOwnProperty.call(values, 'parent_runs')) {
         const runId =
           context.action?.actionName === 'create' ? extractIdentifier(values.id) : this.actionIdentifier(context);
@@ -86,6 +89,34 @@ export class LogisticsPreActions {
       await next();
     });
   };
+
+  private normalizeRunShipmentReferences(
+    params: Record<string, unknown> | undefined,
+    values: Record<string, unknown>,
+  ): void {
+    if (!params) {
+      return;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(values, RUN_SHIPMENTS_FIELD)) {
+      const rawShipments = values[RUN_SHIPMENTS_FIELD];
+      const shipmentIds = uniqueIdentifiers(normalizeIdentifiers(rawShipments));
+      const explicitlyCleared = rawShipments === null || (Array.isArray(rawShipments) && rawShipments.length === 0);
+
+      if (shipmentIds.length > 0 || explicitlyCleared) {
+        values[RUN_SHIPMENTS_FIELD] = shipmentIds;
+      } else {
+        delete values[RUN_SHIPMENTS_FIELD];
+      }
+    }
+
+    if (Array.isArray(params.updateAssociationValues)) {
+      params.updateAssociationValues = params.updateAssociationValues.filter(
+        (value): value is string =>
+          typeof value === 'string' && value !== RUN_SHIPMENTS_FIELD && !value.startsWith(`${RUN_SHIPMENTS_FIELD}.`),
+      );
+    }
+  }
 
   private readonly parentRelation = async (context: ActionContext, next: () => Promise<unknown>): Promise<void> => {
     await this.mapErrors(context, async () => {

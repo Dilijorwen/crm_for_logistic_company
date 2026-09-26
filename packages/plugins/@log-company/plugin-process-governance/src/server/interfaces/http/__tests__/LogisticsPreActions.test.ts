@@ -41,6 +41,58 @@ function setup(linkedRunCount = 0) {
 }
 
 describe('LogisticsPreActions', () => {
+  it('keeps a run save from overwriting shipments with stale nested snapshots', async () => {
+    const { handlers } = setup();
+    const next = vi.fn(async () => undefined);
+    const handler = handlers.get('transport_runs:update');
+    if (!handler) {
+      throw new Error('transport_runs:update pre-action was not registered');
+    }
+    const params = {
+      values: {
+        status: 'in_work',
+        shipments: [
+          {
+            id: 'shipment-1',
+            display_name: 'Старое название',
+            chinese_client: { id: 'old-client', name: 'Старый клиент' },
+            chinese_client_id: 'old-client',
+          },
+          { id: 'shipment-2', display_name: 'Ещё одно старое название' },
+        ],
+      },
+      updateAssociationValues: ['shipments', 'shipments.chinese_client', 'managers'],
+    };
+
+    await handler({ action: { actionName: 'update', params } }, next);
+
+    expect(params.values).toEqual({
+      status: 'in_work',
+      shipments: ['shipment-1', 'shipment-2'],
+    });
+    expect(params.updateAssociationValues).toEqual(['managers']);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('preserves an explicit request to clear all shipment links from a run', async () => {
+    const { handlers } = setup();
+    const next = vi.fn(async () => undefined);
+    const handler = handlers.get('transport_runs:update');
+    if (!handler) {
+      throw new Error('transport_runs:update pre-action was not registered');
+    }
+    const params = {
+      values: { shipments: [] },
+      updateAssociationValues: ['shipments'],
+    };
+
+    await handler({ action: { actionName: 'update', params } }, next);
+
+    expect(params.values).toEqual({ shipments: [] });
+    expect(params.updateAssociationValues).toEqual([]);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
   it('keeps shipment forms from updating selected reference records', async () => {
     const { handlers } = setup();
     const next = vi.fn(async () => undefined);

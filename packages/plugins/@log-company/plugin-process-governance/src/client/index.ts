@@ -13,6 +13,7 @@ import ruRU from '../locale/ru-RU.json';
 import { LogisticsPage } from './logistics/LogisticsPage';
 import { RunTreeActionModel } from './logistics/runTree/RunTreeActionModel';
 import { RunTreeBlockModel } from './logistics/runTree/RunTreeBlockModel';
+import { ShipmentSynchronizedEditFormModel } from './logistics/ShipmentSynchronizedEditFormModel';
 
 const NAMESPACE = '@log-company/plugin-process-governance';
 
@@ -22,7 +23,11 @@ export * from './processStatus/processStatusOptions';
 
 export class PluginProcessGovernanceClient extends Plugin {
   async load(): Promise<void> {
-    this.flowEngine.registerModels({ RunTreeBlockModel, RunTreeActionModel });
+    this.flowEngine.registerModels({
+      EditFormModel: ShipmentSynchronizedEditFormModel,
+      RunTreeBlockModel,
+      RunTreeActionModel,
+    });
     this.app.i18n.addResources('en-US', NAMESPACE, enUS);
     this.app.i18n.addResources('ru-RU', NAMESPACE, ruRU);
     this.app.router.add('admin.customs-clearance', {
