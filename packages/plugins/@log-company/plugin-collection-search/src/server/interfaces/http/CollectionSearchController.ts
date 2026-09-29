@@ -66,9 +66,18 @@ function objectFilter(value: unknown): Record<string, unknown> | undefined {
 }
 
 function permittedFieldNames(context: Context): string[] | undefined {
-  const permission = (context as Context & { permission?: { can?: { params?: { fields?: unknown } } } }).permission;
+  const permission = (
+    context as Context & { permission?: { can?: { params?: { fields?: unknown; appends?: unknown } } } }
+  ).permission;
   const fields = permission?.can?.params?.fields;
-  return Array.isArray(fields) ? fields.filter((field): field is string => typeof field === 'string') : undefined;
+  const appends = permission?.can?.params?.appends;
+  if (!Array.isArray(fields) && !Array.isArray(appends)) {
+    return undefined;
+  }
+  const permittedFields = [...(Array.isArray(fields) ? fields : []), ...(Array.isArray(appends) ? appends : [])].filter(
+    (field): field is string => typeof field === 'string',
+  );
+  return permittedFields.length ? Array.from(new Set(permittedFields)) : undefined;
 }
 
 function requestedFieldNames(value: unknown): string[] | undefined {

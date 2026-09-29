@@ -3,7 +3,7 @@
   "displayName": "Current collection search",
   "displayName.ru-RU": "Поиск по текущей коллекции",
   "description": "Fast substring search across searchable fields of the current NocoBase collection.",
-  "version": "2.0.61",
+  "version": "2.0.62",
   "main": "dist/server/index.js",
   "peerDependencies": {
     "@ant-design/icons": "*",

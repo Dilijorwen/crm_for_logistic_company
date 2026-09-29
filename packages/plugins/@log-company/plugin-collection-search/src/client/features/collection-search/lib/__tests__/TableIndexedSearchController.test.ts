@@ -198,6 +198,54 @@ describe('TableIndexedSearchController', () => {
     expect(states.some((state) => state.error)).toBe(false);
   });
 
+  it('does not cancel list restoration when a short query is erased quickly', async () => {
+    const resource = new ResourceStub();
+    resource.params.searchTerm = 'missing';
+    resource.actionName = 'searchCurrentCollection';
+    const listRequest = deferred<{ data: unknown[] }>();
+    resource.runAction.mockReturnValue(listRequest.promise);
+    const states: Array<{ loading: boolean; error?: unknown }> = [];
+    const controller = new TableIndexedSearchController(resource, (state) => states.push(state), 0);
+
+    const restore = controller.submit('mi');
+    await controller.submit('m');
+    await controller.submit('');
+
+    expect(resource.runAction).toHaveBeenCalledOnce();
+    expect(resource.runAction).toHaveBeenCalledWith('list', expect.objectContaining({ method: 'get' }));
+    listRequest.resolve({ data: [{ id: 3 }] });
+    await restore;
+
+    expect(resource.data).toEqual([{ id: 3 }]);
+    expect(states.at(-1)).toEqual({ loading: false });
+    expect(states.some((state) => state.error)).toBe(false);
+  });
+
+  it('restores the list after an in-flight empty-result search is canceled by quick clearing', async () => {
+    const resource = new ResourceStub();
+    const searchRequest = deferred<{ data: unknown[] }>();
+    const listRequest = deferred<{ data: unknown[] }>();
+    resource.runAction.mockImplementation((actionName: string) =>
+      actionName === 'list' ? listRequest.promise : searchRequest.promise,
+    );
+    const states: Array<{ loading: boolean; error?: unknown }> = [];
+    const controller = new TableIndexedSearchController(resource, (state) => states.push(state), 0);
+
+    const search = controller.submit('missing');
+    const restore = controller.submit('mi');
+    await controller.submit('');
+    listRequest.resolve({ data: [{ id: 4 }] });
+    await restore;
+    searchRequest.resolve({ data: [] });
+    await search;
+
+    expect(resource.data).toEqual([{ id: 4 }]);
+    expect(resource.actionName).toBe('list');
+    expect(resource.params.searchTerm).toBeUndefined();
+    expect(states.at(-1)).toEqual({ loading: false });
+    expect(states.some((state) => state.error)).toBe(false);
+  });
+
   it('does not apply an outdated response after a newer search', async () => {
     const resource = new ResourceStub();
     const oldRequest = deferred<{ data: unknown[] }>();

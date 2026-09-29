@@ -43,19 +43,23 @@ function normalizedTerm(value: string): string {
 
 function isCanceledRequest(error: unknown): boolean {
   if (error instanceof Error) {
-    return error.name === 'CanceledError' || error.message.toLowerCase() === 'canceled';
+    return error.name === 'CanceledError' || error.message.toLowerCase().includes('cancel');
   }
   if (error === null || typeof error !== 'object' || Array.isArray(error)) {
     return false;
   }
   const candidate = error as Record<string, unknown>;
-  return candidate.code === 'ERR_CANCELED' || candidate.name === 'CanceledError' || candidate.message === 'canceled';
+  return (
+    candidate.code === 'ERR_CANCELED' ||
+    candidate.name === 'CanceledError' ||
+    (typeof candidate.message === 'string' && candidate.message.toLowerCase().includes('cancel'))
+  );
 }
 
 export class TableIndexedSearchController {
   private timer: ReturnType<typeof setTimeout> | undefined;
-  private abortController: AbortController | undefined;
   private requestSequence = 0;
+  private restoreRequired = false;
 
   constructor(
     private readonly resource: IndexedSearchTableResource,
@@ -88,30 +92,32 @@ export class TableIndexedSearchController {
 
   async clearSearch(): Promise<void> {
     this.clearTimer();
-    this.cancelActiveRequest();
     const activeSearchTerm = this.resource.getRequestParameter('searchTerm');
     const hadSearch = typeof activeSearchTerm === 'string' && activeSearchTerm.length >= MINIMUM_SEARCH_LENGTH;
     if (!hadSearch) {
+      if (!this.restoreRequired) {
+        this.onStateChange({ loading: false });
+      }
       return;
     }
+    this.invalidateActiveRequest();
     this.resource.setRefreshAction(DEFAULT_ACTION);
     this.resource.removeRequestParameter('searchTerm');
     this.resource.removeRequestParameter('searchFields');
     this.resource.addRequestParameter('page', 1);
-    this.onStateChange({ loading: false });
+    this.restoreRequired = true;
     await this.restoreList();
   }
 
   dispose(): void {
     this.clearTimer();
-    this.cancelActiveRequest();
+    this.invalidateActiveRequest();
   }
 
   private async performSearch(term: string): Promise<void> {
-    this.cancelActiveRequest();
+    this.invalidateActiveRequest();
+    this.restoreRequired = false;
     const sequence = this.requestSequence;
-    const abortController = new AbortController();
-    this.abortController = abortController;
     this.resource.setRefreshAction(SEARCH_ACTION);
     this.resource.addRequestParameter('searchTerm', term);
     if (this.options.searchableFieldNames) {
@@ -126,12 +132,12 @@ export class TableIndexedSearchController {
       const result = await this.resource.runAction(SEARCH_ACTION, {
         method: 'get',
         params: { ...currentParams, searchTerm: term, page: 1 },
-        signal: abortController.signal,
       });
       if (sequence !== this.requestSequence) {
         return;
       }
       this.resource.setData(result.data).setMeta(result.meta);
+      this.restoreRequired = false;
       this.onStateChange({ loading: false });
     } catch (error) {
       if (sequence !== this.requestSequence) {
@@ -145,29 +151,23 @@ export class TableIndexedSearchController {
       this.resource.removeRequestParameter('searchTerm');
       this.resource.removeRequestParameter('searchFields');
       this.onStateChange({ loading: false, error });
-    } finally {
-      if (sequence === this.requestSequence) {
-        this.abortController = undefined;
-      }
     }
   }
 
   private async restoreList(): Promise<void> {
     const sequence = this.requestSequence;
-    const abortController = new AbortController();
-    this.abortController = abortController;
     this.onStateChange({ loading: true });
     try {
       const currentParams = this.resource.getRequestOptions().params || {};
       const result = await this.resource.runAction(DEFAULT_ACTION, {
         method: 'get',
         params: { ...currentParams, page: 1 },
-        signal: abortController.signal,
       });
       if (sequence !== this.requestSequence) {
         return;
       }
       this.resource.setData(result.data).setMeta(result.meta);
+      this.restoreRequired = false;
       this.onStateChange({ loading: false });
     } catch (error) {
       if (sequence !== this.requestSequence) {
@@ -178,17 +178,11 @@ export class TableIndexedSearchController {
         return;
       }
       this.onStateChange({ loading: false, error });
-    } finally {
-      if (sequence === this.requestSequence) {
-        this.abortController = undefined;
-      }
     }
   }
 
-  private cancelActiveRequest(): void {
+  private invalidateActiveRequest(): void {
     this.requestSequence += 1;
-    this.abortController?.abort();
-    this.abortController = undefined;
   }
 
   private clearTimer(): void {
