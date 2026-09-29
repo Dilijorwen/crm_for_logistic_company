@@ -7,4 +7,6 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-export const NAMESPACE = '@log-company/plugin-collection-search';
+export interface SearchFlowModelRepository {
+  containsSearchAction(modelUids: string[]): Promise<boolean>;
+}

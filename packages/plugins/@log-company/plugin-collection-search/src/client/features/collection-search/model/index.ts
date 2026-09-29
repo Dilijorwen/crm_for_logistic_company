@@ -8,11 +8,9 @@
  */
 
 import { CollectionSearchActionModel } from './CollectionSearchActionModel';
-import { CollectionSearchBlockModel } from './CollectionSearchBlockModel';
 
-export { CollectionSearchActionModel, CollectionSearchBlockModel };
+export { CollectionSearchActionModel };
 
 export default {
   CollectionSearchActionModel,
-  CollectionSearchBlockModel,
 };

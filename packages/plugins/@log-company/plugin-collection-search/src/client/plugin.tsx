@@ -8,16 +8,37 @@
  */
 
 import { Plugin } from '@nocobase/client';
+import type { FlowModel, ToolbarItemConfig } from '@nocobase/flow-engine';
 import models from './features/collection-search/model';
-import { NAMESPACE } from './locale';
-import enUS from '../locale/en-US.json';
-import ruRU from '../locale/ru-RU.json';
+import { CollectionSearchActionModel } from './features/collection-search/model';
+
+export function canConfigureCollectionSearch(model: FlowModel, currentRole: string | undefined): boolean {
+  return !(model instanceof CollectionSearchActionModel) || currentRole === 'root';
+}
 
 export class PluginCollectionSearchClient extends Plugin {
+  private restoreSettingsVisibility?: () => void;
+
   async load(): Promise<void> {
-    this.app.i18n.addResources('en-US', NAMESPACE, enUS);
-    this.app.i18n.addResources('ru-RU', NAMESPACE, ruRU);
     this.flowEngine.registerModels(models);
+    const settingsItem = this.flowEngine.flowSettings
+      .getToolbarItems()
+      .find((item: ToolbarItemConfig) => item.key === 'settings-menu');
+    if (settingsItem) {
+      const previousVisibility = settingsItem.visible;
+      settingsItem.visible = (model) => {
+        const wasVisible = previousVisibility ? previousVisibility(model) : true;
+        return wasVisible && canConfigureCollectionSearch(model, this.app.apiClient.auth.role);
+      };
+      this.restoreSettingsVisibility = () => {
+        settingsItem.visible = previousVisibility;
+      };
+    }
+  }
+
+  async unload(): Promise<void> {
+    this.restoreSettingsVisibility?.();
+    this.restoreSettingsVisibility = undefined;
   }
 }
 

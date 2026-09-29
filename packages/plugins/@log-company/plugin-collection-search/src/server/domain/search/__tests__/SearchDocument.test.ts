@@ -10,9 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildSearchDocument,
-  findSearchMatches,
   formatSearchFieldValue,
-  normalizePageSize,
   normalizeSearchTerm,
   type SearchableField,
 } from '../SearchDocument';
@@ -31,17 +29,18 @@ const fields: SearchableField[] = [
 ];
 
 describe('SearchDocument', () => {
-  it('finds the same substring in different collection fields', () => {
-    const matches = findSearchMatches(
+  it('places scalar values from hidden or visible fields in one searchable document', () => {
+    const document = buildSearchDocument(
       {
         car_number: 'А628ВС',
         declaration_number: '10702070/280726/00628',
       },
       fields,
-      '628',
     );
 
-    expect(matches.map((match) => match.fieldName)).toEqual(['car_number', 'declaration_number']);
+    expect(document.searchText).toContain('А628ВС');
+    expect(document.searchText).toContain('10702070/280726/00628');
+    expect(document.searchText.toLocaleLowerCase()).toContain('628');
   });
 
   it('indexes dates in ISO and Russian display formats', () => {
@@ -66,12 +65,32 @@ describe('SearchDocument', () => {
     expect(buildSearchDocument({ status: 'in_progress' }, fields).searchText).toBe('В работе in_progress');
   });
 
-  it('validates term length and page size boundaries', () => {
+  it('indexes relation title fields and composite shipment numbers', () => {
+    const relationFields: SearchableField[] = [
+      { name: 'vehicle', title: 'Машина', kind: 'text', path: ['vehicle', 'registration_number'] },
+      { name: 'managers', title: 'Менеджеры', kind: 'text', path: ['managers', 'nickname'] },
+      { name: 'display_name', title: 'Название поставки', kind: 'text' },
+    ];
+
+    const document = buildSearchDocument(
+      {
+        vehicle: { registration_number: 'P762MH' },
+        managers: [{ nickname: 'Анна' }, { nickname: 'Борис' }],
+        display_name: '1/Азия/INV-5328/ЗВ-102/ДТ-555',
+      },
+      relationFields,
+    );
+
+    expect(document.searchText).toContain('P762MH');
+    expect(document.values.managers.searchText).toBe('Анна Борис');
+    for (const term of ['Азия', 'INV', '532', '102', '555']) {
+      expect(document.searchText.toLocaleLowerCase()).toContain(term.toLocaleLowerCase());
+    }
+  });
+
+  it('validates term length boundaries', () => {
     expect(normalizeSearchTerm('  628  ')).toBe('628');
     expect(() => normalizeSearchTerm('62')).toThrowError(/at least 3/);
     expect(() => normalizeSearchTerm('x'.repeat(101))).toThrowError(/no more than 100/);
-    expect(normalizePageSize(undefined)).toBe(20);
-    expect(normalizePageSize(50)).toBe(50);
-    expect(() => normalizePageSize(51)).toThrowError(/between 1 and 50/);
   });
 });

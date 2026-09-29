@@ -37,6 +37,7 @@ describe('NocoBaseSearchIndexRepository metadata', () => {
         field('declaration_number', 'string', { uiSchema: { title: 'DT number' } }),
         field('created_at', 'date', { uiSchema: { title: 'Created at' } }),
         field('owner_id', 'bigInt', { isForeignKey: true }),
+        field('sort', 'integer', { interface: 'sort' }),
         field('secret', 'string', { interface: 'password' }),
         field('owner', 'belongsTo', {}, true),
       ],
@@ -50,6 +51,53 @@ describe('NocoBaseSearchIndexRepository metadata', () => {
 
   it('serializes composite record keys deterministically', () => {
     expect(serializeRecordKey({ second: 2, first: 1 })).toBe('{"first":1,"second":2}');
+  });
+
+  it('includes relation title fields and excludes relations without a searchable title field', () => {
+    const vehicleTitle = field('registration_number', 'string', { uiSchema: { title: 'Номер машины' } });
+    const vehicleCollection = {
+      name: 'vehicles',
+      filterTargetKey: 'id',
+      options: { titleField: 'registration_number' },
+      getField: (name: string) => (name === 'registration_number' ? vehicleTitle : undefined),
+    } as unknown as Collection;
+    const sourceDatabase = {
+      getCollection: (name: string) => (name === 'vehicles' ? vehicleCollection : undefined),
+    } as unknown as Database;
+    const collection = {
+      name: 'transport_runs',
+      db: sourceDatabase,
+      filterTargetKey: 'id',
+      options: { title: 'Рейсы', titleField: 'run_number' },
+      getFields: () => [
+        field('id', 'bigInt', { primaryKey: true }),
+        field('run_number', 'integer'),
+        field(
+          'vehicle',
+          'belongsTo',
+          {
+            target: 'vehicles',
+            targetKey: 'id',
+            sourceKey: 'id',
+            uiSchema: { title: 'Машина' },
+          },
+          true,
+        ),
+      ],
+    } as unknown as Collection;
+
+    const result = describeCollection(collection, 'main');
+
+    expect(result?.searchableFields).toContainEqual({
+      name: 'vehicle',
+      title: 'Машина',
+      kind: 'text',
+      path: ['vehicle', 'registration_number'],
+      enum: undefined,
+    });
+    expect(result?.relations).toContainEqual(
+      expect.objectContaining({ fieldName: 'vehicle', targetCollectionName: 'vehicles' }),
+    );
   });
 
   it('waits for an active rebuild before applying source updates', async () => {
@@ -77,11 +125,13 @@ describe('NocoBaseSearchIndexRepository metadata', () => {
       })),
     };
     const sourceDatabase = {
+      sequelize: { getDialect: () => 'postgres' },
       getRepository: vi.fn(() => ({
         chunkWithCursor: vi.fn(async () => {
           markBuildStarted?.();
           await buildBlocked;
         }),
+        findOne: vi.fn(async () => sourceModel),
       })),
     } as unknown as Database;
     const sourceCollection = {
@@ -92,7 +142,7 @@ describe('NocoBaseSearchIndexRepository metadata', () => {
       getFields: () => [field('id', 'bigInt', { primaryKey: true }), field('title', 'string')],
     } as unknown as Collection;
     const sourceModel = {
-      toJSON: () => ({ id: 1, title: 'Updated title' }),
+      get: () => ({ id: 1, title: 'Updated title' }),
     } as unknown as Model;
     const repository = new NocoBaseSearchIndexRepository({ db: pluginDatabase } as unknown as Plugin);
     const descriptor = describeCollection(sourceCollection, 'main');

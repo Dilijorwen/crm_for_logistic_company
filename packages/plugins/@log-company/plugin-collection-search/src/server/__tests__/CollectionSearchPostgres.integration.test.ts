@@ -17,6 +17,10 @@ import {
   describeCollection,
   NocoBaseSearchIndexRepository,
 } from '../infrastructure/persistence/nocobase/NocoBaseSearchIndexRepository';
+import {
+  COLLECTION_SEARCH_OPERATOR,
+  createIndexedCollectionSearchOperator,
+} from '../infrastructure/persistence/nocobase/NocoBaseIndexedSearchOperator';
 import CreateCollectionSearchIndexMigration from '../migrations/20260728120000-create-collection-search-index';
 
 const runPostgresIntegration =
@@ -53,6 +57,9 @@ describe.runIf(runPostgresIntegration)('collection search PostgreSQL index', () 
     };
     migration = new CreateCollectionSearchIndexMigration(context);
     await migration.up();
+    database.registerOperators({
+      [COLLECTION_SEARCH_OPERATOR]: createIndexedCollectionSearchOperator(database),
+    });
     indexRepository = new NocoBaseSearchIndexRepository({ db: database } as unknown as Plugin);
   });
 
@@ -80,14 +87,22 @@ describe.runIf(runPostgresIntegration)('collection search PostgreSQL index', () 
     }
 
     await indexRepository.ensureSynchronized(descriptor, database, sourceCollection);
+    const searchRecords = async (term: string) =>
+      sourceRepository.find({
+        filter: {
+          [`${descriptor.keyFields[0]}.${COLLECTION_SEARCH_OPERATOR}`]: {
+            term,
+            dataSourceKey: descriptor.dataSourceKey,
+            collectionName: descriptor.collectionName,
+            keyFields: descriptor.keyFields,
+            searchableFieldNames: descriptor.searchableFields.map((field) => field.name),
+          },
+        },
+      });
 
-    const initialCandidates = await indexRepository.findCandidates({
-      descriptor,
-      term: 'DECLARATION 628',
-      limit: 20,
-    });
-    expect(initialCandidates).toHaveLength(1);
-    expect(String(initialCandidates[0].keyValues.id)).toBe(String(first.get('id')));
+    const initialRecords = await searchRecords('DECLARATION 628');
+    expect(initialRecords).toHaveLength(1);
+    expect(String(initialRecords[0].get('id'))).toBe(String(first.get('id')));
 
     await sourceRepository.update({
       filterByTk: first.get('id'),
@@ -96,17 +111,11 @@ describe.runIf(runPostgresIntegration)('collection search PostgreSQL index', () 
     const updated = (await sourceRepository.findOne({ filterByTk: first.get('id') })) as Model;
     await indexRepository.upsertSourceModel('main', sourceCollection, updated, {});
 
-    await expect(
-      indexRepository.findCandidates({ descriptor, term: 'declaration 628', limit: 20 }),
-    ).resolves.toHaveLength(0);
-    await expect(
-      indexRepository.findCandidates({ descriptor, term: 'released shipment', limit: 20 }),
-    ).resolves.toHaveLength(1);
+    await expect(searchRecords('declaration 628')).resolves.toHaveLength(0);
+    await expect(searchRecords('released shipment')).resolves.toHaveLength(1);
 
     await indexRepository.removeSourceModel('main', sourceCollection, updated, {});
-    await expect(
-      indexRepository.findCandidates({ descriptor, term: 'released shipment', limit: 20 }),
-    ).resolves.toHaveLength(0);
+    await expect(searchRecords('released shipment')).resolves.toHaveLength(0);
 
     const [indexes] = (await database.sequelize.query(
       `select indexdef

@@ -12,7 +12,8 @@ export type CollectionSearchErrorCode =
   | 'SEARCH_TERM_TOO_LONG'
   | 'COLLECTION_NOT_FOUND'
   | 'NO_SEARCHABLE_FIELDS'
-  | 'INVALID_PAGE_SIZE';
+  | 'INVALID_SEARCH_FIELDS'
+  | 'INVALID_FILTER';
 
 export class CollectionSearchError extends Error {
   constructor(

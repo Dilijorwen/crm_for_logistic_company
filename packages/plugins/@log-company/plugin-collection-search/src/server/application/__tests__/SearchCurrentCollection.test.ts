@@ -9,33 +9,34 @@
 
 import { describe, expect, it } from 'vitest';
 import { SearchCurrentCollection } from '../SearchCurrentCollection';
-import type {
-  AccessibleSearchRecord,
-  CollectionSearchDescriptor,
-  CollectionSearchGateway,
-  IndexedSearchCandidate,
-} from '../ports/CollectionSearchGateway';
+import type { CollectionSearchDescriptor, CollectionSearchGateway } from '../ports/CollectionSearchGateway';
 
 const descriptor: CollectionSearchDescriptor = {
   dataSourceKey: 'main',
-  collectionName: 'customs_processes',
-  collectionTitle: 'Таможенное оформление',
+  collectionName: 'transport_runs',
+  collectionTitle: 'Рейсы',
   keyFields: ['id'],
-  titleField: 'title',
+  titleField: 'run_number',
   searchableFields: [
-    { name: 'car_number', title: 'Номер машины', kind: 'text' },
-    { name: 'declaration_number', title: 'Номер ДТ', kind: 'text' },
+    { name: 'run_number', title: 'Номер рейса', kind: 'number' },
+    { name: 'manager_comment', title: 'Комментарий', kind: 'text' },
+    { name: 'vehicle', title: 'Машина', kind: 'text', path: ['vehicle', 'registration_number'] },
+  ],
+  relations: [
+    {
+      fieldName: 'vehicle',
+      targetCollectionName: 'vehicles',
+      targetKey: 'id',
+      sourceKey: 'id',
+      associationType: 'belongsTo',
+    },
   ],
 };
 
 class SearchGatewayStub implements CollectionSearchGateway {
   synchronizationCount = 0;
 
-  constructor(
-    private readonly collection: CollectionSearchDescriptor | null,
-    private readonly candidates: IndexedSearchCandidate[],
-    private readonly records: AccessibleSearchRecord[],
-  ) {}
+  constructor(private readonly collection: CollectionSearchDescriptor | null) {}
 
   async describeCurrentCollection() {
     return this.collection;
@@ -44,123 +45,63 @@ class SearchGatewayStub implements CollectionSearchGateway {
   async ensureIndex() {
     this.synchronizationCount += 1;
   }
-
-  async findCandidates(input: { cursor?: string; limit: number }) {
-    const start = input.cursor ? this.candidates.findIndex((candidate) => candidate.cursor === input.cursor) + 1 : 0;
-    return this.candidates.slice(start, start + input.limit);
-  }
-
-  async findAccessibleRecords(input: { candidates: IndexedSearchCandidate[] }) {
-    const ids = new Set(input.candidates.map((candidate) => candidate.keyValues.id));
-    return this.records.filter((record) => ids.has(record.keyValues.id));
-  }
 }
 
 describe('SearchCurrentCollection', () => {
-  it('returns matches from multiple fields and initializes the index', async () => {
-    const gateway = new SearchGatewayStub(
-      descriptor,
-      [
-        { cursor: '{"id":1}', keyValues: { id: 1 } },
-        { cursor: '{"id":2}', keyValues: { id: 2 } },
-      ],
-      [
-        {
-          keyValues: { id: 1 },
-          values: { id: 1, title: 'Оформление 1', car_number: 'А628ВС' },
-        },
-        {
-          keyValues: { id: 2 },
-          values: { id: 2, title: 'Оформление 2', declaration_number: 'ДТ-628-26' },
-        },
-      ],
-    );
+  it('prepares an indexed search plan for all searchable collection fields', async () => {
+    const gateway = new SearchGatewayStub(descriptor);
 
-    const result = await new SearchCurrentCollection(gateway).execute({ term: '628' });
+    const result = await new SearchCurrentCollection(gateway).execute({ term: '  P762  ' });
 
+    expect(result).toEqual({
+      term: 'P762',
+      dataSourceKey: 'main',
+      collectionName: 'transport_runs',
+      keyFields: ['id'],
+      searchableFieldNames: ['run_number', 'manager_comment', 'vehicle'],
+    });
     expect(gateway.synchronizationCount).toBe(1);
-    expect(result.rows).toHaveLength(2);
-    expect(result.rows.map((row) => row.matches[0].fieldName).sort()).toEqual(['car_number', 'declaration_number']);
   });
 
-  it('does not return inaccessible candidate records', async () => {
-    const gateway = new SearchGatewayStub(descriptor, [{ cursor: '{"id":1}', keyValues: { id: 1 } }], []);
-
-    const result = await new SearchCurrentCollection(gateway).execute({ term: '628' });
-
-    expect(result.rows).toEqual([]);
-  });
-
-  it('matches only fields permitted by ACL', async () => {
-    const restrictedDescriptor = {
-      ...descriptor,
-      permittedFieldNames: ['car_number'],
-    };
-    const gateway = new SearchGatewayStub(
-      restrictedDescriptor,
-      [{ cursor: '{"id":1}', keyValues: { id: 1 } }],
-      [
-        {
-          keyValues: { id: 1 },
-          values: { id: 1, title: 'Оформление 1', declaration_number: 'ДТ-628-26' },
-        },
-      ],
-    );
-
-    const result = await new SearchCurrentCollection(gateway).execute({ term: '628' });
-
-    expect(result.rows).toEqual([]);
-  });
-
-  it('returns a cursor for the next page', async () => {
-    const gateway = new SearchGatewayStub(
-      descriptor,
-      [
-        { cursor: '{"id":1}', keyValues: { id: 1 } },
-        { cursor: '{"id":2}', keyValues: { id: 2 } },
-      ],
-      [
-        { keyValues: { id: 1 }, values: { id: 1, car_number: '628-A' } },
-        { keyValues: { id: 2 }, values: { id: 2, car_number: '628-B' } },
-      ],
-    );
-
-    const firstPage = await new SearchCurrentCollection(gateway).execute({ term: '628', pageSize: 1 });
-    const secondPage = await new SearchCurrentCollection(gateway).execute({
-      term: '628',
-      pageSize: 1,
-      cursor: firstPage.nextCursor,
+  it('limits searchable indexed fields to fields allowed by ACL', async () => {
+    const result = await new SearchCurrentCollection(new SearchGatewayStub(descriptor)).execute({
+      term: '762',
+      permittedFieldNames: ['run_number', 'vehicle.registration_number'],
     });
 
-    expect(firstPage).toMatchObject({ hasNext: true, nextCursor: '{"id":1}' });
-    expect(secondPage.rows[0].recordKey).toEqual({ id: 2 });
+    expect(result.searchableFieldNames).toEqual(['run_number', 'vehicle']);
   });
 
-  it('rejects missing collections and collections without searchable fields', async () => {
+  it('limits search to fields selected in the action settings', async () => {
+    const result = await new SearchCurrentCollection(new SearchGatewayStub(descriptor)).execute({
+      term: '762',
+      requestedFieldNames: ['vehicle', 'manager_comment'],
+      permittedFieldNames: ['run_number', 'manager_comment', 'vehicle.registration_number'],
+    });
+
+    expect(result.searchableFieldNames).toEqual(['manager_comment', 'vehicle']);
+  });
+
+  it('accepts exactly three characters and rejects shorter terms', async () => {
+    const search = new SearchCurrentCollection(new SearchGatewayStub(descriptor));
+
+    await expect(search.execute({ term: 'abc' })).resolves.toMatchObject({ term: 'abc' });
+    await expect(search.execute({ term: 'ab' })).rejects.toMatchObject({ code: 'SEARCH_TERM_TOO_SHORT' });
+  });
+
+  it('rejects missing collections and collections without permitted searchable fields', async () => {
     await expect(
-      new SearchCurrentCollection(new SearchGatewayStub(null, [], [])).execute({ term: '628' }),
-    ).rejects.toMatchObject({ code: 'COLLECTION_NOT_FOUND' });
+      new SearchCurrentCollection(new SearchGatewayStub(null)).execute({ term: '628' }),
+    ).rejects.toMatchObject({
+      code: 'COLLECTION_NOT_FOUND',
+    });
 
     await expect(
-      new SearchCurrentCollection(new SearchGatewayStub({ ...descriptor, searchableFields: [] }, [], [])).execute({
+      new SearchCurrentCollection(new SearchGatewayStub(descriptor)).execute({
         term: '628',
+        permittedFieldNames: ['secret'],
       }),
     ).rejects.toMatchObject({ code: 'NO_SEARCHABLE_FIELDS' });
-  });
-
-  it('can repeat the same read-only search without changing its result', async () => {
-    const gateway = new SearchGatewayStub(
-      descriptor,
-      [{ cursor: '{"id":1}', keyValues: { id: 1 } }],
-      [{ keyValues: { id: 1 }, values: { id: 1, car_number: 'А628ВС' } }],
-    );
-    const search = new SearchCurrentCollection(gateway);
-
-    const first = await search.execute({ term: '628' });
-    const second = await search.execute({ term: '628' });
-
-    expect(second).toEqual(first);
-    expect(gateway.synchronizationCount).toBe(2);
   });
 
   it('propagates index storage failures', async () => {
@@ -170,8 +111,8 @@ describe('SearchCurrentCollection', () => {
       }
     }
 
-    await expect(
-      new SearchCurrentCollection(new FailingGateway(descriptor, [], [])).execute({ term: '628' }),
-    ).rejects.toThrow('Search storage is unavailable');
+    await expect(new SearchCurrentCollection(new FailingGateway(descriptor)).execute({ term: '628' })).rejects.toThrow(
+      'Search storage is unavailable',
+    );
   });
 });

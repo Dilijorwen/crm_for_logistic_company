@@ -8,23 +8,20 @@
  */
 
 import { createHash } from 'node:crypto';
-import type { Collection, Database, Field, Model, Transaction } from '@nocobase/database';
+import { Model, type Collection, type Database, type Field, type Transaction } from '@nocobase/database';
 import type { Plugin } from '@nocobase/server';
 import { buildSearchDocument } from '../../../domain/search/SearchDocument';
 import type {
   CollectionSearchDescriptor,
-  IndexedSearchCandidate,
   RecordKeyValues,
+  SearchRelationDescriptor,
 } from '../../../application/ports/CollectionSearchGateway';
 
 const DOCUMENTS_COLLECTION = 'lc_collection_search_documents';
 const STATES_COLLECTION = 'lc_collection_search_states';
 const INDEX_CHUNK_SIZE = 500;
-
-interface SearchDocumentRow {
-  recordKey: string;
-  keyValues: RecordKeyValues;
-}
+const INDEX_SCHEMA_VERSION = 3;
+const EXCLUDED_FIELD_INTERFACES = new Set(['attachment', 'file', 'password', 'sequence', 'snowflakeId', 'sort']);
 
 interface SearchStateRow {
   schemaSignature: string;
@@ -35,13 +32,40 @@ interface TransactionOptions {
   transaction?: Transaction;
 }
 
+export interface DependentSourceRecord {
+  collectionName: string;
+  keyValues: RecordKeyValues;
+}
+
+interface IndexedCollectionRegistration {
+  descriptor: CollectionSearchDescriptor;
+  database: Database;
+  collection: Collection;
+}
+
+interface RegisteredDataSource {
+  collectionManager: {
+    db?: Database;
+  };
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+function rawModelValue(value: unknown): unknown {
+  if (value instanceof Model) {
+    return modelValues(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(rawModelValue);
+  }
+  return value;
+}
+
 function modelValues(model: Model): Record<string, unknown> {
-  const json = model.toJSON();
-  return asRecord(json);
+  const values = asRecord(model.get());
+  return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, rawModelValue(value)]));
 }
 
 export function serializeRecordKey(values: RecordKeyValues): string {
@@ -69,13 +93,16 @@ export function recordKeyValues(record: Record<string, unknown>, keyFields: stri
 
 function schemaSignature(descriptor: CollectionSearchDescriptor): string {
   const payload = {
+    indexSchemaVersion: INDEX_SCHEMA_VERSION,
     keyFields: descriptor.keyFields,
     titleField: descriptor.titleField,
     fields: descriptor.searchableFields.map((field) => ({
       name: field.name,
       kind: field.kind,
+      path: field.path,
       enum: field.enum,
     })),
+    relations: descriptor.relations,
   };
   return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 }
@@ -84,15 +111,22 @@ function sourceFields(descriptor: CollectionSearchDescriptor): string[] {
   return Array.from(
     new Set([
       ...descriptor.keyFields,
-      ...descriptor.searchableFields.map((field) => field.name),
+      ...descriptor.searchableFields
+        .filter((field) => !field.path || field.path.length === 1)
+        .map((field) => field.name),
       ...(descriptor.titleField ? [descriptor.titleField] : []),
     ]),
   );
 }
 
+function sourceAppends(descriptor: CollectionSearchDescriptor): string[] {
+  return descriptor.relations.map((relation) => relation.fieldName);
+}
+
 export class NocoBaseSearchIndexRepository {
   private readonly indexedCollections = new Set<string>();
   private readonly synchronization = new Map<string, Promise<void>>();
+  private readonly registrations = new Map<string, IndexedCollectionRegistration>();
 
   constructor(private readonly plugin: Plugin) {}
 
@@ -106,9 +140,20 @@ export class NocoBaseSearchIndexRepository {
       fields: ['dataSourceKey', 'collectionName'],
     });
     for (const row of rows) {
-      this.indexedCollections.add(
-        this.collectionKey(String(row.get('dataSourceKey')), String(row.get('collectionName'))),
-      );
+      const dataSourceKey = String(row.get('dataSourceKey'));
+      const collectionName = String(row.get('collectionName'));
+      const key = this.collectionKey(dataSourceKey, collectionName);
+      this.indexedCollections.add(key);
+      const dataSource = this.plugin.app.dataSourceManager.get(dataSourceKey) as RegisteredDataSource | undefined;
+      const database = dataSource?.collectionManager.db;
+      const collection = database?.getCollection(collectionName);
+      if (!database || !collection) {
+        continue;
+      }
+      const descriptor = describeCollection(collection, dataSourceKey);
+      if (descriptor) {
+        this.registrations.set(key, { descriptor, database, collection });
+      }
     }
   }
 
@@ -122,6 +167,7 @@ export class NocoBaseSearchIndexRepository {
     sourceCollection: Collection,
   ): Promise<void> {
     const key = this.collectionKey(descriptor.dataSourceKey, descriptor.collectionName);
+    this.registrations.set(key, { descriptor, database: sourceDatabase, collection: sourceCollection });
     const existing = this.synchronization.get(key);
     if (existing) {
       await existing;
@@ -136,33 +182,89 @@ export class NocoBaseSearchIndexRepository {
     }
   }
 
-  async findCandidates(input: {
-    descriptor: CollectionSearchDescriptor;
-    term: string;
-    cursor?: string;
-    limit: number;
-  }): Promise<IndexedSearchCandidate[]> {
-    const filter: Record<string, unknown> = {
-      dataSourceKey: input.descriptor.dataSourceKey,
-      collectionName: input.descriptor.collectionName,
-      'searchText.$includes': input.term,
-    };
-    if (input.cursor) {
-      filter['recordKey.$gt'] = input.cursor;
+  async collectDependentSourceRecords(
+    dataSourceKey: string,
+    changedCollection: Collection,
+    changedModel: Model,
+    options: TransactionOptions,
+  ): Promise<DependentSourceRecord[]> {
+    const changedValues = modelValues(changedModel);
+    const records = new Map<string, DependentSourceRecord>();
+    for (const registration of this.registrations.values()) {
+      if (registration.descriptor.dataSourceKey !== dataSourceKey || registration.database !== changedCollection.db) {
+        continue;
+      }
+      for (const relation of registration.descriptor.relations) {
+        if (relation.targetCollectionName === changedCollection.name) {
+          const targetValue = changedValues[relation.targetKey];
+          if (targetValue === undefined || targetValue === null) {
+            continue;
+          }
+          const sourceModels = await registration.database.getRepository(registration.collection.name).find({
+            filter: { [`${relation.fieldName}.${relation.targetKey}`]: targetValue },
+            fields: registration.descriptor.keyFields,
+            transaction: options.transaction,
+          });
+          for (const sourceModel of sourceModels) {
+            this.addDependentRecord(records, registration, modelValues(sourceModel));
+          }
+        }
+        if (relation.throughCollectionName === changedCollection.name && relation.throughSourceKey) {
+          const sourceValue = changedValues[relation.throughSourceKey];
+          if (sourceValue === undefined || sourceValue === null) {
+            continue;
+          }
+          const sourceModels = await registration.database.getRepository(registration.collection.name).find({
+            filter: { [relation.sourceKey]: sourceValue },
+            fields: registration.descriptor.keyFields,
+            transaction: options.transaction,
+          });
+          for (const sourceModel of sourceModels) {
+            this.addDependentRecord(records, registration, modelValues(sourceModel));
+          }
+        }
+      }
     }
-    const rows = await this.plugin.db.getRepository(DOCUMENTS_COLLECTION).find({
-      filter,
-      fields: ['recordKey', 'keyValues'],
-      sort: ['recordKey'],
-      limit: input.limit,
-    });
-    return rows.map((row) => {
-      const values = row.toJSON() as unknown as SearchDocumentRow;
-      return {
-        cursor: values.recordKey,
-        keyValues: values.keyValues,
-      };
-    });
+    return Array.from(records.values());
+  }
+
+  async refreshDependentSourceRecords(
+    dataSourceKey: string,
+    records: DependentSourceRecord[],
+    options: TransactionOptions,
+  ): Promise<void> {
+    for (const record of records) {
+      const registration = this.registrations.get(this.collectionKey(dataSourceKey, record.collectionName));
+      if (!registration) {
+        continue;
+      }
+      const sourceModel = await registration.database.getRepository(record.collectionName).findOne({
+        filter: record.keyValues,
+        fields: sourceFields(registration.descriptor),
+        appends: sourceAppends(registration.descriptor),
+        transaction: options.transaction,
+      });
+      if (!sourceModel) {
+        continue;
+      }
+      const values = this.documentValues(registration.descriptor, modelValues(sourceModel));
+      if (values) {
+        await this.documentsModel().upsert(values, {
+          transaction: registration.database === this.plugin.db ? options.transaction : undefined,
+          conflictFields: ['dataSourceKey', 'collectionName', 'recordKey'],
+        });
+      }
+    }
+  }
+
+  async refreshDependentsOfChangedModel(
+    dataSourceKey: string,
+    changedCollection: Collection,
+    changedModel: Model,
+    options: TransactionOptions,
+  ): Promise<void> {
+    const records = await this.collectDependentSourceRecords(dataSourceKey, changedCollection, changedModel, options);
+    await this.refreshDependentSourceRecords(dataSourceKey, records, options);
   }
 
   async upsertSourceModel(
@@ -179,8 +281,20 @@ export class NocoBaseSearchIndexRepository {
     if (!descriptor) {
       return;
     }
-    const record = modelValues(model);
-    const values = this.documentValues(descriptor, record);
+    const keys = recordKeyValues(modelValues(model), descriptor.keyFields);
+    if (!keys) {
+      return;
+    }
+    const sourceModel = await sourceCollection.db.getRepository(sourceCollection.name).findOne({
+      filter: keys,
+      fields: sourceFields(descriptor),
+      appends: sourceAppends(descriptor),
+      transaction: options.transaction,
+    });
+    if (!sourceModel) {
+      return;
+    }
+    const values = this.documentValues(descriptor, modelValues(sourceModel));
     if (!values) {
       return;
     }
@@ -246,18 +360,33 @@ export class NocoBaseSearchIndexRepository {
         },
       });
       const sourceRepository = sourceDatabase.getRepository(descriptor.collectionName);
-      await sourceRepository.chunkWithCursor({
+      const indexModels = async (models: Model[]) => {
+        const documents = models
+          .map((model) => this.documentValues(descriptor, modelValues(model)))
+          .filter((value): value is Record<string, unknown> => Boolean(value));
+        if (documents.length) {
+          await this.documentsModel().bulkCreate(documents);
+        }
+      };
+      const query = {
         fields: sourceFields(descriptor),
-        chunkSize: INDEX_CHUNK_SIZE,
-        callback: async (models: Model[]) => {
-          const documents = models
-            .map((model) => this.documentValues(descriptor, modelValues(model)))
-            .filter((value): value is Record<string, unknown> => Boolean(value));
-          if (documents.length) {
-            await this.documentsModel().bulkCreate(documents);
-          }
-        },
-      });
+        appends: sourceAppends(descriptor),
+      };
+      if (sourceDatabase.sequelize.getDialect() === 'sqlite') {
+        let offset = 0;
+        let models: Model[];
+        do {
+          models = await sourceRepository.find({ ...query, offset, limit: INDEX_CHUNK_SIZE });
+          await indexModels(models);
+          offset += INDEX_CHUNK_SIZE;
+        } while (models.length === INDEX_CHUNK_SIZE);
+      } else {
+        await sourceRepository.chunkWithCursor({
+          ...query,
+          chunkSize: INDEX_CHUNK_SIZE,
+          callback: indexModels,
+        });
+      }
       await this.writeState(descriptor, signature, 'ready', new Date());
       this.indexedCollections.add(this.collectionKey(descriptor.dataSourceKey, descriptor.collectionName));
     } catch (error) {
@@ -326,6 +455,19 @@ export class NocoBaseSearchIndexRepository {
     return `${dataSourceKey}:${collectionName}`;
   }
 
+  private addDependentRecord(
+    records: Map<string, DependentSourceRecord>,
+    registration: IndexedCollectionRegistration,
+    values: Record<string, unknown>,
+  ): void {
+    const keyValues = recordKeyValues(values, registration.descriptor.keyFields);
+    if (!keyValues) {
+      return;
+    }
+    const record = { collectionName: registration.collection.name, keyValues };
+    records.set(`${record.collectionName}:${serializeRecordKey(keyValues)}`, record);
+  }
+
   private async waitForSynchronization(dataSourceKey: string, collectionName: string): Promise<void> {
     const synchronization = this.synchronization.get(this.collectionKey(dataSourceKey, collectionName));
     if (synchronization) {
@@ -385,7 +527,7 @@ function searchableField(field: Field) {
     field.isRelationField() ||
     options.primaryKey === true ||
     options.isForeignKey === true ||
-    ['password', 'snowflakeId'].includes(String(options.interface || ''))
+    EXCLUDED_FIELD_INTERFACES.has(String(options.interface || ''))
   ) {
     return null;
   }
@@ -398,6 +540,70 @@ function searchableField(field: Field) {
   };
 }
 
+function relationDescriptor(
+  collection: Collection,
+  field: Field,
+): {
+  field: NonNullable<ReturnType<typeof searchableField>> & { path: string[] };
+  relation: SearchRelationDescriptor;
+} | null {
+  if (!field.isRelationField()) {
+    return null;
+  }
+  const options = asRecord(field.options);
+  if (EXCLUDED_FIELD_INTERFACES.has(String(options.interface || ''))) {
+    return null;
+  }
+  const targetCollectionName = typeof options.target === 'string' ? options.target : undefined;
+  if (!targetCollectionName || !collection.db) {
+    return null;
+  }
+  const targetCollection = collection.db.getCollection(targetCollectionName);
+  const targetOptions = asRecord(targetCollection?.options);
+  const titleFieldName = typeof targetOptions.titleField === 'string' ? targetOptions.titleField : undefined;
+  const titleField = titleFieldName ? targetCollection?.getField(titleFieldName) : undefined;
+  if (!targetCollection || !titleField || titleField.isRelationField()) {
+    return null;
+  }
+  const titleFieldOptions = asRecord(titleField.options);
+  const kind = SEARCHABLE_FIELD_TYPES.get(titleField.type);
+  if (!kind || EXCLUDED_FIELD_INTERFACES.has(String(titleFieldOptions.interface || ''))) {
+    return null;
+  }
+  const collectionTargetKey = Array.isArray(collection.filterTargetKey)
+    ? collection.filterTargetKey[0]
+    : collection.filterTargetKey;
+  const relatedTargetKey = Array.isArray(targetCollection.filterTargetKey)
+    ? targetCollection.filterTargetKey[0]
+    : targetCollection.filterTargetKey;
+  const sourceKey = typeof options.sourceKey === 'string' ? options.sourceKey : collectionTargetKey;
+  const targetKey = typeof options.targetKey === 'string' ? options.targetKey : relatedTargetKey;
+  if (!sourceKey || !targetKey) {
+    return null;
+  }
+  const uiSchema = asRecord(options.uiSchema);
+  const throughCollectionName = typeof options.through === 'string' ? options.through : undefined;
+  const throughSourceKey = typeof options.foreignKey === 'string' ? options.foreignKey : undefined;
+  return {
+    field: {
+      name: field.name,
+      title: String(uiSchema.title || field.name),
+      kind,
+      path: [field.name, titleFieldName],
+      enum: enumItems(titleFieldOptions),
+    },
+    relation: {
+      fieldName: field.name,
+      targetCollectionName,
+      targetKey,
+      sourceKey,
+      associationType: field.type,
+      throughCollectionName,
+      throughSourceKey,
+    },
+  };
+}
+
 export function describeCollection(collection: Collection, dataSourceKey: string): CollectionSearchDescriptor | null {
   const keyFields = Array.isArray(collection.filterTargetKey)
     ? collection.filterTargetKey
@@ -407,10 +613,14 @@ export function describeCollection(collection: Collection, dataSourceKey: string
   if (!keyFields.length) {
     return null;
   }
-  const searchableFields = collection
+  const scalarFields = collection
     .getFields()
     .map(searchableField)
     .filter((field): field is NonNullable<ReturnType<typeof searchableField>> => Boolean(field));
+  const relationFields = collection
+    .getFields()
+    .map((field) => relationDescriptor(collection, field))
+    .filter((item): item is NonNullable<ReturnType<typeof relationDescriptor>> => Boolean(item));
   const options = asRecord(collection.options);
   return {
     dataSourceKey,
@@ -418,6 +628,7 @@ export function describeCollection(collection: Collection, dataSourceKey: string
     collectionTitle: String(options.title || collection.name),
     keyFields,
     titleField: typeof options.titleField === 'string' ? options.titleField : undefined,
-    searchableFields,
+    searchableFields: [...scalarFields, ...relationFields.map((item) => item.field)],
+    relations: relationFields.map((item) => item.relation),
   };
 }

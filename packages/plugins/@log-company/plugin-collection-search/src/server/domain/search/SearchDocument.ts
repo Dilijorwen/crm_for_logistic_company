@@ -11,8 +11,6 @@ import { CollectionSearchError } from './SearchErrors';
 
 export const MIN_SEARCH_TERM_LENGTH = 3;
 export const MAX_SEARCH_TERM_LENGTH = 100;
-export const DEFAULT_PAGE_SIZE = 20;
-export const MAX_PAGE_SIZE = 50;
 
 export type SearchableFieldKind = 'text' | 'number' | 'date' | 'boolean';
 
@@ -22,6 +20,7 @@ export interface SearchableField {
   name: string;
   title: string;
   kind: SearchableFieldKind;
+  path?: string[];
   enum?: Array<{ value: SearchPrimitive; label: string }>;
 }
 
@@ -31,17 +30,23 @@ export interface SearchFieldValue {
   raw: SearchPrimitive;
 }
 
-export interface SearchMatch {
-  fieldName: string;
-  fieldTitle: string;
-  value: string;
-  rawValue: SearchPrimitive;
-  score: number;
-}
-
 export interface SearchDocument {
   values: Record<string, SearchFieldValue>;
   searchText: string;
+}
+
+function valuesAtPath(value: unknown, path: string[]): unknown[] {
+  if (!path.length) {
+    return Array.isArray(value) ? value.flatMap((item) => valuesAtPath(item, [])) : [value];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => valuesAtPath(item, path));
+  }
+  if (!value || typeof value !== 'object') {
+    return [];
+  }
+  const [head, ...tail] = path;
+  return valuesAtPath((value as Record<string, unknown>)[head], tail);
 }
 
 export function normalizeSearchTerm(value: unknown): string {
@@ -62,21 +67,6 @@ export function normalizeSearchTerm(value: unknown): string {
     );
   }
   return term;
-}
-
-export function normalizePageSize(value: unknown): number {
-  if (value === undefined || value === null || value === '') {
-    return DEFAULT_PAGE_SIZE;
-  }
-  const pageSize = Number(value);
-  if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
-    throw new CollectionSearchError('INVALID_PAGE_SIZE', `Page size must be between 1 and ${MAX_PAGE_SIZE}.`);
-  }
-  return pageSize;
-}
-
-function normalizeComparable(value: string): string {
-  return value.toLocaleLowerCase().normalize('NFKC');
 }
 
 function formatDate(value: unknown): SearchFieldValue | null {
@@ -139,54 +129,26 @@ export function buildSearchDocument(record: Record<string, unknown>, fields: Sea
   const values: Record<string, SearchFieldValue> = {};
   const searchableValues: string[] = [];
   for (const field of fields) {
-    const fieldValue = formatSearchFieldValue(field, record[field.name]);
-    if (!fieldValue) {
+    const fieldValues = valuesAtPath(record, field.path || [field.name])
+      .map((value) => formatSearchFieldValue(field, value))
+      .filter((value): value is SearchFieldValue => Boolean(value));
+    if (!fieldValues.length) {
       continue;
     }
-    values[field.name] = fieldValue;
-    searchableValues.push(fieldValue.searchText);
+    const uniqueSearchValues = Array.from(new Set(fieldValues.map((value) => value.searchText)));
+    const uniqueDisplayValues = Array.from(new Set(fieldValues.map((value) => value.display)));
+    values[field.name] =
+      fieldValues.length === 1
+        ? fieldValues[0]
+        : {
+            raw: uniqueDisplayValues.join(', '),
+            display: uniqueDisplayValues.join(', '),
+            searchText: uniqueSearchValues.join(' '),
+          };
+    searchableValues.push(...uniqueSearchValues);
   }
   return {
     values,
     searchText: searchableValues.join(' ').trim(),
   };
-}
-
-function matchScore(value: string, term: string): number {
-  const comparableValue = normalizeComparable(value);
-  const comparableTerm = normalizeComparable(term);
-  if (comparableValue === comparableTerm) {
-    return 100;
-  }
-  if (comparableValue.startsWith(comparableTerm)) {
-    return 50;
-  }
-  return comparableValue.includes(comparableTerm) ? 10 : 0;
-}
-
-export function findSearchMatches(
-  record: Record<string, unknown>,
-  fields: SearchableField[],
-  term: string,
-): SearchMatch[] {
-  return fields
-    .map((field): SearchMatch | null => {
-      const fieldValue = formatSearchFieldValue(field, record[field.name]);
-      if (!fieldValue) {
-        return null;
-      }
-      const score = matchScore(fieldValue.searchText, term);
-      if (!score) {
-        return null;
-      }
-      return {
-        fieldName: field.name,
-        fieldTitle: field.title,
-        value: fieldValue.display,
-        rawValue: fieldValue.raw,
-        score,
-      };
-    })
-    .filter((match): match is SearchMatch => Boolean(match))
-    .sort((left, right) => right.score - left.score || left.fieldTitle.localeCompare(right.fieldTitle));
 }
