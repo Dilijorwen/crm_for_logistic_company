@@ -8,7 +8,7 @@
  */
 
 import { defineCollection, type FieldOptions } from '@nocobase/database';
-import { idField } from './logisticsCollectionFields';
+import { idField, statusField } from './logisticsCollectionFields';
 
 function stringField(name: string, title: string): FieldOptions {
   return {
@@ -84,6 +84,7 @@ export default defineCollection({
   migrationRules: ['overwrite', 'schema-only'],
   indexes: [
     { name: 'shipments_shipment_number_unique', unique: true, fields: ['shipment_number'] },
+    { name: 'shipments_status_updated_at_idx', fields: ['status', 'updatedAt'] },
     { name: 'shipments_chinese_client_id_idx', fields: ['chinese_client_id'] },
     { name: 'shipments_company_id_idx', fields: ['company_id'] },
     { name: 'shipments_route_delivery_number_idx', fields: ['route_delivery_number'] },
@@ -115,6 +116,7 @@ export default defineCollection({
         'x-read-pretty': true,
       },
     },
+    statusField,
     { type: 'bigInt', name: 'chinese_client_id', interface: 'integer', isForeignKey: true, allowNull: false },
     { type: 'bigInt', name: 'company_id', interface: 'integer', isForeignKey: true, allowNull: false },
     stringField('route_delivery_number', 'Номер доставки'),

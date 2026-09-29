@@ -54,7 +54,6 @@ describe('LogisticsService', () => {
           {
             id: '101',
             run_number: 7,
-            status: 'queue',
             registration_number_input: 'AB123CD',
           },
         ],
@@ -78,11 +77,10 @@ describe('LogisticsService', () => {
   it('maps a run form to the normalized NocoBase associations', async () => {
     const { service, resources, api } = setup();
     const runs = api.resource('transport_runs') as unknown as ResourceStub;
-    runs.create.mockResolvedValue({ data: { data: { id: '101', run_number: 7, status: 'queue' } } });
+    runs.create.mockResolvedValue({ data: { data: { id: '101', run_number: 7 } } });
 
     await service.createRun({
       registrationNumber: 'AB123CD',
-      status: 'queue',
       departureCityId: '20',
       managerIds: ['2', '3'],
       declarantIds: [],
@@ -92,7 +90,6 @@ describe('LogisticsService', () => {
     expect(resources.get('transport_runs')?.create).toHaveBeenCalledWith({
       values: {
         registration_number_input: 'AB123CD',
-        status: 'queue',
         departure_city: { id: '20' },
         managers: [{ id: '2' }, { id: '3' }],
         declarants: [],
@@ -110,6 +107,7 @@ describe('LogisticsService', () => {
           {
             id: 'shipment-1',
             shipment_number: 12,
+            status: 'in_work',
             chinese_client: { id: 'client-1', name: 'Клиент' },
             company: { id: 'company-1', name: 'Компания' },
             route_delivery_number: 'DEL-10',
@@ -123,6 +121,7 @@ describe('LogisticsService', () => {
       {
         id: 'shipment-1',
         shipmentNumber: 12,
+        status: 'in_work',
         chineseClient: { id: 'client-1', label: 'Клиент' },
         company: { id: 'company-1', label: 'Компания' },
         routeDeliveryNumber: 'DEL-10',

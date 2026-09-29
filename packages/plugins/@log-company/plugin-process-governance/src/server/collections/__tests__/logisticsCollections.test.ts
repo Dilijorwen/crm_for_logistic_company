@@ -66,12 +66,13 @@ describe('logistics collection metadata', () => {
     expect(transportRuns.fields.find((field) => field.name === 'vehicle_id')?.hidden).toBe(true);
   });
 
-  it('does not require users to select a run status and keeps the queue default', () => {
-    const status = transportRuns.fields.find((field) => field.name === 'status');
+  it('stores the optional-selection status on shipments instead of runs', () => {
+    const status = shipments.fields.find((field) => field.name === 'status');
 
     expect(status).toMatchObject({ allowNull: false, defaultValue: 'queue' });
     expect(status?.validation).toBeUndefined();
     expect(status?.uiSchema?.required).toBeUndefined();
+    expect(transportRuns.fields.some((field) => field.name === 'status')).toBe(false);
   });
 
   it('accepts a comma or a dot in every double shipment field', () => {

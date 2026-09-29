@@ -86,7 +86,6 @@ describe('LogisticsHooks', () => {
       run_number: 17,
       vehicle_id: 'vehicle-1',
       registration_number_input: 'AB/123-CD',
-      status: 'queue',
     });
     expect(actions.assignNumber.execute).toHaveBeenCalledOnce();
     expect(actions.resolveRunVehicle.execute).toHaveBeenCalledWith({
@@ -120,7 +119,7 @@ describe('LogisticsHooks', () => {
 
     await handler(model, {});
 
-    expect(model.values.shipment_number).toBe(17);
+    expect(model.values).toMatchObject({ shipment_number: 17, status: 'queue' });
     expect(actions.assignNumber.execute).toHaveBeenCalledWith(
       expect.objectContaining({ entityKind: 'shipment', isNewRecord: true }),
     );

@@ -632,7 +632,7 @@ function RunTreeBlockComponent({ processId, recordId, entityKind = 'run', modelC
   const config = TREE_ENTITY_CONFIG[entityKind];
   const api = useAPIClient();
   const { token } = antdTheme.useToken();
-  const statusLabels = useStatusLabels(config.collection);
+  const statusLabels = useStatusLabels(entityKind === 'process' ? config.collection : '');
   const processTarget = useProcessTarget(entityKind, modelContext, recordId ?? processId);
   const processKey = processTarget.status === 'ready' ? processTarget.key : undefined;
   const processKeyRef = useRef<ProcessResourceKey | undefined>(processKey);
@@ -666,7 +666,7 @@ function RunTreeBlockComponent({ processId, recordId, entityKind = 'run', modelC
           appends: entityKind === 'run' ? ['createdBy', 'updatedBy', 'vehicle'] : ['createdBy', 'updatedBy'],
           fields:
             entityKind === 'run'
-              ? ['id', 'run_number', 'status', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy']
+              ? ['id', 'run_number', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy']
               : ['id', 'title', 'status', 'process_number', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy'],
         },
         { skipNotify: true },
@@ -684,7 +684,7 @@ function RunTreeBlockComponent({ processId, recordId, entityKind = 'run', modelC
           appends: entityKind === 'run' ? ['createdBy', 'updatedBy', 'vehicle'] : ['createdBy', 'updatedBy'],
           fields:
             entityKind === 'run'
-              ? ['id', 'run_number', 'status', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy']
+              ? ['id', 'run_number', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy']
               : ['id', 'title', 'status', 'process_number', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy'],
         },
         { skipNotify: true },
@@ -944,9 +944,11 @@ function RunTreeBlockComponent({ processId, recordId, entityKind = 'run', modelC
               {options.current ? <Tag color="processing">{config.currentLabel}</Tag> : null}
               {node?.inaccessible ? <Tag>Нет доступа</Tag> : null}
             </div>
-            <div className="process-tree-meta">
-              Статус: {node?.inaccessible ? 'нет доступа' : getStatusLabel(node?.status)}
-            </div>
+            {entityKind === 'process' ? (
+              <div className="process-tree-meta">
+                Статус: {node?.inaccessible ? 'нет доступа' : getStatusLabel(node?.status)}
+              </div>
+            ) : null}
             <div className="process-tree-meta">{lastChangedLabel(node, entityKind)}</div>
             {parentTitles.length > 1 ? (
               <div className="process-tree-meta">Родители: {parentTitles.join(', ')}</div>

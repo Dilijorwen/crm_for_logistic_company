@@ -9,7 +9,6 @@
 
 import { Alert, Form, Input, Modal, Select, Tabs } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
-import { DEFAULT_LOGISTICS_STATUS, LOGISTICS_STATUS_LABELS, LOGISTICS_STATUS_VALUES } from '../../shared/logistics';
 import { apiErrorMessage, isFormValidationError } from './apiResponse';
 import { HistoryTable } from './HistoryTable';
 import type { LogisticsService } from './LogisticsService';
@@ -19,7 +18,6 @@ import type { LogisticsPermissions } from './useLogisticsPermissions';
 
 interface RunFormValues {
   registrationNumber: string;
-  status: string;
   departureCityId?: string;
   managerIds?: string[];
   declarantIds?: string[];
@@ -54,7 +52,6 @@ export function RunModal({ open, run, runs, referenceData, service, permissions,
     setError(null);
     form.setFieldsValue({
       registrationNumber: run?.registrationNumber,
-      status: run?.status || DEFAULT_LOGISTICS_STATUS,
       departureCityId: run?.departureCity?.id,
       managerIds: run?.managers.map((item) => item.id) || [],
       declarantIds: run?.declarants.map((item) => item.id) || [],
@@ -67,7 +64,6 @@ export function RunModal({ open, run, runs, referenceData, service, permissions,
       const values = await form.validateFields();
       const input: RunMutationInput = {
         registrationNumber: values.registrationNumber,
-        status: values.status,
         departureCityId: values.departureCityId || null,
         managerIds: values.managerIds || [],
         declarantIds: values.declarantIds || [],
@@ -80,7 +76,6 @@ export function RunModal({ open, run, runs, referenceData, service, permissions,
         setSavedRun({
           ...savedRun,
           registrationNumber: input.registrationNumber,
-          status: input.status,
           departureCity: referenceData.departureCities.find((item) => item.id === input.departureCityId) || null,
           managers: referenceData.users.filter((item) => input.managerIds.includes(item.id)),
           declarants: referenceData.users.filter((item) => input.declarantIds.includes(item.id)),
@@ -145,14 +140,6 @@ export function RunModal({ open, run, runs, referenceData, service, permissions,
                   rules={[{ required: true, message: 'Укажите номер машины' }]}
                 >
                   <Input autoComplete="off" maxLength={32} />
-                </Form.Item>
-                <Form.Item name="status" label="Статус">
-                  <Select
-                    options={LOGISTICS_STATUS_VALUES.map((value) => ({
-                      value,
-                      label: LOGISTICS_STATUS_LABELS[value],
-                    }))}
-                  />
                 </Form.Item>
                 <Form.Item name="departureCityId" label="Город отправления">
                   <Select

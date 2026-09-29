@@ -10,6 +10,7 @@
 import { EditOutlined, LinkOutlined, PlusOutlined, StopOutlined } from '@ant-design/icons';
 import { Alert, App, Button, Empty, Flex, Select, Space, Spin, Table, Tag, type TableColumnsType } from 'antd';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { LOGISTICS_STATUS_LABELS, type LogisticsStatus } from '../../shared/logistics';
 import { apiErrorMessage } from './apiResponse';
 import type { LogisticsService } from './LogisticsService';
 import { ShipmentFormModal } from './ShipmentFormModal';
@@ -116,6 +117,12 @@ export function RunShipmentsPanel({
     () => [
       { title: 'Номер поставки', dataIndex: 'shipmentNumber', width: 110 },
       { title: 'Название поставки', dataIndex: 'displayName', ellipsis: true },
+      {
+        title: 'Статус',
+        dataIndex: 'status',
+        width: 180,
+        render: (value: string) => <Tag color="blue">{LOGISTICS_STATUS_LABELS[value as LogisticsStatus] || value}</Tag>,
+      },
       {
         title: 'Китайский клиент',
         dataIndex: 'chineseClient',

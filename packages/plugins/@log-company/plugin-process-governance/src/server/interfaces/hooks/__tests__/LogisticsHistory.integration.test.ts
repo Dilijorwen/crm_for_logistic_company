@@ -77,17 +77,6 @@ function registerCollections(db: Database): void {
     name: 'transport_runs',
     fields: [
       { type: 'integer', name: 'run_number' },
-      {
-        type: 'string',
-        name: 'status',
-        uiSchema: {
-          title: 'Статус',
-          enum: [
-            { value: 'queue', label: 'В очереди' },
-            { value: 'in_work', label: 'В работе' },
-          ],
-        },
-      },
       { type: 'integer', name: 'vehicle_id', isForeignKey: true },
       {
         type: 'belongsTo',
@@ -120,6 +109,18 @@ function registerCollections(db: Database): void {
     fields: [
       { type: 'integer', name: 'shipment_number' },
       { type: 'string', name: 'display_name' },
+      {
+        type: 'string',
+        name: 'status',
+        defaultValue: 'queue',
+        uiSchema: {
+          title: 'Статус',
+          enum: [
+            { value: 'queue', label: 'В очереди' },
+            { value: 'in_work', label: 'В работе' },
+          ],
+        },
+      },
       { type: 'integer', name: 'chinese_client_id', isForeignKey: true },
       {
         type: 'belongsTo',
@@ -211,13 +212,12 @@ describe('Logistics history database integration', () => {
     const run = await db.getRepository('transport_runs').create({
       values: {
         registration_number_input: 'AB123CD',
-        status: 'queue',
         departure_city_id: firstCity.get('id'),
       },
     });
     await db.getRepository('transport_runs').update({
       filterByTk: run.get('id'),
-      values: { status: 'in_work', departure_city: { id: secondCity.get('id') } },
+      values: { departure_city: { id: secondCity.get('id') } },
     });
 
     const shipment = await db.getRepository('shipments').create({
@@ -243,6 +243,7 @@ describe('Logistics history database integration', () => {
       filterByTk: shipment.get('id'),
       values: {
         company: { id: secondCompany.get('id') },
+        status: 'in_work',
         invoice_number: 'INV-NEW',
         declaration_number: 'ДТ-NEW',
         invoice_value: '2.5',
@@ -284,14 +285,7 @@ describe('Logistics history database integration', () => {
     const shipmentHistory = await historyRows(db, 'shipment_history', { shipment_id: shipment.get('id') });
     expect(runHistory).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ event_type: 'field_initialized', field_name: 'status', new_value: 'В очереди' }),
         expect.objectContaining({ event_type: 'field_initialized', field_name: 'vehicle', new_value: 'AB123CD' }),
-        expect.objectContaining({
-          event_type: 'field_changed',
-          field_name: 'status',
-          old_value: 'В очереди',
-          new_value: 'В работе',
-        }),
         expect.objectContaining({
           event_type: 'field_changed',
           field_name: 'departure_city',
@@ -302,6 +296,7 @@ describe('Logistics history database integration', () => {
     );
     expect(shipmentHistory).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({ event_type: 'field_initialized', field_name: 'status', new_value: 'В очереди' }),
         expect.objectContaining({
           event_type: 'field_initialized',
           field_name: 'invoice_number',
@@ -316,6 +311,12 @@ describe('Logistics history database integration', () => {
           event_type: 'field_initialized',
           field_name: 'documents_in_badis',
           new_value: 'false',
+        }),
+        expect.objectContaining({
+          event_type: 'field_changed',
+          field_name: 'status',
+          old_value: 'В очереди',
+          new_value: 'В работе',
         }),
         expect.objectContaining({
           event_type: 'field_changed',

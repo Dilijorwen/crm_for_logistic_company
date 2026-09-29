@@ -22,6 +22,7 @@ export interface ShipmentRecord {
   id: Identifier;
   shipmentNumber: number;
   displayName: string;
+  status: string;
   chineseClient: ReferenceRecord | null;
   company: ReferenceRecord | null;
   routeDeliveryNumber: string;
@@ -57,7 +58,6 @@ export interface ShipmentRecord {
 export interface TransportRunRecord {
   id: Identifier;
   runNumber: number;
-  status: string;
   createdAt: string;
   registrationNumber: string;
   departureCity: ReferenceRecord | null;
@@ -80,7 +80,6 @@ export interface LogisticsHistoryRecord {
 
 export interface RunMutationInput {
   registrationNumber: string;
-  status: string;
   departureCityId: Identifier | null;
   managerIds: Identifier[];
   declarantIds: Identifier[];
@@ -90,6 +89,7 @@ export interface RunMutationInput {
 export interface ShipmentMutationInput {
   chineseClientId: Identifier;
   companyId: Identifier;
+  status?: string;
   routeDeliveryNumber?: string;
   invoiceNumber?: string;
   invoiceValue?: number | null;

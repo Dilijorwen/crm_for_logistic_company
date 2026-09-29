@@ -33,6 +33,7 @@ const SHIPMENT_FIELDS = [
   'id',
   'shipment_number',
   'display_name',
+  'status',
   'route_delivery_number',
   'invoice_number',
   'invoice_value',
@@ -96,6 +97,7 @@ export function normalizeShipment(value: Record<string, unknown>): ShipmentRecor
     id: identifier(value.id),
     shipmentNumber: numberValue(value.shipment_number) ?? 0,
     displayName: stringValue(value.display_name),
+    status: stringValue(value.status),
     chineseClient: reference(value.chinese_client, ['name', 'title']),
     company: reference(value.company, ['name', 'title']),
     routeDeliveryNumber: stringValue(value.route_delivery_number),
@@ -134,7 +136,6 @@ export function normalizeRun(value: Record<string, unknown>): TransportRunRecord
   return {
     id: identifier(value.id),
     runNumber: numberValue(value.run_number) ?? 0,
-    status: stringValue(value.status),
     createdAt: stringValue(value.createdAt),
     registrationNumber: stringValue(value.registration_number_input) || stringValue(vehicle.registration_number),
     departureCity: reference(value.departure_city, ['name', 'title']),
@@ -157,6 +158,7 @@ function shipmentValues(input: ShipmentMutationInput): Record<string, unknown> {
   return {
     chinese_client: association(input.chineseClientId),
     company: association(input.companyId),
+    status: input.status,
     route_delivery_number: input.routeDeliveryNumber,
     invoice_number: input.invoiceNumber,
     invoice_value: input.invoiceValue,
@@ -195,7 +197,7 @@ export class LogisticsService {
     const response: unknown = await this.api.resource('transport_runs').list({
       paginate: false,
       sort: ['-run_number'],
-      fields: ['id', 'run_number', 'status', 'createdAt', 'registration_number_input'],
+      fields: ['id', 'run_number', 'createdAt', 'registration_number_input'],
       appends: ['vehicle', 'departure_city', 'managers', 'declarants', 'parent_runs', 'shipments'],
     });
     return responseRecords(response)
@@ -284,7 +286,6 @@ export class LogisticsService {
   private runValues(input: RunMutationInput): Record<string, unknown> {
     return {
       registration_number_input: input.registrationNumber,
-      status: input.status,
       departure_city: association(input.departureCityId),
       managers: associations(input.managerIds),
       declarants: associations(input.declarantIds),

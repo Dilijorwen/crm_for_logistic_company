@@ -175,6 +175,8 @@ export class LogisticsHooks {
         );
         if (entityKind === 'run') {
           await this.prepareRunVehicle(model, options, true);
+        }
+        if (entityKind === 'shipment') {
           if (!model.get('status')) {
             model.set('status', DEFAULT_LOGISTICS_STATUS);
           }

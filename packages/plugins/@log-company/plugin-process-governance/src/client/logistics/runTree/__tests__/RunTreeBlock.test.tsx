@@ -43,15 +43,14 @@ import { resolveTreeRecordUrl, RunTreeBlock } from '../RunTreeBlock';
 interface RunNode {
   id: string;
   run_number: number;
-  status: string;
   createdAt: string;
 }
 
 const nodes: Record<string, RunNode> = {
-  a: { id: 'a', run_number: 1, status: 'queue', createdAt: '2026-09-01T00:00:00Z' },
-  b: { id: 'b', run_number: 2, status: 'queue', createdAt: '2026-09-02T00:00:00Z' },
-  e: { id: 'e', run_number: 3, status: 'queue', createdAt: '2026-09-03T00:00:00Z' },
-  c: { id: 'c', run_number: 4, status: 'queue', createdAt: '2026-09-04T00:00:00Z' },
+  a: { id: 'a', run_number: 1, createdAt: '2026-09-01T00:00:00Z' },
+  b: { id: 'b', run_number: 2, createdAt: '2026-09-02T00:00:00Z' },
+  e: { id: 'e', run_number: 3, createdAt: '2026-09-03T00:00:00Z' },
+  c: { id: 'c', run_number: 4, createdAt: '2026-09-04T00:00:00Z' },
 };
 
 const parents: Record<string, string[]> = { a: [], b: [], e: ['a', 'b'], c: ['e'] };
@@ -100,6 +99,7 @@ describe('RunTreeBlock for transport runs', () => {
     expect(screen.getByText('Рейс №1').closest('button')).toBeEnabled();
     expect(screen.getByText('Рейс №2').closest('button')).toBeEnabled();
     expect(screen.getAllByText('Рейс №4').every((item) => !item.closest('button')?.disabled)).toBe(true);
+    expect(screen.queryByText(/Статус:/)).not.toBeInTheDocument();
     expect(resource).toHaveBeenCalledWith('transport_runs.parent_runs', 'e');
     expect(resource).toHaveBeenCalledWith('transport_runs.child_runs', 'e');
   });

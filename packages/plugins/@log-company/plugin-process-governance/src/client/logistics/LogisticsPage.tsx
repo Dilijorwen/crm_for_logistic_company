@@ -20,12 +20,10 @@ import {
   Space,
   Spin,
   Table,
-  Tag,
   Typography,
   type TableColumnsType,
 } from 'antd';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { LOGISTICS_STATUS_LABELS, type LogisticsStatus } from '../../shared/logistics';
 import { apiErrorMessage } from './apiResponse';
 import { LogisticsService } from './LogisticsService';
 import { RunModal } from './RunModal';
@@ -109,12 +107,6 @@ export function LogisticsPage() {
     () => [
       { title: 'Номер рейса', dataIndex: 'runNumber', width: 100 },
       { title: 'Номер машины', dataIndex: 'registrationNumber', width: 160 },
-      {
-        title: 'Статус',
-        dataIndex: 'status',
-        width: 190,
-        render: (value: string) => <Tag color="blue">{LOGISTICS_STATUS_LABELS[value as LogisticsStatus] || value}</Tag>,
-      },
       { title: 'Дата создания', dataIndex: 'createdAt', width: 160, render: formatDate },
       {
         title: 'Город отправления',

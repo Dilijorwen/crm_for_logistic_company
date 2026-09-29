@@ -10,6 +10,7 @@
 import { Checkbox, Col, DatePicker, Form, Input, InputNumber, Modal, Row, Select, Tabs } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import React, { useEffect, useMemo, useState } from 'react';
+import { DEFAULT_LOGISTICS_STATUS, LOGISTICS_STATUS_LABELS, LOGISTICS_STATUS_VALUES } from '../../shared/logistics';
 import { apiErrorMessage, isFormValidationError } from './apiResponse';
 import { HistoryTable } from './HistoryTable';
 import type { LogisticsService } from './LogisticsService';
@@ -18,6 +19,7 @@ import type { LogisticsReferenceData, ShipmentMutationInput, ShipmentRecord } fr
 interface ShipmentFormValues {
   chineseClientId: string;
   companyId: string;
+  status: string;
   routeDeliveryNumber?: string;
   invoiceNumber?: string;
   invoiceValue?: number;
@@ -108,6 +110,7 @@ export function ShipmentFormModal({
     form.setFieldsValue({
       chineseClientId: shipment?.chineseClient?.id,
       companyId: shipment?.company?.id,
+      status: shipment?.status || DEFAULT_LOGISTICS_STATUS,
       routeDeliveryNumber: shipment?.routeDeliveryNumber,
       invoiceNumber: shipment?.invoiceNumber,
       invoiceValue: shipment?.invoiceValue ?? undefined,
@@ -168,6 +171,7 @@ export function ShipmentFormModal({
       setError(null);
       const input: ShipmentMutationInput = {
         ...values,
+        status: values.status !== (shipment?.status || DEFAULT_LOGISTICS_STATUS) ? values.status : undefined,
         customsWarehouseStorageDate: dateString(values.customsWarehouseStorageDate),
         declarationReleaseDate: dateString(values.declarationReleaseDate),
         applicationReleaseDate: dateString(values.applicationReleaseDate),
@@ -208,6 +212,16 @@ export function ShipmentFormModal({
           rules={[{ required: true, message: 'Выберите нашу компанию' }]}
         >
           <Select showSearch optionFilterProp="label" options={options.companies} onChange={selectCompany} />
+        </Form.Item>
+      </Col>
+      <Col xs={24} md={12}>
+        <Form.Item name="status" label="Статус">
+          <Select
+            options={LOGISTICS_STATUS_VALUES.map((value) => ({
+              value,
+              label: LOGISTICS_STATUS_LABELS[value],
+            }))}
+          />
         </Form.Item>
       </Col>
       <Col xs={24} md={12}>

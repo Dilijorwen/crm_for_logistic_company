@@ -8,7 +8,7 @@
  */
 
 import { defineCollection } from '@nocobase/database';
-import { idField, statusField } from './logisticsCollectionFields';
+import { idField } from './logisticsCollectionFields';
 
 export default defineCollection({
   name: 'transport_runs',
@@ -27,7 +27,6 @@ export default defineCollection({
   migrationRules: ['overwrite', 'schema-only'],
   indexes: [
     { name: 'transport_runs_run_number_unique', unique: true, fields: ['run_number'] },
-    { name: 'transport_runs_status_created_at_idx', fields: ['status', 'createdAt'] },
     { name: 'transport_runs_vehicle_id_idx', fields: ['vehicle_id'] },
     { name: 'transport_runs_departure_city_id_idx', fields: ['departure_city_id'] },
   ],
@@ -45,7 +44,6 @@ export default defineCollection({
         'x-read-pretty': true,
       },
     },
-    statusField,
     { type: 'bigInt', name: 'vehicle_id', interface: 'integer', isForeignKey: true, allowNull: false, hidden: true },
     {
       type: 'belongsTo',
