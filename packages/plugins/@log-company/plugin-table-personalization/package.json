@@ -2,7 +2,7 @@
   "name": "@log-company/plugin-table-personalization",
   "displayName": "Персональные столбцы таблиц",
   "description": "Персональные порядок, видимость и ширина столбцов FlowEngine.",
-  "version": "2.0.67",
+  "version": "2.0.68",
   "main": "dist/server/index.js",
   "peerDependencies": {
     "@ant-design/icons": "*",

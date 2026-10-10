@@ -8,6 +8,7 @@
  */
 
 import React from 'react';
+import { Space } from 'antd';
 import { TableBlockModel, TableColumnModel } from '@nocobase/client';
 import type { FlowModel } from '@nocobase/flow-engine';
 import type { PersonalizableColumn, TableIdentity } from '../../../../shared/contracts';
@@ -155,12 +156,35 @@ export class PersonalizedTableBlockModel extends TableBlockModel {
     return [...configured, ...additional];
   }
 
-  renderConfigureActions(): React.ReactElement {
-    return (
-      <>
-        {super.renderConfigureActions()}
-        <ColumnSettingsButton model={this} />
-      </>
+  renderComponent(): ReturnType<TableBlockModel['renderComponent']> {
+    const rendered = super.renderComponent();
+    if (this.context.flowSettingsEnabled || rendered.type !== React.Fragment) return rendered;
+
+    // NocoBase 2.0.60 exposes only a right-hand action slot. Extend its native left Space
+    // without replacing the table renderer or inserting an action into the saved schema.
+    const [provider, ...content] = React.Children.toArray(rendered.props.children);
+    if (!React.isValidElement<{ children?: React.ReactNode }>(provider)) return rendered;
+    const toolbar = provider.props.children;
+    if (!React.isValidElement<{ children?: React.ReactNode }>(toolbar)) return rendered;
+    const [leftActions, ...rightActions] = React.Children.toArray(toolbar.props.children);
+    if (!React.isValidElement<{ children?: React.ReactNode }>(leftActions) || leftActions.type !== Space)
+      return rendered;
+
+    const personalizedActions = React.cloneElement(
+      leftActions,
+      undefined,
+      <ColumnSettingsButton key="personal-columns" model={this} />,
+      leftActions.props.children,
+    );
+    return React.cloneElement(
+      rendered,
+      undefined,
+      React.cloneElement(
+        provider,
+        undefined,
+        React.cloneElement(toolbar, undefined, personalizedActions, ...rightActions),
+      ),
+      ...content,
     );
   }
 }

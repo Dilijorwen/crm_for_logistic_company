@@ -1,12 +1,14 @@
 # Персональные столбцы таблиц
 
-`@log-company/plugin-table-personalization` добавляет кнопку **«Столбцы»** в обычные таблицы FlowEngine.
+`@log-company/plugin-table-personalization` добавляет кнопку с иконкой таблицы в обычные таблицы FlowEngine.
+Она всегда стоит первой в левой части панели, перед **«Фильтром»**, включая таблицы во всплывающих окнах.
+Подсказка и доступное имя кнопки — **«Столбцы»**; надпись на самой кнопке не отображается.
 Окно **«Мои столбцы»** предлагает все доступные для чтения поля коллекции, включая не добавленные в общую таблицу.
 Оно позволяет выбирать поля, менять порядок перетаскиванием или кнопками
 «Выше» / «Ниже», сохранять настройки и сбрасывать только собственные настройки этой таблицы.
 Правую границу заголовка можно перетаскивать для персонального изменения ширины. Стрелки меняют ширину
 на 10 px, Shift + стрелки — на 50 px; двойной клик возвращает общую ширину этого столбца.
-Версия плагина: **2.0.67**; проверяемая версия NocoBase: **2.0.60**.
+Версия плагина: **2.0.68**; проверяемая версия NocoBase: **2.0.60**.
 
 Исследование и согласованное решение:
 [TABLE_PERSONALIZATION_RESEARCH.md](/Users/daniil/log_company/docs/log-company/TABLE_PERSONALIZATION_RESEARCH.md).
@@ -19,6 +21,11 @@
 подмодели, свойства ячеек, функции `render` / `onCell`, действия, параметры ресурса и кликабельные поля сохраняются.
 Порядок и видимость применяются к выходному массиву `getColumns()`. Персонально скрытый столбец не получает
 `model.hidden`: его загрузка, appends, beforeRender и участие в поиске продолжают работать как раньше.
+
+Панель использует исходный `renderComponent()`: плагин добавляет кнопку в начало левого `Space` его React-дерева.
+В NocoBase 2.0.60 отдельный слот слева отсутствует; штатный `renderConfigureActions()` относится к правой части.
+Общие модели действий, их порядок, настройка конструктора и схема не меняются. Размещение проверяется тестами
+на реальном штатном рендерере, с фильтром и без него. При обновлении NocoBase эти тесты проверяют совместимость панели.
 
 В конструкторе интерфейса работает исходный `getColumns()`, а кнопка персонализации скрыта. Обычным пользователям
 не нужно выдавать право глобальной настройки интерфейса. Служебные столбцы и действия сохраняют свой порядок
@@ -127,14 +134,14 @@
 ```sh
 corepack yarn build @log-company/plugin-table-personalization
 corepack yarn tar @log-company/plugin-table-personalization
-docker compose exec -T app yarn pm add /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.67.tgz
+docker compose exec -T app yarn pm add /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.68.tgz
 docker compose exec -T app yarn pm enable @log-company/plugin-table-personalization
 ```
 
 Для уже установленного плагина вместо add/enable:
 
 ```sh
-docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.67.tgz
+docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.68.tgz
 ```
 
 После add/enable или update завершить обновление и перезапустить локальное приложение:
@@ -202,6 +209,25 @@ docker stop log-company-table-personalization-test-db
 401/400/403/404/409/500, generic API, полевые и вложенные ACL, ссылки и циклы, подпись схемы,
 удаление и каскады, неизменность сериализованного FlowEngine, применение настроек после асинхронной загрузки, исходные render/onCell и действие поиска,
 переключение владельца, ошибки, отмену, восстановление скрытого столбца и сброс в интерфейсе.
+
+## Иконка в начале панели 2.0.68 (10 октября 2026)
+
+- У кнопки убрана надпись; сохранены `TableOutlined`, подсказка «Столбцы» и `aria-label`.
+- Кнопка добавляется первой в левую часть штатной панели, перед фильтром. Таблицы без фильтра,
+  включая вложенные таблицы во всплывающих окнах, используют то же размещение.
+- `corepack yarn test:client packages/plugins/@log-company/plugin-table-personalization/src/client --run --maxWorkers=1 --minWorkers=1`:
+  63 теста в 8 файлах прошли. Добавлены проверки положения с фильтром / без фильтра, исходного
+  конструктора и загрузочного состояния, доступного имени и подсказки иконки.
+- `corepack yarn eslint --fix --no-ignore` для четырёх изменённых TSX-файлов: код 0.
+  `node node_modules/prettier/bin/prettier.cjs --check --ignore-path /dev/null` для шести изменённых файлов: код 0.
+  `node --max-old-space-size=8192 packages/plugins/@log-company/plugin-table-personalization/scripts/check-types.cjs`:
+  0 строгих диагностик.
+- `corepack yarn build @log-company/plugin-table-personalization`, `corepack yarn tar @log-company/plugin-table-personalization`,
+  штатный `yarn pm update` архива 2.0.68 и `docker compose restart app`: код 0. Установленная версия — 2.0.68,
+  локальная страница `/signin` отвечает 200. Структура базы и миграции не менялись.
+- В авторизованном браузере подтверждены иконка без текста непосредственно перед фильтром,
+  первое и повторное открытие / отмена настроек, открытие карточки рейса после отмены и иконка
+  в её вложенной таблице «Китайский клиент». Настройки пользователей при проверке не сохранялись и не сбрасывались.
 
 ## Проверки первоначальной реализации 2.0.62 (9 октября 2026)
 

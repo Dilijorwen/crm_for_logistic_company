@@ -86,13 +86,25 @@ function Harness({
 }
 
 async function openDialog(): Promise<HTMLElement> {
-  fireEvent.click(screen.getByRole('button', { name: 'Столбцы' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Колонки' }));
   const dialog = await screen.findByRole('dialog');
   await waitFor(() => expect(dialog.querySelector('.ant-spin')).toBeNull());
   return dialog;
 }
 
 describe('column settings dialog', () => {
+  it('keeps an accessible name and tooltip on the icon-only button', async () => {
+    const { model, engine } = fixture();
+    render(<Harness model={model} engine={engine} />);
+    const button = screen.getByRole('button', { name: 'Колонки' });
+    expect(button.textContent).toBe('');
+    expect(button.querySelector('[aria-label="table"]')).not.toBeNull();
+    fireEvent.mouseEnter(button);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Колонки');
+    fireEvent.click(button);
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+  });
+
   it('allows selecting a readable collection field absent from the shared table', async () => {
     const { api, model, engine, data } = fixture();
     data.columns.push({
@@ -133,7 +145,7 @@ describe('column settings dialog', () => {
         complete = resolve;
       }),
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Столбцы' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Колонки' }));
     const dialog = await screen.findByRole('dialog');
     await waitFor(() => expect(controller.state.isLoading).toBe(true));
     await waitFor(() => expect(within(dialog).getByText('Мои столбцы')).toBeVisible());
@@ -159,10 +171,10 @@ describe('column settings dialog', () => {
         complete = resolve;
       }),
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Столбцы' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Колонки' }));
     await screen.findByRole('dialog');
     fireEvent.click(screen.getByRole('button', { name: 'Пересоздать панель' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Столбцы' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Колонки' }));
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
     expect(api.get).toHaveBeenCalledTimes(2);
     await act(async () => {
@@ -269,6 +281,6 @@ describe('column settings dialog', () => {
   it('does not display personalization controls in the designer', () => {
     const { model, engine } = fixture(true);
     render(<Harness model={model} engine={engine} />);
-    expect(screen.queryByRole('button', { name: 'Столбцы' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Колонки' })).not.toBeInTheDocument();
   });
 });

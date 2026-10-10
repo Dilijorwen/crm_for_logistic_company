@@ -7,12 +7,23 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { FlowEngine, FlowModel } from '@nocobase/flow-engine';
+import React from 'react';
+import { Space } from 'antd';
+import { FlowEngine, FlowModel, FlowModelRenderer, MultiRecordResource } from '@nocobase/flow-engine';
 import { autorun } from '@formily/reactive';
-import { ActionModel, TableColumnModel } from '@nocobase/client';
+import { ActionModel, FilterActionModel, TableBlockModel, TableColumnModel } from '@nocobase/client';
 import { describe, expect, it, vi } from 'vitest';
 import type { TablePersonalization } from '../../../../../shared/contracts';
 import { PersonalizedTableBlockModel } from '../PersonalizedTableBlockModel';
+import { ColumnSettingsButton } from '../../ui/ColumnSettingsButton';
+
+function elements(node: React.ReactNode): React.ReactElement<{ children?: React.ReactNode; model?: FlowModel }>[] {
+  return React.Children.toArray(node).flatMap((child) =>
+    React.isValidElement<{ children?: React.ReactNode; model?: FlowModel }>(child)
+      ? [child, ...elements(child.props.children)]
+      : [],
+  );
+}
 
 function fixture() {
   const engine = new FlowEngine();
@@ -31,7 +42,7 @@ function fixture() {
   engine.context.defineProperty('api', { value: { request, auth: { role: 'root' } } });
   engine.context.defineProperty('user', { value: { id: 'user' } });
   engine.context.defineProperty('acl', { value: { data: {} } });
-  engine.context.defineProperty('flowSettingsEnabled', { get: () => isDesigner });
+  engine.context.defineProperty('flowSettingsEnabled', { get: () => isDesigner, cache: false });
   const table = new PersonalizedTableBlockModel({ uid: 'table', use: 'TableBlockModel', flowEngine: engine });
   const render = vi.fn(() => 'existing clickable renderer');
   const onCell = vi.fn(() => ({ onClick: vi.fn() }));
@@ -75,6 +86,54 @@ function fixture() {
 }
 
 describe('FlowEngine table personalization integration', () => {
+  it.each([false, true])('places the icon first in the native left toolbar (filter=%s)', (withFilter) => {
+    const { table } = fixture();
+    table.context.defineProperty('themeToken', { value: { margin: 16, marginXXS: 4, controlHeight: 32 } });
+    table.context.defineProperty('resource', { value: new MultiRecordResource(table.context) });
+    Reflect.set(table, 'columns', { value: table.getColumns() });
+    if (withFilter) {
+      table.subModels.actions.push(
+        new FilterActionModel({
+          uid: 'filter',
+          use: 'FilterActionModel',
+          flowEngine: table.flowEngine,
+          props: { position: 'left' },
+        }),
+      );
+    }
+    const before = table.serialize();
+    const spaces = elements(table.renderComponent()).filter((element) => element.type === Space);
+    expect(spaces).toHaveLength(2);
+    const left = elements(spaces[0].props.children);
+    expect(left[0].type).toBe(ColumnSettingsButton);
+    expect(left.filter((element) => element.type === ColumnSettingsButton)).toHaveLength(1);
+    if (withFilter) {
+      expect(left[1].type).toBe(FlowModelRenderer);
+      expect(left[1].props.model?.uid).toBe('filter');
+    }
+    const right = elements(spaces[1].props.children);
+    expect(right.some((element) => element.type === ColumnSettingsButton)).toBe(false);
+    expect(right.find((element) => element.type === FlowModelRenderer)?.props.model?.uid).toBe('search');
+    expect(table.serialize()).toEqual(before);
+  });
+
+  it('retains the native designer toolbar and the loading placeholder', () => {
+    const { table, setDesigner } = fixture();
+    const nativeRender = vi.spyOn(TableBlockModel.prototype, 'renderComponent');
+    try {
+      expect(table.renderComponent()).toBe(nativeRender.mock.results.at(-1)?.value);
+      table.context.defineProperty('themeToken', { value: { margin: 16, marginXXS: 4, controlHeight: 32 } });
+      table.context.defineProperty('resource', { value: new MultiRecordResource(table.context) });
+      Reflect.set(table, 'columns', { value: table.getColumns() });
+      setDesigner(true);
+      const rendered = table.renderComponent();
+      expect(rendered).toBe(nativeRender.mock.results.at(-1)?.value);
+      expect(elements(rendered).some((element) => element.type === ColumnSettingsButton)).toBe(false);
+    } finally {
+      nativeRender.mockRestore();
+    }
+  });
+
   it('reacts to preferences loaded after the first column projection and to reset', async () => {
     const { table, data, request } = fixture();
     const before = table.serialize();

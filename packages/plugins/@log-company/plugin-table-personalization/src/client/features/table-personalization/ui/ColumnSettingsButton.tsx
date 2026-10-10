@@ -8,7 +8,7 @@
  */
 
 import React, { useEffect } from 'react';
-import { Button } from 'antd';
+import { Button, Tooltip } from 'antd';
 import { TableOutlined } from '@ant-design/icons';
 import { observer } from '@nocobase/flow-engine';
 import { useACLContext, useCurrentUserContext } from '@nocobase/client';
@@ -34,13 +34,13 @@ export const ColumnSettingsButton = observer(({ model }: { model: PersonalizedTa
 
   if (model.context.flowSettingsEnabled) return null;
   return (
-    <Button
-      aria-label="Столбцы"
-      icon={<TableOutlined />}
-      onClick={() => model.openPersonalizationSettings()}
-      disabled={state.isSaving}
-    >
-      Столбцы
-    </Button>
+    <Tooltip title="Колонки">
+      <Button
+        aria-label="Колонки"
+        icon={<TableOutlined />}
+        onClick={() => model.openPersonalizationSettings()}
+        disabled={state.isSaving}
+      />
+    </Tooltip>
   );
 });
