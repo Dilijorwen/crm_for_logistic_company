@@ -16,6 +16,7 @@ type HookHandler = (model: MutableModel, options: HookOptions) => void | Promise
 
 interface HookOptions {
   context?: unknown;
+  skip?: readonly string[];
 }
 
 interface MutableModel {
@@ -71,6 +72,41 @@ const registryValues = {
 };
 
 describe('PermitDocumentValidationHooks', () => {
+  it('accepts the partial new model Sequelize uses for association-only bulk validation', async () => {
+    const { handlers } = hookFixture();
+    const partial = model({ company_id: '2', sync_status: 'PENDING' }, ['company_id'], {}, true);
+    expect(
+      () => handlers.get('permit_documents.beforeValidate')?.(partial, { skip: ['document_type', 'title'] }),
+    ).not.toThrow();
+  });
+
+  it('still rejects creating a new document without a type', () => {
+    const { handlers } = hookFixture();
+    expect(
+      () => handlers.get('permit_documents.beforeValidate')?.(model({ title: 'DOC' }, ['title'], {}, true), {}),
+    ).toThrow();
+  });
+
+  it('accepts an existing partial model used to update the company association', async () => {
+    const { handlers, repository } = hookFixture();
+    const partial = model({ id: '12', company_id: '2' }, ['company_id']);
+    await expect(
+      Promise.resolve(handlers.get('permit_documents.beforeValidate')?.(partial, {})),
+    ).resolves.toBeUndefined();
+    await handlers.get('permit_documents.afterUpdate')?.(partial, {});
+    expect(repository.clearTechnicalRegulations).not.toHaveBeenCalled();
+  });
+
+  it('rejects an explicitly changed invalid document type on a partial model', async () => {
+    const { handlers } = hookFixture();
+    expect(
+      () =>
+        handlers.get('permit_documents.beforeValidate')?.(
+          model({ id: '12', document_type: 'invalid' }, ['document_type']),
+          {},
+        ),
+    ).toThrow();
+  });
   it('resets managed fields without starting synchronization from a model hook', async () => {
     const { handlers } = hookFixture();
     const values = { id: '10', title: '  DOC-1  ', document_type: 'declaration_of_conformity', ...registryValues };

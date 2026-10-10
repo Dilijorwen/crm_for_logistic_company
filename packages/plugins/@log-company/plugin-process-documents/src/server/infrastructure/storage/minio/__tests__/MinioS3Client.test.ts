@@ -17,6 +17,7 @@ afterEach(async () => {
   if (!server) {
     return;
   }
+  server.closeAllConnections();
   await new Promise<void>((resolve, reject) => {
     server?.close((error) => (error ? reject(error) : resolve()));
   });
@@ -25,7 +26,10 @@ afterEach(async () => {
 
 async function listen(requestHandler: http.RequestListener): Promise<string> {
   server = http.createServer(requestHandler);
-  await new Promise<void>((resolve) => server?.listen(0, '127.0.0.1', resolve));
+  await new Promise<void>((resolve, reject) => {
+    server?.once('error', reject);
+    server?.listen(0, '127.0.0.1', resolve);
+  });
   const address = server.address();
   if (!address || typeof address === 'string') {
     throw new Error('Test MinIO server did not expose a TCP address.');
@@ -38,7 +42,7 @@ describe('MinioS3Client.listObjects', () => {
     const requestedTokens: Array<string | null> = [];
     const endpoint = await listen((request, response) => {
       const requestUrl = new URL(request.url || '/', `http://${request.headers.host}`);
-      expect(requestUrl.pathname).toBe('/documents');
+      expect(requestUrl.pathname).toBe('/documents/');
       expect(requestUrl.searchParams.get('list-type')).toBe('2');
       expect(requestUrl.searchParams.get('encoding-type')).toBe('url');
       expect(requestUrl.searchParams.get('prefix')).toBe('processes/process-1/');
@@ -47,17 +51,20 @@ describe('MinioS3Client.listObjects', () => {
       if (requestedTokens.length === 1) {
         response.end(`
           <ListBucketResult>
+            <EncodingType>url</EncodingType>
             <IsTruncated>true</IsTruncated>
             <NextContinuationToken>page&amp;2</NextContinuationToken>
-            <Contents><Key>processes%2Fprocess-1%2Ffirst%20file.pdf</Key></Contents>
+            <Contents><Key>processes%2Fprocess-1%2Ffirst+file.pdf</Key></Contents>
           </ListBucketResult>
         `);
         return;
       }
       response.end(`
         <ListBucketResult>
+          <EncodingType>url</EncodingType>
           <IsTruncated>false</IsTruncated>
           <Contents><Key>processes%2Fprocess-1%2Fsecond.pdf</Key></Contents>
+          <Contents><Key>processes%2Fprocess-1%2Fliteral%2Bplus.pdf</Key></Contents>
         </ListBucketResult>
       `);
     });
@@ -72,6 +79,7 @@ describe('MinioS3Client.listObjects', () => {
     await expect(client.listObjects('processes/process-1/')).resolves.toEqual([
       'processes/process-1/first file.pdf',
       'processes/process-1/second.pdf',
+      'processes/process-1/literal+plus.pdf',
     ]);
     expect(requestedTokens).toEqual([null, 'page&2']);
   });

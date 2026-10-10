@@ -85,9 +85,10 @@ shipments/drafts/{draft_token}/{uuid}.{extension}
 
 ## MinIO
 
-Приложение обращается к MinIO внутри Docker-сети по `http://minio:9000`. Bucket по умолчанию:
-`log-company-process-documents`. Постоянные данные находятся в `storage/minio`; NocoBase и MinIO наружу не передают
-секретные ключи клиенту.
+Приложение использует единый закрытый bucket `log-company-files` и общую конфигурацию из
+[FILE_STORAGE.md](FILE_STORAGE.md). Логические ключи автоматически получают префикс
+`v1/<application>/process-documents/`. Прежний bucket сохраняется как источник безопасного переноса и совместимого
+чтения. Постоянные данные находятся в `storage/minio`; секретные ключи клиенту не передаются.
 
 ## Сборка и обновление
 

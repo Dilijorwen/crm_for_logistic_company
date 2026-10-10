@@ -8,6 +8,8 @@ env_file="${ENV_FILE:-${project_root}/.env.production}"
 check_only=false
 
 plugins=(
+  '@nocobase/plugin-file-manager'
+  '@log-company/plugin-file-storage'
   '@log-company/plugin-chats'
   '@log-company/plugin-collection-search'
   '@log-company/plugin-organization-structure'
@@ -15,6 +17,7 @@ plugins=(
   '@log-company/plugin-process-governance'
   '@log-company/plugin-process-discussion'
   '@log-company/plugin-process-documents'
+  '@log-company/plugin-table-personalization'
 )
 
 fail() {
@@ -181,17 +184,17 @@ for plugin in "${plugins[@]}"; do
   fi
 done
 
-if [[ ${#updated_archives[@]} -gt 0 ]]; then
-  echo 'Updating installed Log Company plugins...'
-  "${compose[@]}" exec -T app yarn nocobase pm update "${updated_archives[@]}"
+if [[ ${#new_archives[@]} -gt 0 ]]; then
+  echo 'Installing and enabling new Log Company plugins before dependent updates...'
+  "${compose[@]}" exec -T app yarn nocobase pm add "${new_archives[@]}"
+  "${compose[@]}" exec -T app yarn nocobase pm enable "${new_plugins[@]}"
   wait_for_app
   plugins_changed=true
 fi
 
-if [[ ${#new_archives[@]} -gt 0 ]]; then
-  echo 'Installing and enabling new Log Company plugins...'
-  "${compose[@]}" exec -T app yarn nocobase pm add "${new_archives[@]}"
-  "${compose[@]}" exec -T app yarn nocobase pm enable "${new_plugins[@]}"
+if [[ ${#updated_archives[@]} -gt 0 ]]; then
+  echo 'Updating installed Log Company plugins...'
+  "${compose[@]}" exec -T app yarn nocobase pm update "${updated_archives[@]}"
   wait_for_app
   plugins_changed=true
 fi

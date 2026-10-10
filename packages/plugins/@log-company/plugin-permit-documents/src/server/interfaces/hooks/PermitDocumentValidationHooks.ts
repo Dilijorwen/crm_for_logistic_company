@@ -52,6 +52,7 @@ interface NocoBaseModel {
 interface HookOptions {
   context?: unknown;
   transaction?: Transaction;
+  skip?: readonly string[];
 }
 
 type Translate = (key: string, options: { ns: string }) => string;
@@ -72,6 +73,15 @@ export class PermitDocumentValidationHooks {
 
   register(): void {
     this.plugin.db.on(`${COLLECTION_NAME}.beforeValidate`, (model: NocoBaseModel, options: HookOptions) => {
+      // Sequelize validates association-only bulk updates on a partial model marked as new.
+      const isAssociationValidation = options.skip?.includes('document_type') && options.skip.includes('title');
+      if (
+        model.get('document_type') == null &&
+        !this.identityChanged(model) &&
+        (!model.isNewRecord || isAssociationValidation)
+      ) {
+        return;
+      }
       this.normalizeIdentity(model);
       if (model.isNewRecord || this.identityChanged(model)) {
         this.resetRegistryFields(model);

@@ -35,6 +35,11 @@ services:
       # Timezone, please change it to your local timezone, e.g., America/New_York
       - TZ=Etc/UTC
       - PLUGIN_PACKAGE_PREFIX=@nocobase/plugin-,@nocobase/preset-,@log-company/plugin-
+      - FILE_STORAGE_ENDPOINT=${FILE_STORAGE_ENDPOINT:-http://minio:9000}
+      - FILE_STORAGE_REGION=${FILE_STORAGE_REGION:-us-east-1}
+      - FILE_STORAGE_BUCKET=${FILE_STORAGE_BUCKET:-log-company-files}
+      - FILE_STORAGE_ACCESS_KEY=${FILE_STORAGE_ACCESS_KEY:-${PROCESS_DOCUMENTS_MINIO_ACCESS_KEY:-log_company_process_documents}}
+      - FILE_STORAGE_SECRET_KEY=${FILE_STORAGE_SECRET_KEY:-${PROCESS_DOCUMENTS_MINIO_SECRET_KEY:-log_company_process_documents_secret}}
       - PROCESS_DOCUMENTS_MINIO_ENDPOINT=${PROCESS_DOCUMENTS_MINIO_ENDPOINT:-http://minio:9000}
       - PROCESS_DOCUMENTS_MINIO_REGION=${PROCESS_DOCUMENTS_MINIO_REGION:-us-east-1}
       - PROCESS_DOCUMENTS_MINIO_BUCKET=${PROCESS_DOCUMENTS_MINIO_BUCKET:-log-company-process-documents}
@@ -53,6 +58,7 @@ services:
 
     volumes:
       - ./storage:/app/nocobase/storage
+      - ./docker/nocobase/log-company-mime.conf:/etc/nginx/conf.d/log-company-mime.conf:ro
     ports:
       - '13000:80'
     # init: true
@@ -82,8 +88,8 @@ services:
     restart: always
     command: server /data
     environment:
-      MINIO_ROOT_USER: ${PROCESS_DOCUMENTS_MINIO_ACCESS_KEY:-log_company_process_documents}
-      MINIO_ROOT_PASSWORD: ${PROCESS_DOCUMENTS_MINIO_SECRET_KEY:-log_company_process_documents_secret}
+      MINIO_ROOT_USER: ${FILE_STORAGE_ACCESS_KEY:-${PROCESS_DOCUMENTS_MINIO_ACCESS_KEY:-log_company_process_documents}}
+      MINIO_ROOT_PASSWORD: ${FILE_STORAGE_SECRET_KEY:-${PROCESS_DOCUMENTS_MINIO_SECRET_KEY:-log_company_process_documents_secret}}
     volumes:
       - ./storage/minio:/data
     networks:

@@ -477,10 +477,10 @@ const PdfPreviewer = ({ file }: FilePreviewerProps) => {
       }
       session.data = data;
       try {
-        pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-          'pdfjs-dist/build/pdf.worker.min.mjs',
-          import.meta.url,
-        ).toString();
+        const workerUrl = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url);
+        // Invalidate responses cached before nginx had the .mjs MIME mapping.
+        workerUrl.searchParams.set('esm', '1');
+        pdfjs.GlobalWorkerOptions.workerSrc = workerUrl.toString();
         session.worker = pdfjs.PDFWorker.create({});
       } catch (error) {
         throw new PdfPreviewError('resources', 'Failed to load PDF.js worker.', error);
@@ -518,7 +518,8 @@ const PdfPreviewer = ({ file }: FilePreviewerProps) => {
         const code = getPdfPreviewErrorCode(error);
         // Keep the original error visible for deployment/CORS diagnostics while
         // showing users a concise, actionable preview failure message.
-        console.warn('[file-manager] PDF preview failed', {
+        const cause = error instanceof PdfPreviewError ? error.cause : error;
+        console.warn('[file-manager] PDF preview failed:', cause instanceof Error ? cause.message : String(cause), {
           code,
           src,
           error,

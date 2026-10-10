@@ -139,3 +139,10 @@ export class ShipmentSynchronizedEditFormModel extends EditFormModel {
     return resource;
   }
 }
+
+// EditFormModel's module registers its metadata; FlowModel does not inherit it for replacement classes.
+const editFormMeta = EditFormModel.meta;
+if (!editFormMeta) {
+  throw new Error('EditFormModel metadata is not registered');
+}
+ShipmentSynchronizedEditFormModel.define(editFormMeta);

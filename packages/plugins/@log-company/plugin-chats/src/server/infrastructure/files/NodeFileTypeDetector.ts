@@ -85,6 +85,25 @@ export class NodeFileTypeDetector implements FileTypeDetector {
       if (content.subarray(0, 4).toString('ascii') === 'RIFF' && content.subarray(8, 12).toString('ascii') === 'WEBP') {
         return 'image/webp';
       }
+      if (content.subarray(0, 4).toString('ascii') === 'RIFF' && content.subarray(8, 12).toString('ascii') === 'WAVE') {
+        return 'audio/wav';
+      }
+      if (content.length >= 16 && content.subarray(4, 8).toString('ascii') === 'ftyp') {
+        const brands = content.subarray(8, Math.min(content.readUInt32BE(0), content.length)).toString('ascii');
+        if (brands.includes('avif') || brands.includes('avis')) return 'image/avif';
+        if (extension === 'm4a' && /M4A |isom|mp42/.test(brands)) return 'audio/mp4';
+        if (extension === 'mp4' && /isom|iso2|mp4[12]|avc1|M4V /.test(brands)) return 'video/mp4';
+      }
+      if (startsWith(content, [0x1a, 0x45, 0xdf, 0xa3]) && content.subarray(0, 4096).includes(Buffer.from('webm'))) {
+        return 'video/webm';
+      }
+      if (content.subarray(0, 4).toString('ascii') === 'OggS') return 'audio/ogg';
+      if (
+        content.subarray(0, 3).toString('ascii') === 'ID3' ||
+        (content[0] === 0xff && (content[1] & 0xe0) === 0xe0 && (content[1] & 0x06) !== 0)
+      ) {
+        return 'audio/mpeg';
+      }
       if (startsWith(content, [0x50, 0x4b, 0x03, 0x04]) && OFFICE_ZIP_MIME[extension]) {
         const tailSize = Math.min(PROBE_SIZE_BYTES, size);
         const tail = Buffer.alloc(tailSize);

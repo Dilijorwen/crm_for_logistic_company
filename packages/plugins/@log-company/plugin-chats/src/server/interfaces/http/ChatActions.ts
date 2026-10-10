@@ -11,6 +11,7 @@ import type { AddChatMembers } from '../../application/AddChatMembers';
 import type { CreateDirectChat } from '../../application/CreateDirectChat';
 import type { CreateGroupChat } from '../../application/CreateGroupChat';
 import type { DeleteChatMessage } from '../../application/DeleteChatMessage';
+import type { DeleteChat } from '../../application/DeleteChat';
 import type { DownloadChatAttachment } from '../../application/DownloadChatAttachment';
 import type { GetChat } from '../../application/GetChat';
 import type { GetChatMessages } from '../../application/GetChatMessages';
@@ -36,6 +37,7 @@ export interface ChatActions {
   searchUsers: SearchChatUsers;
   sendMessage: SendChatMessage;
   deleteMessage: DeleteChatMessage;
+  deleteChat: DeleteChat;
   getMessages: GetChatMessages;
   markRead: MarkChatAsRead;
   unreadCount: GetUnreadChatsCount;

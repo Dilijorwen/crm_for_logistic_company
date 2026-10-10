@@ -146,6 +146,13 @@ export class NocoBaseChatRepository implements ChatRepository {
     });
   }
 
+  async softDelete(chatId: string, now: Date, transaction: TransactionContext): Promise<void> {
+    await this.plugin.db.sequelize.query(
+      'update chats set deleted_at = :now, updated_at = :now, direct_key = null where id = :chatId and deleted_at is null',
+      { replacements: { chatId, now }, transaction: NocoBaseTransactionManager.asTransaction(transaction) },
+    );
+  }
+
   private async queryList(
     userId: string,
     chatId: string | null,

@@ -79,6 +79,7 @@ export interface ChatDetailsDto extends ChatListItemDto {
   members: ChatMemberDto[];
   currentRole: ChatMemberRole;
   canManageMembers: boolean;
+  canDeleteChat: boolean;
 }
 
 export interface MessagePageDto {

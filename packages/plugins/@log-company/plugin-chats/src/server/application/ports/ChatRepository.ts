@@ -29,4 +29,5 @@ export interface ChatRepository {
   updateGroupTitle(chatId: string, title: string, now: Date, transaction: TransactionContext): Promise<void>;
   updateLastMessageAt(chatId: string, now: Date, transaction: TransactionContext): Promise<void>;
   anonymizeCreator(userId: string, transaction: TransactionContext): Promise<void>;
+  softDelete(chatId: string, now: Date, transaction: TransactionContext): Promise<void>;
 }

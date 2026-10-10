@@ -24,6 +24,7 @@ import {
 } from '../../constants';
 import { StorageClassType, StorageType } from '../storages';
 import { getDocumentRoot, resolveSafePath } from '../storages/local';
+import { detectFileTypeFromBuffer } from '../file-type-detector';
 
 function makeMulterStorage(storage: StorageType) {
   const innerStorage = storage.make();
@@ -86,8 +87,7 @@ function makeMulterStorage(storage: StorageType) {
 
       const validate = async (header) => {
         try {
-          const { fileTypeFromBuffer } = await import('file-type');
-          const type = await fileTypeFromBuffer(new Uint8Array(header));
+          const type = await detectFileTypeFromBuffer(new Uint8Array(header));
 
           if (type) {
             detectedMime = type.mime;

@@ -24,9 +24,9 @@ export async function uploadChatAttachments(
   return unwrapResponse<ChatMessage>(await api.request({ url: 'chatAttachments:upload', method: 'post', data }));
 }
 
-export async function downloadChatAttachment(api: APIClient, attachmentId: string, fileName: string): Promise<void> {
+export async function loadChatAttachment(api: APIClient, attachmentId: string, preview = false): Promise<Blob> {
   const response = await api.request({
-    url: 'chatAttachments:download',
+    url: preview ? 'chatAttachments:preview' : 'chatAttachments:download',
     method: 'get',
     params: { attachmentId },
     responseType: 'blob',
@@ -34,7 +34,11 @@ export async function downloadChatAttachment(api: APIClient, attachmentId: strin
   if (!(response.data instanceof Blob)) {
     throw new Error('Attachment response is not a binary object.');
   }
-  const blob = response.data;
+  return response.data;
+}
+
+export async function downloadChatAttachment(api: APIClient, attachmentId: string, fileName: string): Promise<void> {
+  const blob = await loadChatAttachment(api, attachmentId);
   const objectUrl = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = objectUrl;

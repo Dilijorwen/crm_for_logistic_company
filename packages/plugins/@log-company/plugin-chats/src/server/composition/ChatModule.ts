@@ -13,6 +13,7 @@ import { ChatAccessService } from '../application/ChatAccessService';
 import { CreateDirectChat } from '../application/CreateDirectChat';
 import { CreateGroupChat } from '../application/CreateGroupChat';
 import { DeleteChatMessage } from '../application/DeleteChatMessage';
+import { DeleteChat } from '../application/DeleteChat';
 import { DownloadChatAttachment } from '../application/DownloadChatAttachment';
 import { GetChat } from '../application/GetChat';
 import { GetChatMessages } from '../application/GetChatMessages';
@@ -52,7 +53,7 @@ export class ChatModule {
     const transactions = new NocoBaseTransactionManager(this.plugin);
     const clock = new SystemClock();
     const ids = new NocoBaseIdGenerator(this.plugin);
-    const storage = new MinioChatStorage(readChatMinioConfig(process.env));
+    const storage = new MinioChatStorage(readChatMinioConfig(process.env, this.plugin.app.name));
     const logger = new NocoBaseChatLogger(this.plugin);
     const access = new ChatAccessService(chats, members);
 
@@ -68,6 +69,7 @@ export class ChatModule {
       searchUsers: new SearchChatUsers(users),
       sendMessage: new SendChatMessage(access, chats, messages, users, transactions, clock, ids),
       deleteMessage: new DeleteChatMessage(access, messages, transactions, clock),
+      deleteChat: new DeleteChat(access, chats, transactions, clock),
       getMessages: new GetChatMessages(access, messages, attachments),
       markRead: new MarkChatAsRead(access, members, transactions, clock),
       unreadCount: new GetUnreadChatsCount(members),

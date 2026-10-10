@@ -123,6 +123,7 @@ export function chatRepository(overrides: Partial<ChatRepository> = {}): ChatRep
     updateGroupTitle: async () => unexpected(),
     updateLastMessageAt: async () => unexpected(),
     anonymizeCreator: async () => unexpected(),
+    softDelete: async () => unexpected(),
     ...overrides,
   };
 }

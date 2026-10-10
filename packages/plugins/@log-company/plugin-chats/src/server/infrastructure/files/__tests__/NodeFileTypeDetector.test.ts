@@ -45,4 +45,23 @@ describe('NodeFileTypeDetector', () => {
 
     await expect(detector.detect(filePath, 'fake.docx')).resolves.toBe('application/octet-stream');
   });
+
+  it.each([
+    ['video.mp4', Buffer.from('000000186674797069736f6d0000000069736f6d6d703432', 'hex'), 'video/mp4'],
+    ['photo.avif', Buffer.from('00000018667479706176696600000000617669666d696631', 'hex'), 'image/avif'],
+    ['sound.wav', Buffer.from('RIFF0000WAVEfmt '), 'audio/wav'],
+    ['sound.mp3', Buffer.from('ID3\u0004\u0000\u0000'), 'audio/mpeg'],
+    ['sound.ogg', Buffer.from('OggS\u0000\u0002'), 'audio/ogg'],
+    ['video.webm', Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.from('webm')]), 'video/webm'],
+  ])('recognizes %s by its contents', async (filename, contents, mimeType) => {
+    const filePath = path.join(directory, filename);
+    await fs.writeFile(filePath, contents);
+    await expect(detector.detect(filePath, filename)).resolves.toBe(mimeType);
+  });
+
+  it('does not trust a video extension without its signature', async () => {
+    const filePath = path.join(directory, 'fake.mp4');
+    await fs.writeFile(filePath, '<html>not a video</html>');
+    await expect(detector.detect(filePath, 'fake.mp4')).resolves.toBe('application/octet-stream');
+  });
 });

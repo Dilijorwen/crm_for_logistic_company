@@ -16,8 +16,10 @@ import { CHAT_LIMITS } from '../../../shared/chatLimits';
 import type { UploadedChatFile } from '../../application/UploadChatAttachments';
 import type { ChatLogger } from '../../application/ports/ChatLogger';
 import type { FileTypeDetector } from '../../application/ports/FileTypeDetector';
+import { decodeUploadedFileName } from '../../infrastructure/files/UploadedFileName';
 import type { ChatActions } from './ChatActions';
 import type { ChatHttpSupport } from './ChatHttpSupport';
+import { canPreviewInline } from '@log-company/plugin-file-storage';
 
 interface UploadedFile {
   path: string;
@@ -73,18 +75,23 @@ export class ChatAttachmentsController {
       );
       context.set('Content-Type', result.mimeType);
       context.set('Content-Length', String(result.size));
-      context.set('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(result.fileName)}`);
+      const disposition =
+        context.action.actionName === 'preview' && canPreviewInline(result.mimeType) ? 'inline' : 'attachment';
+      context.set('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(result.fileName)}`);
+      context.set('X-Content-Type-Options', 'nosniff');
+      context.set('Cache-Control', 'private, no-store');
       context.body = result.content;
       await next();
     });
   };
 
   private async toUploadedFile(file: UploadedFile): Promise<UploadedChatFile> {
+    const originalName = decodeUploadedFileName(file.originalname);
     return {
       filePath: file.path,
-      originalName: file.originalname,
+      originalName,
       declaredMimeType: file.mimetype || 'application/octet-stream',
-      detectedMimeType: await this.fileTypes.detect(file.path, file.originalname),
+      detectedMimeType: await this.fileTypes.detect(file.path, originalName),
       size: file.size,
     };
   }
@@ -104,5 +111,6 @@ export class ChatAttachmentsController {
   readonly actions = {
     upload: this.uploadAttachments,
     download: this.downloadAttachment,
+    preview: this.downloadAttachment,
   };
 }

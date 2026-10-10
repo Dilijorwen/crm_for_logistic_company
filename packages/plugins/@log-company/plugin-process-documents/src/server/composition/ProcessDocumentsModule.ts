@@ -35,7 +35,7 @@ export class ProcessDocumentsModule {
 
   async initialize(): Promise<void> {
     const repository = new NocoBaseProcessDocumentsRepository(this.plugin);
-    const storage = new MinioDocumentStorage(readMinioConfig(process.env));
+    const storage = new MinioDocumentStorage(readMinioConfig(process.env, this.plugin.app.name));
     const logger = new NocoBaseApplicationLogger(this.plugin);
     const identifierGenerator = new NocoBaseIdentifierGenerator(this.plugin);
     const access = new NocoBaseProcessDocumentAccess(this.plugin);

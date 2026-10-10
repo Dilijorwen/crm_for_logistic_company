@@ -54,6 +54,7 @@ export interface ChatDetails extends ChatListItem {
   members: ChatMember[];
   currentRole: ChatMemberRole;
   canManageMembers: boolean;
+  canDeleteChat: boolean;
 }
 
 export interface ChatAttachment {

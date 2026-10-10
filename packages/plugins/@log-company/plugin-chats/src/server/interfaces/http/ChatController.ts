@@ -27,6 +27,7 @@ const CHAT_ACTION_NAMES = [
   'updateGroup',
   'unreadCount',
   'availableUsers',
+  'delete',
 ];
 
 export class ChatController {
@@ -49,6 +50,6 @@ export class ChatController {
 
     this.plugin.app.acl.allow('chats', CHAT_ACTION_NAMES, 'loggedIn');
     this.plugin.app.acl.allow('chatMessages', ['list', 'send', 'delete', 'markRead'], 'loggedIn');
-    this.plugin.app.acl.allow('chatAttachments', ['upload', 'download'], 'loggedIn');
+    this.plugin.app.acl.allow('chatAttachments', ['upload', 'download', 'preview'], 'loggedIn');
   }
 }

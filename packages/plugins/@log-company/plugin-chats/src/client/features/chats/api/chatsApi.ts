@@ -43,6 +43,10 @@ export async function leaveChat(api: APIClient, chatId: string): Promise<void> {
   await api.request({ url: 'chats:leave', method: 'post', data: { chatId } });
 }
 
+export async function deleteChat(api: APIClient, chatId: string): Promise<void> {
+  await api.request({ url: 'chats:delete', method: 'post', data: { chatId } });
+}
+
 export async function updateGroupChat(api: APIClient, chatId: string, title: string): Promise<void> {
   await api.request({ url: 'chats:updateGroup', method: 'post', data: { chatId, title } });
 }

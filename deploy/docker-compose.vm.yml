@@ -39,6 +39,11 @@ services:
       INIT_ROOT_NICKNAME: ${INIT_ROOT_NICKNAME:-Administrator}
       INIT_ROOT_PASSWORD: ${INIT_ROOT_PASSWORD:?Set INIT_ROOT_PASSWORD in .env.production}
       PLUGIN_PACKAGE_PREFIX: '@nocobase/plugin-,@nocobase/preset-,@log-company/plugin-'
+      FILE_STORAGE_ENDPOINT: http://minio:9000
+      FILE_STORAGE_REGION: us-east-1
+      FILE_STORAGE_BUCKET: ${FILE_STORAGE_BUCKET:-log-company-files}
+      FILE_STORAGE_ACCESS_KEY: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env.production}
+      FILE_STORAGE_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env.production}
       PROCESS_DOCUMENTS_MINIO_ENDPOINT: http://minio:9000
       PROCESS_DOCUMENTS_MINIO_REGION: us-east-1
       PROCESS_DOCUMENTS_MINIO_BUCKET: ${PROCESS_DOCUMENTS_MINIO_BUCKET:-log-company-process-documents}
@@ -56,6 +61,7 @@ services:
       SWIS_BASE_URL: ${SWIS_BASE_URL:-https://swis.trade.kg}
     volumes:
       - ../storage:/app/nocobase/storage
+      - ../docker/nocobase/log-company-mime.conf:/etc/nginx/conf.d/log-company-mime.conf:ro
     healthcheck:
       test:
         - CMD-SHELL

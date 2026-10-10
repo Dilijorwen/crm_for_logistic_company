@@ -1,0 +1,27 @@
+{
+  "name": "@log-company/plugin-table-personalization",
+  "displayName": "Персональные столбцы таблиц",
+  "description": "Персональные порядок, видимость и ширина столбцов FlowEngine.",
+  "version": "2.0.67",
+  "main": "dist/server/index.js",
+  "peerDependencies": {
+    "@ant-design/icons": "*",
+    "@dnd-kit/core": "^6.0.0",
+    "@dnd-kit/sortable": "^7.0.0",
+    "@formily/reactive": "2.x",
+    "@nocobase/actions": "2.x",
+    "@nocobase/client": "2.x",
+    "@nocobase/database": "2.x",
+    "@nocobase/flow-engine": "2.x",
+    "@nocobase/server": "2.x",
+    "antd": "*",
+    "react": "*",
+    "react-dom": "18.2.0"
+  },
+  "nocobase": {
+    "supportedVersions": [
+      "2.x"
+    ],
+    "editionLevel": 0
+  }
+}

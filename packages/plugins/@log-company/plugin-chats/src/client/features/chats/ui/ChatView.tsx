@@ -12,7 +12,7 @@ import { App, Empty, Input, Modal, Result, Spin, theme } from 'antd';
 import React, { useState } from 'react';
 import { CHAT_LIMITS } from '../../../../shared/chatLimits';
 import { useChatTranslation } from '../../../locale';
-import { updateGroupChat } from '../api/chatsApi';
+import { deleteChat, updateGroupChat } from '../api/chatsApi';
 import { errorMessage } from '../api/apiResponse';
 import { useChatDetails } from '../hooks/useChatDetails';
 import { useChatMessages } from '../hooks/useChatMessages';
@@ -42,6 +42,7 @@ export function ChatView({ chatId, showBack, onBack, onLeft }: ChatViewProps) {
   const [editTitleOpen, setEditTitleOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [savingTitle, setSavingTitle] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   if (!chatId) {
     return <Empty description={t('chat.select')} style={{ margin: 'auto' }} />;
@@ -68,6 +69,21 @@ export function ChatView({ chatId, showBack, onBack, onLeft }: ChatViewProps) {
     }
   };
 
+  const removeChat = async (): Promise<void> => {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await deleteChat(api, details.id);
+      dispatchChatRefresh();
+      onLeft();
+      message.success('Чат удалён');
+    } catch (requestError) {
+      message.error(errorMessage(requestError, 'Не удалось удалить чат'));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div
       data-testid="chat-view"
@@ -86,6 +102,8 @@ export function ChatView({ chatId, showBack, onBack, onLeft }: ChatViewProps) {
         chat={details}
         showBack={showBack}
         onBack={onBack}
+        onDelete={removeChat}
+        deleting={deleting}
         onManageMembers={() => setManageOpen(true)}
         onEditTitle={() => {
           setTitle(details.title);

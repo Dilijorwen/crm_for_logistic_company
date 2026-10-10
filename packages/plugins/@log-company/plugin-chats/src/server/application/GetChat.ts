@@ -8,6 +8,7 @@
  */
 
 import { ChatNotFoundError } from '../domain/chat/ChatErrors';
+import { canDeleteChat } from '../domain/chat/ChatPolicy';
 import { ChatAccessService } from './ChatAccessService';
 import type { ChatDetailsDto } from './dto/ChatDto';
 import type { ChatMemberRepository } from './ports/ChatMemberRepository';
@@ -21,7 +22,7 @@ export class GetChat {
   ) {}
 
   async execute(chatId: string, actorId: string): Promise<ChatDetailsDto> {
-    const { member } = await this.access.requireActiveMember(chatId, actorId);
+    const { chat, member } = await this.access.requireActiveMember(chatId, actorId);
     const [item, members] = await Promise.all([
       this.chats.getListItem(chatId, actorId),
       this.members.listByChat(chatId),
@@ -34,6 +35,7 @@ export class GetChat {
       members,
       currentRole: member.role,
       canManageMembers: member.role === 'owner' || member.role === 'admin',
+      canDeleteChat: canDeleteChat(chat.type, member.role),
     };
   }
 }

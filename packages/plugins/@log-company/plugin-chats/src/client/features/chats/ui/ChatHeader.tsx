@@ -7,8 +7,8 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { ArrowLeftOutlined, EditOutlined, TeamOutlined } from '@ant-design/icons';
-import { Button, Flex, Tag, Typography, theme } from 'antd';
+import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, TeamOutlined } from '@ant-design/icons';
+import { Button, Flex, Popconfirm, Tag, Typography, theme } from 'antd';
 import React from 'react';
 import { useChatTranslation } from '../../../locale';
 import type { ChatDetails } from '../model/types';
@@ -19,9 +19,19 @@ interface ChatHeaderProps {
   onBack: () => void;
   onManageMembers: () => void;
   onEditTitle: () => void;
+  onDelete: () => Promise<void>;
+  deleting: boolean;
 }
 
-export function ChatHeader({ chat, showBack, onBack, onManageMembers, onEditTitle }: ChatHeaderProps) {
+export function ChatHeader({
+  chat,
+  showBack,
+  onBack,
+  onManageMembers,
+  onEditTitle,
+  onDelete,
+  deleting,
+}: ChatHeaderProps) {
   const { t } = useChatTranslation();
   const { token } = theme.useToken();
   return (
@@ -44,14 +54,28 @@ export function ChatHeader({ chat, showBack, onBack, onManageMembers, onEditTitl
         </Typography.Title>
         {chat.unavailable ? <Tag>{t('users.deleted')}</Tag> : null}
       </Flex>
-      {chat.type === 'group' ? (
-        <Flex gap={token.marginXXS}>
-          {chat.canManageMembers ? (
-            <Button type="text" icon={<EditOutlined />} onClick={onEditTitle} aria-label={t('chat.editTitle')} />
-          ) : null}
-          <Button type="text" icon={<TeamOutlined />} onClick={onManageMembers} aria-label={t('members.manage')} />
-        </Flex>
-      ) : null}
+      <Flex gap={token.marginXXS}>
+        {chat.type === 'group' ? (
+          <Flex gap={token.marginXXS}>
+            {chat.canManageMembers ? (
+              <Button type="text" icon={<EditOutlined />} onClick={onEditTitle} aria-label={t('chat.editTitle')} />
+            ) : null}
+            <Button type="text" icon={<TeamOutlined />} onClick={onManageMembers} aria-label={t('members.manage')} />
+          </Flex>
+        ) : null}
+        {chat.canDeleteChat ? (
+          <Popconfirm
+            title="Удалить чат для всех участников?"
+            description="Сообщения и вложения чата станут недоступны."
+            okText="Удалить"
+            cancelText="Отмена"
+            onConfirm={onDelete}
+            okButtonProps={{ danger: true, loading: deleting }}
+          >
+            <Button type="text" danger icon={<DeleteOutlined />} loading={deleting} aria-label="Удалить чат" />
+          </Popconfirm>
+        ) : null}
+      </Flex>
     </Flex>
   );
 }

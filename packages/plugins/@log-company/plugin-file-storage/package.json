@@ -1,0 +1,18 @@
+{
+  "name": "@log-company/plugin-file-storage",
+  "displayName": "Единое файловое хранилище",
+  "version": "2.0.60",
+  "main": "dist/server/index.js",
+  "files": ["server.js", "client.js", "storage.js"],
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.750.0"
+  },
+  "peerDependencies": {
+    "@nocobase/server": "2.x",
+    "@nocobase/client": "2.x",
+    "@nocobase/actions": "2.x",
+    "@nocobase/plugin-file-manager": "2.x",
+    "multer": "1.4.5-lts.2"
+  },
+  "nocobase": { "supportedVersions": ["2.x"], "editionLevel": 0 }
+}

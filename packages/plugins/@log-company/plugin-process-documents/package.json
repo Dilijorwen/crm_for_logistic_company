@@ -2,9 +2,10 @@
   "name": "@log-company/plugin-process-documents",
   "displayName": "Документы поставок",
   "description": "Папки и файлы поставок с хранением в MinIO.",
-  "version": "2.0.66",
+  "version": "2.0.67",
   "main": "dist/server/index.js",
   "peerDependencies": {
+    "@log-company/plugin-file-storage": "2.0.60",
     "@ant-design/icons": "*",
     "@formily/react": "*",
     "@nocobase/actions": "2.x",

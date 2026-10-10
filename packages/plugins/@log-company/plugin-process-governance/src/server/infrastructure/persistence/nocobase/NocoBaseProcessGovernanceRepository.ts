@@ -163,6 +163,13 @@ export class NocoBaseProcessGovernanceRepository implements ProcessGovernanceRep
     clientName: string,
     transaction?: GovernanceTransaction,
   ): Promise<void> {
+    const [tables] = (await this.plugin.db.sequelize.query('select to_regclass(:tableName) as name', {
+      replacements: { tableName: PROCESS_COLLECTION },
+      transaction: this.asTransaction(transaction),
+    })) as unknown as [{ name: string | null }[], unknown];
+    if (!tables[0]?.name) {
+      return;
+    }
     await this.plugin.db.sequelize.query(
       `
         update ${PROCESS_COLLECTION}

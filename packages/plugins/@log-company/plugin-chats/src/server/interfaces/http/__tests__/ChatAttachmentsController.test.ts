@@ -27,6 +27,23 @@ interface TestUploadFile {
 
 type TestUploadContext = Context & { files?: TestUploadFile[] };
 
+function uploadContext(): TestUploadContext {
+  return {
+    action: {
+      resourceName: 'chatAttachments',
+      actionName: 'upload',
+      params: { values: { chatId: '100' } },
+    },
+    query: {},
+    request: {},
+    state: { currentUser: { id: '1' } },
+    t: (key: string) => key,
+    throw: (status: number, message: string): never => {
+      throw Object.assign(new Error(message), { status });
+    },
+  } as unknown as TestUploadContext;
+}
+
 describe('ChatAttachmentsController', () => {
   let directory: string;
   let filePath: string;
@@ -64,22 +81,44 @@ describe('ChatAttachmentsController', () => {
       },
     });
 
-    const context = {
-      action: {
-        resourceName: 'chatAttachments',
-        actionName: 'upload',
-        params: { values: {} },
-      },
-      query: {},
-      request: {},
-      state: { currentUser: { id: '1' } },
-      t: (key: string) => key,
-      throw: (status: number, message: string): never => {
-        throw Object.assign(new Error(message), { status });
-      },
-    } as unknown as TestUploadContext;
+    const context = uploadContext();
 
     await expect(controller.actions.upload(context, async () => undefined)).rejects.toMatchObject({ status: 413 });
     await expect(fs.stat(filePath)).rejects.toMatchObject({ code: 'ENOENT' });
   });
+
+  it.each(['2022-11-25 ТВ Л4.pdf', Buffer.from('2022-11-25 ТВ Л4.pdf', 'utf8').toString('latin1')])(
+    'passes the decoded filename to MIME detection and the upload use case: %s',
+    async (originalname) => {
+      const logger: ChatLogger = { warn: vi.fn(), error: vi.fn() };
+      const detect = vi.fn().mockResolvedValue('application/pdf');
+      const execute = vi.fn().mockResolvedValue({ attachments: [] });
+      const actions = { uploadAttachments: { execute } } as unknown as ChatActions;
+      const controller = new ChatAttachmentsController(actions, new ChatHttpSupport(logger), { detect }, logger);
+      Object.defineProperty(controller, 'upload', {
+        value: async (context: TestUploadContext): Promise<void> => {
+          context.files = [{ path: filePath, originalname, mimetype: 'application/pdf', size: 14 }];
+        },
+      });
+
+      await controller.actions.upload(uploadContext(), async () => undefined);
+
+      expect(detect).toHaveBeenCalledWith(filePath, '2022-11-25 ТВ Л4.pdf');
+      expect(execute).toHaveBeenCalledWith({
+        chatId: '100',
+        actorId: '1',
+        text: null,
+        files: [
+          {
+            filePath,
+            originalName: '2022-11-25 ТВ Л4.pdf',
+            declaredMimeType: 'application/pdf',
+            detectedMimeType: 'application/pdf',
+            size: 14,
+          },
+        ],
+      });
+      await expect(fs.stat(filePath)).rejects.toMatchObject({ code: 'ENOENT' });
+    },
+  );
 });

@@ -7,15 +7,12 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { DeleteOutlined, DownloadOutlined, FileOutlined } from '@ant-design/icons';
-import { useAPIClient } from '@nocobase/client';
-import { App, Button, Flex, Popconfirm, Space, Typography, theme } from 'antd';
+import { DeleteOutlined } from '@ant-design/icons';
+import { Button, Flex, Popconfirm, Space, Typography, theme } from 'antd';
 import dayjs from 'dayjs';
 import React from 'react';
 import { useChatTranslation } from '../../../locale';
-import { downloadChatAttachment } from '../api/attachmentsApi';
-import { errorMessage } from '../api/apiResponse';
-import { formatFileSize } from '../lib/formatFileSize';
+import { AttachmentItem } from './AttachmentItem';
 import { formatSystemMessage } from '../lib/formatSystemMessage';
 import type { ChatMessage } from '../model/types';
 
@@ -27,17 +24,8 @@ interface MessageItemProps {
 
 export function MessageItem({ message, isOwn, onDelete }: MessageItemProps) {
   const { t } = useChatTranslation();
-  const api = useAPIClient();
-  const { message: notification } = App.useApp();
   const { token } = theme.useToken();
 
-  const download = async (attachmentId: string, fileName: string): Promise<void> => {
-    try {
-      await downloadChatAttachment(api, attachmentId, fileName);
-    } catch (requestError) {
-      notification.error(errorMessage(requestError, t('errors.STORAGE_DOWNLOAD_FAILED')));
-    }
-  };
   if (message.messageType === 'system' && !message.deletedAt) {
     return (
       <Typography.Text type="secondary" style={{ alignSelf: 'center', fontSize: token.fontSizeSM }}>
@@ -72,16 +60,7 @@ export function MessageItem({ message, isOwn, onDelete }: MessageItemProps) {
             {message.attachments.length ? (
               <Space direction="vertical" size={2} style={{ display: 'flex' }}>
                 {message.attachments.map((attachment) => (
-                  <Button
-                    key={attachment.id}
-                    type="text"
-                    icon={<FileOutlined />}
-                    onClick={() => download(attachment.id, attachment.fileName)}
-                    aria-label={t('attachments.download', { fileName: attachment.fileName })}
-                    style={{ paddingInline: 0, height: 'auto' }}
-                  >
-                    {attachment.fileName} · {formatFileSize(attachment.size)} <DownloadOutlined />
-                  </Button>
+                  <AttachmentItem key={attachment.id} attachment={attachment} />
                 ))}
               </Space>
             ) : null}

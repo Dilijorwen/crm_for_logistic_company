@@ -1,6 +1,11 @@
 {
   "compilerOptions": {
     "allowJs": false,
+    "baseUrl": "../../..",
+    "paths": {
+      "@nocobase/plugin-file-manager/server": ["packages/plugins/@nocobase/plugin-file-manager/src/server"],
+      "@nocobase/plugin-file-manager/client": ["packages/plugins/@nocobase/plugin-file-manager/src/client"]
+    },
     "esModuleInterop": true,
     "experimentalDecorators": true,
     "jsx": "react",

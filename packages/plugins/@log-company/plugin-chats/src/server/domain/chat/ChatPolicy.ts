@@ -16,7 +16,11 @@ import {
   MessageAlreadyDeletedError,
   MessageDeleteForbiddenError,
 } from './ChatErrors';
-import type { ChatMemberRole } from './ChatTypes';
+import type { ChatMemberRole, ChatType } from './ChatTypes';
+
+export function canDeleteChat(type: ChatType, role: ChatMemberRole): boolean {
+  return type === 'direct' || role === 'owner';
+}
 
 function compareIdentifiers(left: string, right: string): number {
   if (left.length !== right.length) {

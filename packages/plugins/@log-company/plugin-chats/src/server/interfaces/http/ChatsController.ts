@@ -113,6 +113,15 @@ export class ChatsController {
     });
   };
 
+  private readonly deleteChat = async (context: Context, next: Next): Promise<void> => {
+    await this.http.handle(context, async () => {
+      const values = this.http.values(context);
+      await this.chatActions.deleteChat.execute(this.http.requiredId(values.chatId), this.http.actorId(context));
+      context.body = true;
+      await next();
+    });
+  };
+
   private readonly availableUsers = async (context: Context, next: Next): Promise<void> => {
     await this.http.handle(context, async () => {
       const values = this.http.values(context);
@@ -133,5 +142,6 @@ export class ChatsController {
     updateGroup: this.updateGroup,
     unreadCount: this.unreadCount,
     availableUsers: this.availableUsers,
+    delete: this.deleteChat,
   };
 }

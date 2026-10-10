@@ -1,6 +1,6 @@
 {
   "name": "@nocobase/plugin-file-manager",
-  "version": "2.0.60",
+  "version": "2.0.62",
   "displayName": "File manager",
   "displayName.ru-RU": "Менеджер файлов",
   "description": "Provides files storage services with files collection template and attachment field.",
