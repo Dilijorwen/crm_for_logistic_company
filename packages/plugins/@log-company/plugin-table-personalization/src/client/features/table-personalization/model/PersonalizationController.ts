@@ -83,7 +83,7 @@ export class PersonalizationController {
       }
     } catch (error) {
       if (generation === this.generation && request === this.requestNumber) {
-        this.state.error = 'Не удалось загрузить настройки столбцов. Повторите попытку';
+        this.state.error = 'Не удалось загрузить настройки колонок. Повторите попытку';
       }
     } finally {
       if (generation === this.generation && request === this.requestNumber) this.state.isLoading = false;
@@ -152,7 +152,7 @@ export class PersonalizationController {
       } catch (error) {
         if (generation !== this.generation) return false;
         if (record(record(error).response).status === 409) await this.reload(false);
-        this.state.widthError = 'Не удалось сохранить ширину столбца. Повторите изменение';
+        this.state.widthError = 'Не удалось сохранить ширину колонки. Повторите изменение';
         return false;
       } finally {
         if (generation === this.generation) {
@@ -189,9 +189,9 @@ export class PersonalizationController {
       if (generation !== this.generation) return false;
       if (record(record(error).response).status === 409) {
         await this.reload();
-        this.state.error = 'Состав или права на столбцы изменились. Проверьте список и повторите сохранение';
+        this.state.error = 'Состав или права на колонки изменились. Проверьте список и повторите сохранение';
       } else {
-        this.state.error = 'Не удалось сохранить настройки столбцов. Изменения в окне сохранены';
+        this.state.error = 'Не удалось сохранить настройки колонок. Изменения в окне сохранены';
       }
       return false;
     } finally {

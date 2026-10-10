@@ -157,7 +157,7 @@ describe('personalization HTTP boundary', () => {
     adapters.find.mockRejectedValue(new Error('private SQL path trace'));
     await expect(controller.handle(context, async () => undefined, 'get')).rejects.toMatchObject({
       status: 500,
-      message: 'Не удалось обработать настройки столбцов',
+      message: 'Не удалось обработать настройки колонок',
     });
     expect(logger.error).toHaveBeenCalledOnce();
   });

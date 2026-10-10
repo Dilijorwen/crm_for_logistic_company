@@ -71,7 +71,7 @@ function fixture() {
 describe('personal column width interaction', () => {
   it('previews every mouse movement and saves once on release without blocking page controls', async () => {
     const { api, controller, pageClick } = fixture();
-    const handle = await screen.findByRole('separator', { name: 'Изменить ширину столбца «Первый»' });
+    const handle = await screen.findByRole('separator', { name: 'Изменить ширину колонки «Первый»' });
     expect(handle.parentElement?.tagName).toBe('TH');
     expect(handle).toHaveStyle({ right: '0px', top: '0px', bottom: '0px' });
     fireEvent.mouseDown(handle, { button: 0, clientX: 100 });

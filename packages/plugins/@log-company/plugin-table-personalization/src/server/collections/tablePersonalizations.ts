@@ -11,7 +11,7 @@ import { defineCollection } from '@nocobase/database';
 
 export default defineCollection({
   name: 'lc_table_personalizations',
-  title: 'Персональные столбцы таблиц',
+  title: 'Персональные колонки таблиц',
   hidden: true,
   timestamps: true,
   fields: [

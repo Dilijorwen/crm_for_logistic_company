@@ -67,7 +67,7 @@ export class PersonalizedTableBlockModel extends TableBlockModel {
     if (this.personalizationView || this.context.flowSettingsEnabled) return;
     // The engine's view holder survives toolbar remounts caused by asynchronous column updates.
     const view: FlowModel['context']['view'] & Promise<unknown> = this.context.viewer.dialog({
-      title: 'Мои столбцы',
+      title: 'Мои колонки',
       closable: true,
       destroyOnClose: true,
       styles: { body: { maxHeight: '65vh', overflowY: 'auto' } },

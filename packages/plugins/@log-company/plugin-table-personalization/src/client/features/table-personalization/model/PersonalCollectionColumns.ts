@@ -106,7 +106,7 @@ export class PersonalCollectionColumns {
             },
           },
         });
-        if (!(created instanceof TableColumnModel)) throw new Error('Не удалось создать модель столбца');
+        if (!(created instanceof TableColumnModel)) throw new Error('Не удалось создать модель колонки');
         const model = created;
         setPersonalColumnUid(model, column.uid);
         staged.set(column.uid, model);

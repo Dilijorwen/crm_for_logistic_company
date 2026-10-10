@@ -126,7 +126,7 @@ export const ColumnWidthHeader = observer(
     const handle = canResize ? (
       <span
         role="separator"
-        aria-label={`Изменить ширину столбца «${title}»`}
+        aria-label={`Изменить ширину колонки «${title}»`}
         aria-orientation="vertical"
         aria-valuemin={MIN_COLUMN_WIDTH}
         aria-valuemax={MAX_COLUMN_WIDTH}

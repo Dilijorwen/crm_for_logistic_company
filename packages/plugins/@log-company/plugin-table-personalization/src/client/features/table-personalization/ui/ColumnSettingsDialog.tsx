@@ -62,14 +62,14 @@ export const ColumnSettingsDialog = observer(
     async function save(): Promise<void> {
       if (await controller.save(draft)) {
         await view.close();
-        message.success('Настройки столбцов сохранены');
+        message.success('Настройки колонок сохранены');
       }
     }
 
     async function reset(): Promise<void> {
       if (await controller.reset()) {
         await view.close();
-        message.success('Восстановлены исходные столбцы таблицы');
+        message.success('Восстановлены исходные колонки таблицы');
       }
     }
 
@@ -111,7 +111,7 @@ export const ColumnSettingsDialog = observer(
         )}
         <Typography.Paragraph type="secondary">
           Выберите доступные для просмотра поля коллекции. Настройки применяются только к вашей таблице. Закреплённые
-          столбцы перемещаются внутри своей группы.
+          колонки перемещаются внутри своей группы.
         </Typography.Paragraph>
         <Input
           aria-label="Поиск полей"
@@ -136,7 +136,7 @@ export const ColumnSettingsDialog = observer(
         {state.isLoading ? (
           <Spin />
         ) : !columns.length ? (
-          <Empty description="Нет доступных столбцов для настройки" />
+          <Empty description="Нет доступных колонок для настройки" />
         ) : (
           <DndContext
             sensors={sensors}
@@ -145,15 +145,15 @@ export const ColumnSettingsDialog = observer(
             accessibility={{
               screenReaderInstructions: {
                 draggable:
-                  'Нажмите пробел, чтобы переместить столбец. Стрелки меняют позицию, пробел подтверждает, Escape отменяет перенос.',
+                  'Нажмите пробел, чтобы переместить колонку. Стрелки меняют позицию, пробел подтверждает, Escape отменяет перенос.',
               },
               announcements: {
-                onDragStart: () => 'Начат перенос столбца',
+                onDragStart: () => 'Начат перенос колонки',
                 onDragOver: ({ over }) =>
                   over
                     ? `Позиция: ${columns.find((column) => column.uid === String(over.id))?.title || ''}`
                     : 'Нет позиции для переноса',
-                onDragEnd: () => 'Перенос завершён. Столбцы перемещаются только внутри своей группы',
+                onDragEnd: () => 'Перенос завершён. Колонки перемещаются только внутри своей группы',
                 onDragCancel: () => 'Перенос отменён',
               },
             }}

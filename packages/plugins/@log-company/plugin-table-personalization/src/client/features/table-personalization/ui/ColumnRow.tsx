@@ -52,7 +52,7 @@ export function ColumnRow({
         icon={<HolderOutlined />}
         {...attributes}
         {...listeners}
-        aria-label={`Переместить столбец ${column.title}`}
+        aria-label={`Переместить колонку ${column.title}`}
         disabled={isDisabled}
         style={{ touchAction: 'none' }}
       />

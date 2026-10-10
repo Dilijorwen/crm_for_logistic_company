@@ -20,10 +20,10 @@ import {
 
 type Operation = 'get' | 'save' | 'reset' | 'width';
 const ERRORS = {
-  INVALID_SETTINGS: [400, 'Некорректные настройки столбцов'],
+  INVALID_SETTINGS: [400, 'Некорректные настройки колонок'],
   NOT_FOUND: [404, 'Таблица не найдена'],
-  FORBIDDEN: [403, 'Нет доступа к таблице или её столбцам'],
-  SCHEMA_CHANGED: [409, 'Состав или права на столбцы изменились. Проверьте настройки и повторите сохранение'],
+  FORBIDDEN: [403, 'Нет доступа к таблице или её колонкам'],
+  SCHEMA_CHANGED: [409, 'Состав или права на колонки изменились. Проверьте настройки и повторите сохранение'],
 } as const;
 
 export class TablePersonalizationController {
@@ -91,7 +91,7 @@ export class TablePersonalizationController {
         operation,
         error: error instanceof Error ? error.message : String(error),
       });
-      context.throw(500, 'Не удалось обработать настройки столбцов');
+      context.throw(500, 'Не удалось обработать настройки колонок');
     }
     await next();
   }

@@ -148,7 +148,7 @@ describe('column settings dialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Колонки' }));
     const dialog = await screen.findByRole('dialog');
     await waitFor(() => expect(controller.state.isLoading).toBe(true));
-    await waitFor(() => expect(within(dialog).getByText('Мои столбцы')).toBeVisible());
+    await waitFor(() => expect(within(dialog).getByText('Мои колонки')).toBeVisible());
     fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     await act(async () => {
@@ -257,7 +257,7 @@ describe('column settings dialog', () => {
     const dialog = await openDialog();
     fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Первый' }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Сохранить' }));
-    await within(dialog).findByText('Не удалось сохранить настройки столбцов. Изменения в окне сохранены');
+    await within(dialog).findByText('Не удалось сохранить настройки колонок. Изменения в окне сохранены');
     expect(within(dialog).getByRole('checkbox', { name: 'Первый' })).not.toBeChecked();
     await waitFor(() =>
       expect(within(dialog).getByRole('button', { name: /Сохранить/ })).not.toHaveClass('ant-btn-loading'),
@@ -271,7 +271,7 @@ describe('column settings dialog', () => {
     vi.mocked(api.get).mockRejectedValue(new Error('offline'));
     render(<Harness model={model} engine={engine} />);
     const dialog = await openDialog();
-    await within(dialog).findByText('Не удалось загрузить настройки столбцов. Повторите попытку');
+    await within(dialog).findByText('Не удалось загрузить настройки колонок. Повторите попытку');
     expect(within(dialog).getByRole('button', { name: 'Сохранить' })).toBeDisabled();
     vi.mocked(api.get).mockResolvedValue(data);
     fireEvent.click(within(dialog).getByRole('button', { name: 'Повторить' }));

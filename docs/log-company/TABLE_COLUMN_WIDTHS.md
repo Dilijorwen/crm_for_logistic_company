@@ -1,4 +1,4 @@
-# Персональная ширина столбцов — 2.0.67
+# Персональная ширина колонок — 2.0.67
 
 ## Исследование
 
@@ -30,7 +30,7 @@ Read-only инвентаризация действующей БД перед о
 legacy `TableV2` / `Table.*` в `uiSchemas` не обнаружены. Таблицы коллекций в страницах,
 карточках, popup и связанные таблицы представлены `TableBlockModel`; resource/sourceId остаются штатными.
 
-| Модель таблицы            | Модель столбца                                           | Привязка / проверка                                                   |
+| Модель таблицы            | Модель колонки                                           | Привязка / проверка                                                   |
 | ------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------- |
 | TableBlockModel           | TableColumnModel, TableActionsColumnModel, JSColumnModel | resourceSettings.init; весь текущий CRM                               |
 | TableSelectModel          | Те же                                                    | Штатная таблица выбора; настройки выбора строк не меняются            |
@@ -38,7 +38,7 @@ legacy `TableV2` / `Table.*` в `uiSchemas` не обнаружены. Табл�
 | DisplaySubTableFieldModel | TableColumnModel                                         | Штатная таблица отображения связи                                     |
 | PopupSubTableFieldModel   | TableColumnModel, PopupSubTableActionsColumnModel        | subTableColumns и цепочка ассоциаций                                  |
 
-Все пять моделей используют один декоратор столбца. Статические Ant Design Table в собственных плагинах
+Все пять моделей используют один декоратор колонки. Статические Ant Design Table в собственных плагинах
 не имеют штатной настройки ширины и не расширялись отдельным поведением. Legacy runtime не используется
 в действующей CRM; персональная ширина реализована для перечисленных моделей FlowEngine.
 
@@ -67,8 +67,8 @@ legacy `TableV2` / `Table.*` в `uiSchemas` не обнаружены. Табл�
 API не читает бизнес-записи и не меняет Data Scope. Общие настройки FlowEngine не сохраняются.
 
 `NocoBasePersonalizationRepository.update` создаёт запись с учётом уникального ключа, затем блокирует её
-`SELECT FOR UPDATE` и применяет функцию изменения к актуальному JSON в одной транзакции. Изменение одного
-столбца сохраняет остальные ширины и порядок/видимость. Сохранение layout не отправляет старую карту ширин
+`SELECT FOR UPDATE` и применяет функцию изменения к актуальному JSON в одной транзакции. Изменение одной
+колонки сохраняет остальные ширины и порядок/видимость. Сохранение layout не отправляет старую карту ширин
 из открытого диалога. На клиенте очередь ширины и версия preview защищают быстрые последовательные изменения.
 
 `columnWidthBinding.tsx` регистрирует наследников штатных классов, сохраняя имя, metadata, flows, UID,
@@ -79,7 +79,7 @@ Runtime-поля коллекции используют тот же стаби�
 `ColumnWidthHeader.tsx` добавляет доступный separator у правой границы. Mousemove меняет только локальный preview;
 mouseup делает один запрос. Escape отменяет, unmount/смена владельца удаляют обработчики и возвращают body cursor.
 Стрелки, Shift, Home/End и двойной клик доступны с клавиатуры. Ошибка API откатывает preview и показывает штатное
-уведомление; повторное изменение доступно. При обычном сохранении ширины ресурс не обновляется и столбцы не пересоздаются.
+уведомление; повторное изменение доступно. При обычном сохранении ширины ресурс не обновляется и колонки не пересоздаются.
 
 Портал границы в штатную `th` размещает область захвата у фактического края ячейки, включая свободное место,
 распределённое Ant Design Table. Используется уже установленный ReactDOM; добавлен только peer-контракт
@@ -95,11 +95,11 @@ mouseup делает один запрос. Escape отменяет, unmount/с�
 | [shared/contracts.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/shared/contracts.ts)                                                                                   | Необязательная карта ширин, границы и поддерживаемые модели                 |
 | [ColumnPreferences.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/server/domain/ColumnPreferences.ts)                                                                   | Проверка ширины, UID, совместимость JSON и сохранение непрозрачных настроек |
 | [ports.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/server/application/ports.ts)                                                                                      | Порт атомарного изменения и разрешённые UID ширины                          |
-| [TablePersonalizations.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/server/application/TablePersonalizations.ts)                                                      | Use case изменения одного столбца и сохранение остальных параметров         |
+| [TablePersonalizations.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/server/application/TablePersonalizations.ts)                                                      | Use case изменения одной колонки и сохранение остальных параметров          |
 | [NocoBasePersonalizationRepository.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/server/infrastructure/NocoBasePersonalizationRepository.ts)                           | Транзакция и блокировка строки владельца                                    |
-| [NocoBaseTableConfiguration.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/server/infrastructure/NocoBaseTableConfiguration.ts)                                         | Поддержка пяти таблиц, цепочки ассоциаций, права и служебные столбцы        |
+| [NocoBaseTableConfiguration.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/server/infrastructure/NocoBaseTableConfiguration.ts)                                         | Поддержка пяти таблиц, цепочки ассоциаций, права и служебные колонки        |
 | [TablePersonalizationController.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/server/interfaces/TablePersonalizationController.ts)                                     | Отдельное POST-действие width с закрытым контрактом                         |
-| [client/plugin.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/client/plugin.ts)                                                                                         | Регистрация и восстановление штатных классов столбцов                       |
+| [client/plugin.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/client/plugin.ts)                                                                                         | Регистрация и восстановление штатных классов колонок                        |
 | [TablePersonalizationApi.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/client/features/table-personalization/api/TablePersonalizationApi.ts)                           | Width-запрос, исключение устаревших ширин из layout save                    |
 | [columnLayout.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/client/features/table-personalization/lib/columnLayout.ts)                                                 | Сохранение карты ширин в черновике существующего окна                       |
 | [PersonalizationController.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/client/features/table-personalization/model/PersonalizationController.ts)                     | Реактивный preview, очередь, откат, конфликт и смена владельца              |
@@ -148,7 +148,7 @@ corepack yarn tar @log-company/plugin-table-personalization
 1. Перетаскивание «Номер рейса» 150 → 230 → 280 px; сохранение после reload.
 2. Граница handle совпадает с фактической правой границей th, а нативная ширина ячейки действительно меняется.
 3. Поиск `P762MH`: запрос и одна найденная строка сохраняются после drag.
-4. Перемещение столбца, скрытие и возврат: ширина 280 сохраняется; окно открывается и закрывается без блокировки страницы.
+4. Перемещение колонки, скрытие и возврат: ширина 280 сохраняется; окно открывается и закрывается без блокировки страницы.
 5. Click-to-open по номеру рейса; вложенная связанная таблица «Китайский клиент» 150 → 200 → 240,
    повторное открытие карточки сохраняет настройку.
 6. Добавленное из полного каталога поле «Дата создания»: 150 → 200, reload сохраняет ширину при новом runtime UID.
