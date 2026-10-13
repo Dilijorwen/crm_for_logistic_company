@@ -18,6 +18,7 @@ describe('PluginPermitDocumentsClient', () => {
       i18n: { addResources: vi.fn() },
       addScopes: vi.fn(),
       schemaInitializerManager: { addItem },
+      flowEngine: { registerModels: vi.fn() },
     };
     const plugin = Object.create(PluginPermitDocumentsClient.prototype) as PluginPermitDocumentsClient;
     Object.defineProperty(plugin, 'app', { value: app });

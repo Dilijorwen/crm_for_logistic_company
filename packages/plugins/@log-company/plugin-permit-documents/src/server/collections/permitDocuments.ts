@@ -34,6 +34,42 @@ export const permitDocumentNameField: FieldOptions = {
   },
 };
 
+export const permitDocumentNumberingFields: FieldOptions[] = [
+  {
+    type: 'bigInt',
+    name: 'internal_number',
+    interface: 'integer',
+    allowNull: false,
+    uiSchema: {
+      type: 'number',
+      title: 'Внутренний номер',
+      'x-component': 'InputNumber',
+      'x-component-props': { disabled: true, stringMode: true, separator: '0', step: '1' },
+    },
+  },
+  { type: 'bigInt', name: 'related_document_id', interface: 'integer', isForeignKey: true, allowNull: true },
+  {
+    type: 'belongsTo',
+    name: 'related_document',
+    interface: 'm2o',
+    target: 'permit_documents',
+    targetKey: 'id',
+    foreignKey: 'related_document_id',
+    onDelete: 'SET NULL',
+    uiSchema: {
+      type: 'object',
+      title: 'Связанный документ',
+      'x-component': 'AssociationField',
+      'x-use-component-props': 'useRelatedPermitDocumentProps',
+      'x-component-props': {
+        multiple: false,
+        fieldNames: { label: 'name', value: 'id' },
+        service: { params: { filter: { related_document_id: { $is: null } } } },
+      },
+    },
+  },
+];
+
 export const permitDocumentFields: FieldOptions[] = [
   {
     type: 'snowflakeId',
@@ -65,6 +101,7 @@ export const permitDocumentFields: FieldOptions[] = [
     uiSchema: { type: 'string', title: translate('field.title'), 'x-component': 'Input', required: true },
   },
   permitDocumentNameField,
+  ...permitDocumentNumberingFields,
   {
     type: 'string',
     name: 'document_type',
@@ -253,6 +290,8 @@ export default defineCollection({
     { name: 'permit_documents_document_identity_unique', unique: true, fields: ['document_type', 'title'] },
     { name: 'permit_documents_external_identity_unique', unique: true, fields: ['document_type', 'external_id'] },
     { name: 'permit_documents_daily_sync_idx', fields: ['status', 'sync_status', 'last_checked_at'] },
+    { name: 'permit_documents_internal_number_idx', fields: ['internal_number'] },
+    { name: 'permit_documents_related_document_unique', unique: true, fields: ['related_document_id'] },
   ],
   fields: permitDocumentFields,
 });

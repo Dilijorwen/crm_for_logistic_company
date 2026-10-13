@@ -94,6 +94,8 @@ export class PersonalizedTableBlockModel extends TableBlockModel {
     const settings = controller.matches(this.getPersonalizationIdentity(), this.getPersonalizationOwner())
       ? data?.settings || null
       : null;
+    // Reset restores the current shared renderer, including the editor's order and native column props.
+    if (!settings) return super.getColumns();
     const columns = this.mapSubModels('columns', (column) => {
       const props = column.getColumnProps();
       const isFieldColumn = column instanceof TableColumnModel && column.use === 'TableColumnModel';

@@ -8,12 +8,15 @@
  */
 
 import type { Plugin } from '@nocobase/server';
+import { AssignPermitDocumentNumber } from '../application/AssignPermitDocumentNumber';
 import { CheckPermitDocumentStatus } from '../application/CheckPermitDocumentStatus';
 import { SchedulePermitDocumentSync } from '../application/SchedulePermitDocumentSync';
 import { SynchronizePermitDocument } from '../application/SynchronizePermitDocument';
 import { FetchJsonTransport } from '../infrastructure/http/FetchJsonTransport';
 import { FetchTextTransport } from '../infrastructure/http/FetchTextTransport';
 import { NocoBasePermitDocumentRepository } from '../infrastructure/nocobase/NocoBasePermitDocumentRepository';
+import { NocoBasePermitDocumentNumberingRepository } from '../infrastructure/nocobase/NocoBasePermitDocumentNumberingRepository';
+import { NocoBasePermitDocumentPairAccess } from '../infrastructure/nocobase/NocoBasePermitDocumentPairAccess';
 import { NocoBasePermitDocumentSyncQueue } from '../infrastructure/nocobase/NocoBasePermitDocumentSyncQueue';
 import { NocoBaseSyncLogger, SystemSyncClock } from '../infrastructure/nocobase/SystemSyncSupport';
 import { CompositePermitRegistryGateway } from '../infrastructure/registry/CompositePermitRegistryGateway';
@@ -25,6 +28,7 @@ import { FsaResponseParser } from '../infrastructure/registry/FsaResponseParser'
 import { SwisPermitRegistryClient } from '../infrastructure/registry/SwisPermitRegistryClient';
 import { SwisResponseParser } from '../infrastructure/registry/SwisResponseParser';
 import { PermitDocumentValidationHooks } from '../interfaces/hooks/PermitDocumentValidationHooks';
+import { PermitDocumentNumberingHooks } from '../interfaces/hooks/PermitDocumentNumberingHooks';
 import { PermitDocumentManagedFieldsGuard } from '../interfaces/http/PermitDocumentManagedFieldsGuard';
 import { PermitDocumentSubmitSyncMiddleware } from '../interfaces/http/PermitDocumentSubmitSyncMiddleware';
 import { PermitDocumentSyncController } from '../interfaces/http/PermitDocumentSyncController';
@@ -69,6 +73,12 @@ export class PermitDocumentsModule {
     const schedule = new SchedulePermitDocumentSync(repository, queue, clock, logger);
 
     new PermitDocumentValidationHooks(this.plugin, repository).register();
+    const numberingRepository = new NocoBasePermitDocumentNumberingRepository(this.plugin);
+    const assignNumber = new AssignPermitDocumentNumber(
+      numberingRepository,
+      new NocoBasePermitDocumentPairAccess(this.plugin),
+    );
+    new PermitDocumentNumberingHooks(this.plugin, numberingRepository, assignNumber).register();
     new PermitDocumentManagedFieldsGuard(this.plugin).register();
     new PermitDocumentSubmitSyncMiddleware(this.plugin, repository, synchronize, logger).register();
     new PermitDocumentSyncController(this.plugin, synchronize).register();

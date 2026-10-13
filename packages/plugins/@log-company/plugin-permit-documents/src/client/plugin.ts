@@ -12,6 +12,8 @@ import enUS from '../locale/en-US.json';
 import ruRU from '../locale/ru-RU.json';
 import { NAMESPACE } from './locale';
 import { usePermitDocumentSyncActionProps } from './features/permit-document-sync/usePermitDocumentSyncActionProps';
+import { RelatedPermitDocumentFieldModel } from './features/permit-document-numbering/RelatedPermitDocumentFieldModel';
+import { useRelatedPermitDocumentProps } from './features/permit-document-numbering/useRelatedPermitDocumentProps';
 
 const actionTitle = `{{t("action.checkNow", { ns: "${NAMESPACE}" })}}`;
 
@@ -25,7 +27,8 @@ export class PluginPermitDocumentsClient extends Plugin {
   async load(): Promise<void> {
     this.app.i18n.addResources('en-US', NAMESPACE, enUS);
     this.app.i18n.addResources('ru-RU', NAMESPACE, ruRU);
-    this.app.addScopes({ usePermitDocumentSyncActionProps });
+    this.app.addScopes({ usePermitDocumentSyncActionProps, useRelatedPermitDocumentProps });
+    this.flowEngine.registerModels({ RelatedPermitDocumentFieldModel });
     this.app.schemaInitializerManager.addItem('table:configureItemActions', 'actions.checkPermitDocumentNow', {
       title: actionTitle,
       Component: 'ActionInitializer',

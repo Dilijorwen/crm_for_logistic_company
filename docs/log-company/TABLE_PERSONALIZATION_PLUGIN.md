@@ -8,7 +8,7 @@
 «Выше» / «Ниже», сохранять настройки и сбрасывать только собственные настройки этой таблицы.
 Правую границу заголовка можно перетаскивать для персонального изменения ширины. Стрелки меняют ширину
 на 10 px, Shift + стрелки — на 50 px; двойной клик возвращает общую ширину этой колонки.
-Версия плагина: **2.0.69**; проверяемая версия NocoBase: **2.0.60**.
+Версия плагина: **2.0.70**; проверяемая версия NocoBase: **2.0.60**.
 
 Исследование и согласованное решение:
 [TABLE_PERSONALIZATION_RESEARCH.md](/Users/daniil/log_company/docs/log-company/TABLE_PERSONALIZATION_RESEARCH.md).
@@ -134,14 +134,14 @@
 ```sh
 corepack yarn build @log-company/plugin-table-personalization
 corepack yarn tar @log-company/plugin-table-personalization
-docker compose exec -T app yarn pm add /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.69.tgz
+docker compose exec -T app yarn pm add /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.70.tgz
 docker compose exec -T app yarn pm enable @log-company/plugin-table-personalization
 ```
 
 Для уже установленного плагина вместо add/enable:
 
 ```sh
-docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.69.tgz
+docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.70.tgz
 ```
 
 После add/enable или update завершить обновление и перезапустить локальное приложение:
@@ -209,6 +209,57 @@ docker stop log-company-table-personalization-test-db
 401/400/403/404/409/500, generic API, полевые и вложенные ACL, ссылки и циклы, подпись схемы,
 удаление и каскады, неизменность сериализованного FlowEngine, применение настроек после асинхронной загрузки, исходные render/onCell и действие поиска,
 переключение владельца, ошибки, отмену, восстановление скрытой колонки и сброс в интерфейсе.
+
+## Сброс к настройке UI-редактора в 2.0.70 (12 октября 2026)
+
+«Сбросить мои настройки» удаляет предпочтения текущего пользователя и возвращает текущую общую таблицу
+из UI-редактора: её состав, порядок и ширину колонок. При `settings: null` клиент использует штатный
+`TableBlockModel.getColumns()`, сохраняя правила видимости, закрепление, действия и свойства ячеек.
+Дополнительные персональные поля и их параметры ресурса удаляются существующим механизмом очистки.
+
+Причина расхождения порядка на сервере — чтение `options.sortIndex`. Штатная перестановка FlowEngine
+обновляет `flowModelTreePath.sort` у прямых потомков; индекс в JSON модели может оставаться прежним.
+Диагностический запрос в рабочей базе, выполненный внутри `BEGIN READ ONLY`, обнаружил это расхождение
+у 21 из 34 настроенных колонок. Сервер теперь использует тот же порядок дерева, что UI-редактор;
+индекс из JSON остаётся запасным значением только для модели без пути в дереве.
+Актуальный порядок учитывается и в подписи схемы, и при первом изменении персональной ширины после сброса.
+
+Общие схемы и пользовательские предпочтения при установке не переписываются. Структура БД, индексы
+и миграции не меняются. После обновления следует перезагрузить страницу; визуальную проверку выполняет пользователь.
+
+Проверки:
+
+- До исправления новые клиентский и PostgreSQL регрессионные тесты завершались ошибками:
+  сброс возвращал старый порядок дескрипторов и изменённые свойства общих колонок.
+- `corepack yarn test:client packages/plugins/@log-company/plugin-table-personalization/src/client --run --maxWorkers=1 --minWorkers=1`:
+  **64 теста в 8 файлах прошли**.
+- `TABLE_PERSONALIZATION_POSTGRES_INTEGRATION=1 DB_DIALECT=postgres DB_HOST=127.0.0.1 DB_PORT=15433 DB_USER=nocobase DB_DATABASE=table_personalization_test_reset DB_TEST_PREFIX=table_personalization_test_reset corepack yarn vitest run --config /Users/daniil/log_company/packages/plugins/@log-company/vitest.config.ts --root packages/plugins/@log-company plugin-table-personalization --maxWorkers=1 --minWorkers=1`:
+  **95 проверок в 8 файлах прошли**, включая 18 PostgreSQL интеграционных сценариев.
+  Проверки выполнялись последовательно на отдельном временном контейнере; после тестов контейнер удалён.
+- `corepack yarn eslint --fix --no-ignore` для четырёх изменённых TS/TSX-файлов: код 0.
+- `node node_modules/prettier/bin/prettier.cjs --check --ignore-path /dev/null` для шести изменённых файлов:
+  код 0. `git diff --check -- docs/log-company/TABLE_PERSONALIZATION_PLUGIN.md packages/plugins/@log-company/plugin-table-personalization`:
+  код 0.
+- `node --max-old-space-size=8192 packages/plugins/@log-company/plugin-table-personalization/scripts/check-types.cjs`:
+  **0 строгих диагностик**.
+
+- `corepack yarn build @log-company/plugin-table-personalization`,
+  `corepack yarn tar @log-company/plugin-table-personalization`,
+  `docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.70.tgz`
+  и `docker compose restart app`: код 0. Установленная версия — **2.0.70**.
+- HTTP-проверка `curl` страницы `/signin`: **200**; `/api/auth:check` без авторизации: **401**.
+  Приложение запущено, PostgreSQL и MinIO имеют статус healthy. Браузер не использовался.
+
+Изменённые файлы:
+
+| Файл                                                                                                                                                                                                                        | Назначение                                                                         |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [PersonalizedTableBlockModel.tsx](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/client/features/table-personalization/model/PersonalizedTableBlockModel.tsx)                     | Штатное отображение общей таблицы после сброса                                     |
+| [NocoBaseTableConfiguration.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/server/infrastructure/NocoBaseTableConfiguration.ts)                                               | Актуальный порядок дерева и подпись схемы                                          |
+| [PersonalizedTableBlockModel.test.tsx](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/client/features/table-personalization/model/__tests__/PersonalizedTableBlockModel.test.tsx) | Сброс и повторный сброс после перестановки в редакторе, сохранение штатных свойств |
+| [PersonalizationsPostgres.integration.test.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/server/__tests__/PersonalizationsPostgres.integration.test.ts)                      | Реальный PostgreSQL: новый порядок дерева, сброс и последующее изменение ширины    |
+| [package.json](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/package.json)                                                                                                           | Версия 2.0.70                                                                      |
+| [TABLE_PERSONALIZATION_PLUGIN.md](/Users/daniil/log_company/docs/log-company/TABLE_PERSONALIZATION_PLUGIN.md)                                                                                                               | Причина ошибки, поведение сброса, установка и проверки                             |
 
 ## Единое название «Колонки» в 2.0.69 (10 октября 2026)
 

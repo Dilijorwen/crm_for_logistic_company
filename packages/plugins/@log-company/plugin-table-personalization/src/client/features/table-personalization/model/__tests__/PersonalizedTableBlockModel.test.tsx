@@ -55,6 +55,7 @@ function fixture() {
       props: { width: 120, title: 'Одинаковое название' },
     });
     vi.spyOn(column, 'getColumnProps').mockImplementation(() => ({
+      key: uid,
       width: 120,
       dataIndex: 'title',
       render,
@@ -151,6 +152,26 @@ describe('FlowEngine table personalization integration', () => {
       expect(table.serialize()).toEqual(before);
     } finally {
       dispose();
+    }
+  });
+
+  it('restores the current editor layout and native props after reset and repeated reset', async () => {
+    const { table, columns, data, request, render, onCell, setDesigner } = fixture();
+    await table.personalization.activate(table.getPersonalizationIdentity(), table.getPersonalizationOwner());
+    columns[0].sortIndex = 20;
+    columns[1].sortIndex = 10;
+    vi.mocked(columns[0].getColumnProps).mockReturnValue({ key: 'shared-first', width: 240, render, onCell });
+    vi.mocked(columns[1].getColumnProps).mockReturnValue({ key: 'shared-second', width: 180, render, onCell });
+    setDesigner(true);
+    const shared = table.getColumns().filter((column) => column.key !== 'addColumn');
+    setDesigner(false);
+    const before = table.serialize();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      request.mockResolvedValueOnce({ data: { data: { ...data, settings: null } } });
+      expect(await table.personalization.reset()).toBe(true);
+      expect(table.getColumns()).toEqual(shared);
+      expect(table.getColumns().map((column) => column.key)).toEqual(['shared-second', 'shared-first', 'empty']);
+      expect(table.serialize()).toEqual(before);
     }
   });
 

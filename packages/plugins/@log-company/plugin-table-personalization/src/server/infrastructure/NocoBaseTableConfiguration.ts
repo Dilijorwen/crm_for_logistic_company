@@ -84,6 +84,20 @@ export class NocoBaseTableConfiguration implements TableConfigurationGateway {
       },
       fields: ['uid', 'options'],
     });
+    const columnPaths: Model[] = await this.plugin.db.getRepository('flowModelTreePath').find({
+      filter: { ancestor: table.uid, depth: 1 },
+      fields: ['descendant', 'sort'],
+    });
+    // FlowEngine moves update the adjacency order; options.sortIndex can retain the original position.
+    const treeSortIndexes = new Map(
+      columnPaths.map((path) => [String(path.get('descendant')), Number(path.get('sort')) || 0]),
+    );
+    const sortIndexes = new Map(
+      children.map((child) => {
+        const uid = String(child.get('uid'));
+        return [uid, treeSortIndexes.get(uid) ?? (Number(record(child.get('options')).sortIndex) || 0)];
+      }),
+    );
     const columns: PersonalizableColumn[] = [];
     const existingColumnUids: string[] = [];
     const resizableColumnUids: string[] = [];
@@ -91,7 +105,7 @@ export class NocoBaseTableConfiguration implements TableConfigurationGateway {
     const configuredPaths = new Set<string>();
     for (const child of children) {
       const model: SavedModel = { uid: String(child.get('uid')), options: record(child.get('options')) };
-      structuralColumns.push([model.uid, model.options]);
+      structuralColumns.push([model.uid, model.options, sortIndexes.get(model.uid)]);
       if (!RESIZABLE_COLUMN_MODELS.some((use) => use === model.options.use)) continue;
       existingColumnUids.push(model.uid);
       if (model.options.use !== 'TableColumnModel' && model.options.use !== 'SubTableColumnModel') {
@@ -118,9 +132,6 @@ export class NocoBaseTableConfiguration implements TableConfigurationGateway {
         fixed: fixedGroup(step(model, 'tableColumnSettings', 'fixed').fixed || record(model.options.props).fixed),
       });
     }
-    const sortIndexes = new Map(
-      children.map((child) => [String(child.get('uid')), Number(record(child.get('options')).sortIndex) || 0]),
-    );
     columns.sort((left, right) => (sortIndexes.get(left.uid) || 0) - (sortIndexes.get(right.uid) || 0));
     const collectionFields: unknown[] = [];
     for (const field of ['TableBlockModel', 'TableSelectModel'].includes(String(table.options.use))

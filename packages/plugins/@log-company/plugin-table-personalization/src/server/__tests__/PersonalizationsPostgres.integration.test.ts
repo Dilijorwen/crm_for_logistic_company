@@ -65,6 +65,7 @@ describe.runIf(run)('personalizations PostgreSQL persistence and access', () => 
         { name: 'ancestor', type: 'string', primaryKey: true },
         { name: 'descendant', type: 'string', primaryKey: true },
         { name: 'depth', type: 'integer' },
+        { name: 'sort', type: 'integer' },
       ],
     });
     database.collection({
@@ -144,6 +145,14 @@ describe.runIf(run)('personalizations PostgreSQL persistence and access', () => 
     await database.getRepository('flowModelTreePath').create({
       values: ['table', 'ref-one', 'ref-two'].map((uid) => ({ ancestor: 'page', descendant: uid, depth: 1 })),
     });
+    await database.getRepository('flowModelTreePath').create({
+      values: ['first', 'second', 'relation'].map((uid, sort) => ({
+        ancestor: 'table',
+        descendant: uid,
+        depth: 1,
+        sort,
+      })),
+    });
     const route = await database.getRepository('desktopRoutes').create({ values: { schemaUid: 'page' } });
     await database.getRepository('roles').create({ values: { name: 'reader', desktopRoutes: [route.get('id')] } });
     plugin = {
@@ -185,6 +194,57 @@ describe.runIf(run)('personalizations PostgreSQL persistence and access', () => 
     await repository.reset(owner('1'));
     expect(await repository.find(owner('2'))).not.toBeNull();
     await repository.reset(owner('2'));
+  });
+
+  it('resets to current editor tree order and preserves that order on the next width change', async () => {
+    can.mockReturnValue({ params: {} });
+    const identity = { tableUid: 'table', referencePath: [] };
+    const configuration = gateway();
+    const useCase = new TablePersonalizations(configuration, repository, '3');
+    const initial = await useCase.execute('get', { identity });
+    const models = database.getRepository('flowModels');
+    const paths = database.getRepository('flowModelTreePath');
+    const sharedBefore = (await models.find({ filter: { 'options.parentId': 'table' }, sort: ['uid'] })).map(
+      (model: Model) => model.toJSON(),
+    );
+    await useCase.execute('save', { identity, settings, schemaSignature: initial.schemaSignature });
+    await useCase.execute('width', {
+      identity,
+      columnUid: 'first',
+      width: 260,
+      schemaSignature: initial.schemaSignature,
+    });
+    try {
+      // FlowEngine's move operation updates tree-path sort without rewriting options.sortIndex.
+      for (const [sort, descendant] of ['second', 'relation', 'first'].entries()) {
+        await paths.update({ filter: { ancestor: 'table', descendant, depth: 1 }, values: { sort } });
+      }
+      const sharedOrder = ['second', 'relation', 'first'];
+      const reset = await useCase.execute('reset', { identity });
+      expect(reset.settings).toBeNull();
+      expect(reset.columns.filter((column) => !column.source).map((column) => column.uid)).toEqual(sharedOrder);
+      expect(reset.schemaSignature).not.toBe(initial.schemaSignature);
+      const resized = await useCase.execute('width', {
+        identity,
+        columnUid: 'second',
+        width: 310,
+        schemaSignature: reset.schemaSignature,
+      });
+      expect(resized.settings?.columnOrder.filter((uid) => sharedOrder.includes(uid))).toEqual(sharedOrder);
+      expect(resized.settings?.columnWidths).toEqual({ second: 310 });
+      expect(
+        (await models.find({ filter: { 'options.parentId': 'table' }, sort: ['uid'] })).map((model: Model) =>
+          model.toJSON(),
+        ),
+      ).toEqual(sharedBefore);
+      await useCase.execute('reset', { identity });
+      expect((await useCase.execute('get', { identity })).settings).toBeNull();
+    } finally {
+      for (const [sort, descendant] of ['first', 'second', 'relation'].entries()) {
+        await paths.update({ filter: { ancestor: 'table', descendant, depth: 1 }, values: { sort } });
+      }
+      await useCase.execute('reset', { identity });
+    }
   });
 
   it('checks route and collection permissions and excludes restricted relation fields', async () => {
