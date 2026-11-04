@@ -152,7 +152,9 @@ echo 'Installing locked workspace dependencies...'
 corepack yarn install --frozen-lockfile --non-interactive
 
 echo 'Building Log Company plugins...'
-corepack yarn build "${plugins[@]}"
+for plugin in "${plugins[@]}"; do
+  corepack yarn build "${plugin}"
+done
 corepack yarn tar "${plugins[@]}"
 
 echo 'Refreshing service images when available...'
