@@ -14,7 +14,7 @@ import { UploadActionInitializer } from './initializers';
 import attachmentsCollection from '../common/collections/attachments';
 import storagesCollection from '../common/collections/storages';
 
-export const FileManagerProvider: FC = (props) => {
+export const FileManagerProvider: FC<React.PropsWithChildren> = (props) => {
   return (
     <ExtendCollectionsProvider collections={[attachmentsCollection, storagesCollection]}>
       <SchemaComponentOptions scope={hooks} components={{ UploadActionInitializer }}>
