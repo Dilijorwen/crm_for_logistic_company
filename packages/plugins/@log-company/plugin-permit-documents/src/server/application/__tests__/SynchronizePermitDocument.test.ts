@@ -59,6 +59,23 @@ const card = {
 };
 
 describe('SynchronizePermitDocument', () => {
+  it('never calls any registry for voluntary documents, including manual checks', async () => {
+    const { repository, gateway, useCase } = fixture();
+    vi.mocked(repository.findById).mockResolvedValue({
+      id: '10',
+      title: 'ДОБ',
+      documentType: 'certificate_of_conformity',
+      category: 'voluntary',
+      externalId: null,
+      syncStatus: 'NOT_REQUIRED',
+      status: 'valid',
+      lastCheckedAt: null,
+    });
+    await expect(useCase.execute('10')).resolves.toBe('NOT_REQUIRED');
+    expect(gateway.findByTitle).not.toHaveBeenCalled();
+    expect(gateway.getByExternalId).not.toHaveBeenCalled();
+    expect(repository.markError).not.toHaveBeenCalled();
+  });
   it('searches once, resolves an unknown FSA regulation and applies one atomic result', async () => {
     const { repository, gateway, useCase } = fixture();
     vi.mocked(gateway.findByTitle).mockResolvedValue(card);

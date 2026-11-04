@@ -36,6 +36,7 @@ function fixture(
         }),
       },
       acl,
+      logger: { error: vi.fn() },
     },
   } as unknown as Plugin;
   const synchronize = {
@@ -61,6 +62,15 @@ function fixture(
 }
 
 describe('PermitDocumentSyncController', () => {
+  it('returns a safe unavailable message if synchronization infrastructure fails', async () => {
+    const { handler, context, synchronize } = fixture({ get: () => '10' });
+    vi.mocked(synchronize.execute).mockRejectedValueOnce(new Error('SQL password secret'));
+    await expect(handler(context, vi.fn())).rejects.toMatchObject({
+      status: 503,
+      message: 'Сервис проверки временно недоступен. Повторите проверку позже.',
+    });
+  });
+
   it('aliases sync to update so regular record permissions are used', () => {
     const { acl } = fixture(null);
     expect(acl.setAvailableAction).toHaveBeenCalledWith(
@@ -68,6 +78,15 @@ describe('PermitDocumentSyncController', () => {
       expect.objectContaining({ aliases: expect.arrayContaining(['edit', 'sync']) }),
     );
   });
+  it.each(['', 'invalid', ['10'], { id: '10' }])(
+    'rejects invalid document identifiers before a repository request',
+    async (identifier) => {
+      const { handler, context, repository } = fixture(null);
+      context.action.params.filterByTk = identifier;
+      await expect(handler(context, vi.fn())).rejects.toMatchObject({ status: 400 });
+      expect(repository.findOne).not.toHaveBeenCalled();
+    },
+  );
 
   it('returns 404 when the ACL-scoped filter hides the record', async () => {
     const { handler, context, repository, synchronize } = fixture(null);
@@ -84,8 +103,40 @@ describe('PermitDocumentSyncController', () => {
     await handler(context, next);
     expect(synchronize.execute).toHaveBeenCalledWith('10');
     expect(context.status).toBe(200);
-    expect(context.body).toEqual({ syncStatus: 'SUCCESS' });
+    expect(context.body).toEqual({ syncStatus: 'SUCCESS', message: 'Документ проверен. Сведения обновлены.' });
     expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('returns the safe registry reason for ERROR without treating HTTP 200 as success', async () => {
+    const { handler, context, repository } = fixture({ get: () => '10' }, 'ERROR');
+    repository.findOne
+      .mockResolvedValueOnce({ get: () => '10' })
+      .mockResolvedValueOnce({ get: () => 'REGISTRY_TEMPORARY_UNAVAILABLE' });
+    await handler(context, vi.fn());
+    expect(context.body).toMatchObject({
+      syncStatus: 'ERROR',
+      errorCode: 'REGISTRY_TEMPORARY_UNAVAILABLE',
+      message: expect.stringContaining('Реестр временно недоступен'),
+    });
+    expect(repository.findOne).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filter: { company_id: 'allowed-company' } }),
+    );
+  });
+
+  it('does not expose an unknown stored error', async () => {
+    const { handler, context } = fixture({ get: () => 'SQL secret' }, 'ERROR');
+    await handler(context, vi.fn());
+    expect(context.body).toMatchObject({ errorCode: 'INTERNAL_SYNC_ERROR' });
+    expect(JSON.stringify(context.body)).not.toContain('SQL secret');
+  });
+
+  it('explains a missing registry document distinctly from a missing CRM record', async () => {
+    const { handler, context } = fixture({ get: () => '10' }, 'NOT_FOUND');
+    await handler(context, vi.fn());
+    expect(context.body).toMatchObject({
+      syncStatus: 'NOT_FOUND',
+      message: expect.stringContaining('не найден в реестре'),
+    });
   });
 
   it('returns 404 when the record disappears during synchronization', async () => {

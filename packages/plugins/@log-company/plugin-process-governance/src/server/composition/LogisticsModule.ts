@@ -15,7 +15,6 @@ import { NormalizeShipmentNumericFields } from '../application/logistics/Normali
 import { RecordLogisticsCreated } from '../application/logistics/RecordLogisticsCreated';
 import { RecordLogisticsFieldChanges } from '../application/logistics/RecordLogisticsFieldChanges';
 import { RecordLogisticsRelationChange } from '../application/logistics/RecordLogisticsRelationChange';
-import { RefreshShipmentDisplayName } from '../application/logistics/RefreshShipmentDisplayName';
 import { ResolveRunVehicle } from '../application/logistics/ResolveRunVehicle';
 import { ValidateRunParents } from '../application/logistics/ValidateRunParents';
 import { ValidateShipmentContract } from '../application/logistics/ValidateShipmentContract';
@@ -26,12 +25,17 @@ import { LogisticsIntegrityGuard } from '../infrastructure/persistence/nocobase/
 import { NocoBaseLogisticsRepository } from '../infrastructure/persistence/nocobase/NocoBaseLogisticsRepository';
 import { LogisticsHooks } from '../interfaces/hooks/LogisticsHooks';
 import { LogisticsPreActions } from '../interfaces/http/LogisticsPreActions';
+import { LogisticsWorkspaceActions } from '../interfaces/http/LogisticsWorkspaceActions';
+import { NocoBaseWorkspaceReadModel } from '../infrastructure/read-model/NocoBaseWorkspaceReadModel';
+import { WorkspaceDeletionController } from '../interfaces/http/WorkspaceDeletionController';
 
 export class LogisticsModule {
   constructor(private readonly plugin: Plugin) {}
 
   initialize(): void {
     new LogisticsIntegrityGuard(this.plugin).register();
+    new LogisticsWorkspaceActions(this.plugin, new NocoBaseWorkspaceReadModel(this.plugin.db)).register();
+    new WorkspaceDeletionController(this.plugin).register();
     const repository = new NocoBaseLogisticsRepository(this.plugin);
     const logger = new NocoBaseGovernanceLogger(this.plugin);
     const snapshots = new LogisticsSnapshotStore();
@@ -52,7 +56,6 @@ export class LogisticsModule {
       validateRunParents,
       validateShipmentContract,
       validateShipmentDeletion,
-      refreshShipmentDisplayName: new RefreshShipmentDisplayName(repository),
     }).register();
   }
 }

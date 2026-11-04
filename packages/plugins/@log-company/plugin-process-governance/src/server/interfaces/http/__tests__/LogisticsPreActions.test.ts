@@ -41,6 +41,29 @@ function setup(linkedRunCount = 0) {
 }
 
 describe('LogisticsPreActions', () => {
+  it('keeps source run references without saving stale nested association snapshots', async () => {
+    const { handlers } = setup();
+    const params = {
+      values: { runs: [{ id: 'run-1', transport_run_shipments: { transport_run_id: undefined } }] },
+      updateAssociationValues: ['runs', 'runs.shipments', 'comments'],
+    };
+    await handlers.get('shipments:create')?.({ action: { actionName: 'create', params } }, async () => undefined);
+    expect(params.values.runs).toEqual(['run-1']);
+    expect(params.updateAssociationValues).toEqual(['comments']);
+  });
+
+  it('rejects an undefined run with a public validation error before persistence', async () => {
+    const { handlers } = setup();
+    const next = vi.fn();
+    await expect(
+      handlers.get('shipments:create')?.(
+        { action: { actionName: 'create', params: { values: { runs: [{}] } } } },
+        next,
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('keeps a run save from overwriting shipments with stale nested snapshots', async () => {
     const { handlers } = setup();
     const next = vi.fn(async () => undefined);

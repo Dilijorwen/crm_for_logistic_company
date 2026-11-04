@@ -34,7 +34,17 @@ describe('LogisticsPreActions database integration', () => {
     db.collection({ name: 'transport_run_shipments', timestamps: false });
     db.collection({
       name: 'shipments',
-      fields: [{ type: 'string', name: 'display_name' }],
+      fields: [
+        { type: 'string', name: 'display_name' },
+        {
+          type: 'belongsToMany',
+          name: 'runs',
+          target: 'transport_runs',
+          through: 'transport_run_shipments',
+          foreignKey: 'shipment_id',
+          otherKey: 'transport_run_id',
+        },
+      ],
     });
     db.collection({
       name: 'transport_runs',
@@ -56,7 +66,7 @@ describe('LogisticsPreActions database integration', () => {
     await db.close();
   });
 
-  it('keeps the current shipment values while saving a run with a stale shipment snapshot', async () => {
+  function registerHandlers() {
     const handlers = new Map<string, PreActionHandler>();
     const plugin = {
       app: {
@@ -77,6 +87,43 @@ describe('LogisticsPreActions database integration', () => {
       new ValidateRunParents(repository),
       new ValidateShipmentDeletion(repository),
     ).register();
+    return handlers;
+  }
+
+  it('creates a shipment linked to its run and preserves the link on subsequent edits', async () => {
+    const handlers = registerHandlers();
+    const run = await db.getRepository('transport_runs').create({ values: {} });
+    const createParams = {
+      values: {
+        display_name: 'Новая поставка',
+        runs: [{ id: run.get('id'), transport_run_shipments: { transport_run_id: undefined } }],
+      },
+      updateAssociationValues: ['runs'],
+    };
+    let shipmentId: unknown;
+    await handlers.get('shipments:create')?.({ action: { actionName: 'create', params: createParams } }, async () => {
+      shipmentId = (await db.getRepository('shipments').create(createParams)).get('id');
+    });
+    expect(
+      (await db.getRepository('transport_runs.shipments', run.get('id')).find()).map((item) => item.get('id')),
+    ).toEqual([shipmentId]);
+    const updateParams = {
+      filterByTk: shipmentId,
+      values: { display_name: 'Исправленная поставка', runs: [{ id: run.get('id'), shipments: [{}] }] },
+      updateAssociationValues: ['runs', 'runs.shipments'],
+    };
+    await handlers.get('shipments:update')?.({ action: { actionName: 'update', params: updateParams } }, async () => {
+      await db.getRepository('shipments').update(updateParams);
+    });
+    expect(
+      (await db.getRepository('transport_runs.shipments', run.get('id')).find()).map((item) =>
+        item.get('display_name'),
+      ),
+    ).toEqual(['Исправленная поставка']);
+  });
+
+  it('keeps the current shipment values while saving a run with a stale shipment snapshot', async () => {
+    const handlers = registerHandlers();
 
     const run = await db.getRepository('transport_runs').create({ values: {} });
     const shipment = await db.getRepository('shipments').create({ values: { display_name: 'Актуальное название' } });

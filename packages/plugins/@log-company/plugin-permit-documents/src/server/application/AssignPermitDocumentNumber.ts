@@ -25,6 +25,7 @@ export class AssignPermitDocumentNumber {
 
   async execute(input: {
     documentId: string | null;
+    category?: 'ordinary' | 'rented' | 'voluntary';
     relatedDocumentId: string | null;
     transaction: PermitNumberingTransaction;
     context?: unknown;
@@ -33,11 +34,17 @@ export class AssignPermitDocumentNumber {
     if (input.relatedDocumentId === null) {
       return this.repository.nextFreeNumber(input.transaction);
     }
+    if (input.category === 'voluntary') {
+      throw new PermitDocumentNumberingError('VOLUNTARY_DOCUMENT_PAIR', 'Добровольные документы нельзя связывать.');
+    }
     if (input.documentId === input.relatedDocumentId) {
       throw new PermitDocumentNumberingError('SELF_RELATED_DOCUMENT', 'Документ нельзя связать с самим собой.');
     }
     await this.access.assertCanLink(input.relatedDocumentId, input.context, input.transaction);
     const related = await this.repository.findById(input.relatedDocumentId, input.transaction);
+    if (related?.category === 'voluntary') {
+      throw new PermitDocumentNumberingError('VOLUNTARY_DOCUMENT_PAIR', 'Добровольные документы нельзя связывать.');
+    }
     assertCanPairPermitDocument(input.documentId, related);
     return related.internalNumber;
   }

@@ -30,15 +30,23 @@ export class NocoBasePermitDocumentNumberingRepository implements PermitDocument
 
   async findById(id: string, transaction: PermitNumberingTransaction): Promise<NumberedPermitDocument | null> {
     const [rows] = await this.plugin.db.sequelize.query(
-      'select id, internal_number, related_document_id from permit_documents where id = :id',
+      'select id, internal_number, related_document_id, category from permit_documents where id = :id',
       { replacements: { id }, transaction: transaction as Transaction },
     );
-    const row = (rows as Array<{ id: string; internal_number: string; related_document_id: string | null }>)[0];
+    const row = (
+      rows as Array<{
+        id: string;
+        internal_number: string;
+        related_document_id: string | null;
+        category: 'ordinary' | 'rented' | 'voluntary';
+      }>
+    )[0];
     return row
       ? {
           id: String(row.id),
           internalNumber: String(row.internal_number),
           relatedDocumentId: row.related_document_id == null ? null : String(row.related_document_id),
+          category: row.category,
         }
       : null;
   }

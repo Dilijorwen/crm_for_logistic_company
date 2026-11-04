@@ -7,6 +7,16 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import type { Context } from '@nocobase/actions';
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import type { Plugin } from '@nocobase/server';
 import type { Database } from '@nocobase/database';
 import { NocoBaseSearchIndexRepository } from '../infrastructure/persistence/nocobase/NocoBaseSearchIndexRepository';
@@ -43,7 +53,7 @@ export class CollectionSearchModule {
     const configurationGuard = new SearchConfigurationGuard(
       new AuthorizeSearchConfigurationChange(new NocoBaseSearchFlowModelRepository(this.plugin.db)),
     );
-    this.plugin.app.resourceManager.use(configurationGuard.handle, {
+    this.plugin.app.resourceManager.use((context, next) => configurationGuard.handle(context as Context, next), {
       tag: 'log-company.collection-search-root-settings',
       after: 'acl',
     });

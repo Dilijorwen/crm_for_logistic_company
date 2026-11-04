@@ -144,6 +144,79 @@ describe('permit documents persistence', () => {
     },
   );
 
+  async function manualValues() {
+    await database.getRepository('our_companies').create({ values: { id: '1001', name: 'Компания' } });
+    await database.getRepository('technical_regulations').create({ values: { id: '3001', doc_num: 'ТР ТС 008/2011' } });
+    await database.getRepository('attachments').create({ values: { id: '4001', filename: 'document.pdf' } });
+    return {
+      id: '2001',
+      title: 'ДОБ-1',
+      category: 'voluntary',
+      document_type: 'certificate_of_conformity',
+      company: '1001',
+      valid_from: '2026-01-01',
+      valid_until: '2099-12-31',
+      product_information: 'Продукция',
+      manufacturer_name: 'Завод',
+      manufacturer_address: 'Адрес завода',
+      technical_regulations: ['3001'],
+      documents: ['4001'],
+    };
+  }
+
+  it('creates a complete voluntary document, keeps manual values on edit and requires all associations', async () => {
+    const repository = database.getRepository('permit_documents');
+    const values = await manualValues();
+    const document = await repository.create({ values });
+    expect(document.get('sync_status')).toBe('NOT_REQUIRED');
+    expect(document.get('status')).toBe('valid');
+    expect(document.get('period_until')).toBe('2099-12-31');
+    expect(document.get('external_id')).toBeNull();
+    expect(document.get('name')).toContain('от 01.01.2026 до 31.12.2099');
+    await repository.update({
+      filterByTk: '2001',
+      values: { product_information: 'Новая продукция', valid_until: '2020-12-31', valid_from: '2020-01-01' },
+    });
+    const updated = await repository.findOne({ filterByTk: '2001' });
+    expect(updated.get('product_information')).toBe('Новая продукция');
+    expect(updated.get('status')).toBe('terminated');
+    await expect(repository.update({ filterByTk: '2001', values: { technical_regulations: [] } })).rejects.toThrow(
+      'Заполните',
+    );
+    await expect(repository.update({ filterByTk: '2001', values: { documents: [] } })).rejects.toThrow('Заполните');
+    await expect(repository.update({ filterByTk: '2001', values: { company: null } })).rejects.toThrow('Заполните');
+    await expect(
+      repository.create({
+        values: { id: '2002', title: 'Обычный', document_type: 'certificate_of_conformity', related_document: '2001' },
+      }),
+    ).rejects.toThrow('нельзя связывать');
+    expect(await repository.count()).toBe(1);
+  });
+
+  it('stores rental dates independently, permits renewal and rejects company and invalid periods', async () => {
+    const repository = database.getRepository('permit_documents');
+    const values = {
+      id: '2001',
+      title: 'АРЕНДА-1',
+      category: 'rented',
+      document_type: 'declaration_of_conformity',
+      rental_from: '2026-01-01',
+      rental_until: '2099-01-01',
+    };
+    const document = await repository.create({ values });
+    expect(document.get('period_from')).toBe('2026-01-01');
+    expect(document.get('period_until')).toBe('2099-01-01');
+    expect(document.get('valid_from')).toBeNull();
+    await repository.update({ filterByTk: '2001', values: { rental_until: '2100-01-01' } });
+    expect((await repository.findOne({ filterByTk: '2001' })).get('period_until')).toBe('2100-01-01');
+    await expect(
+      repository.create({ values: { ...values, id: '2002', title: 'BAD', rental_until: '2025-01-01' } }),
+    ).rejects.toThrow('даты');
+    await expect(
+      repository.create({ values: { ...values, id: '2002', title: 'BAD', company: '1001' } }),
+    ).rejects.toThrow('компании');
+  });
+
   it('creates PENDING and returns the document through the company one-to-many relation', async () => {
     const company = await database
       .getRepository('our_companies')
@@ -200,7 +273,7 @@ describe('permit documents persistence', () => {
       database.getRepository('permit_documents').create({
         values: { id: '2004', title: 'DOC-OTHER', document_type: 'other', company: company.get('id') },
       }),
-    ).rejects.toThrow('validation.invalidDocumentType');
+    ).rejects.toThrow('Выберите тип документа: ДС, СС или СГР.');
   });
 
   it('enforces one join row per document and technical regulation', async () => {

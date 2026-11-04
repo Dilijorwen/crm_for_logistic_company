@@ -2,7 +2,7 @@
   "name": "@log-company/plugin-process-discussion",
   "displayName": "Обсуждения поставок",
   "description": "Блок обсуждений и вложений для поставок.",
-  "version": "2.0.68",
+  "version": "2.0.69",
   "main": "dist/server/index.js",
   "dependencies": {},
   "peerDependencies": {

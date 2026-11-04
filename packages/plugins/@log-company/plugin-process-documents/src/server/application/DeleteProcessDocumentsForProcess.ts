@@ -36,7 +36,7 @@ export class DeleteProcessDocumentsForProcess {
     await this.repository.deleteDocumentsByShipmentId(input.shipmentId, input.transaction);
     await this.repository.deleteFoldersByShipmentId(input.shipmentId, input.transaction);
 
-    const storageKeys = new Map(documents.map((document) => [document.storageKey, document.id]));
+    const storageKeys = new Map<string, string | null>(documents.map((document) => [document.storageKey, document.id]));
     for (const storageKey of shipmentPrefixKeys) {
       if (!storageKeys.has(storageKey)) {
         storageKeys.set(storageKey, null);

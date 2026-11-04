@@ -32,3 +32,7 @@ packages/core/cli/src
 t.js
 packages/**/client.d.ts
 docs
+
+# FSD source segments are not generated package output.
+!packages/plugins/@log-company/*/src/**/lib/
+!packages/plugins/@log-company/*/src/**/lib/**

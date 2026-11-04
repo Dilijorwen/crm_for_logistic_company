@@ -13,7 +13,11 @@ export function logisticsErrorStatus(error: LogisticsError): number {
   if (error.code === 'SHIPMENT_LINKED_TO_RUNS') {
     return 409;
   }
-  if (error.code === 'INVALID_REGISTRATION_NUMBER' || error.code === 'INVALID_SHIPMENT_DECIMAL') {
+  if (
+    error.code === 'INVALID_REGISTRATION_NUMBER' ||
+    error.code === 'INVALID_SHIPMENT_DECIMAL' ||
+    error.code === 'INVALID_TRANSPORT_TYPE'
+  ) {
     return 422;
   }
   return 400;

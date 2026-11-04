@@ -10,13 +10,17 @@
 import { utils, type Context, type Next } from '@nocobase/actions';
 import type { Plugin } from '@nocobase/server';
 import {
+  documentNotFoundMessage,
+  registryErrorMessage,
+  registryErrorMessages,
+} from '../../../contracts/permitDocumentMessages';
+import {
   SynchronizePermitDocument,
   type SynchronizePermitDocumentResult,
 } from '../../application/SynchronizePermitDocument';
 
 export const PERMIT_DOCUMENT_SYNC_ACTION = 'sync';
 const RESOURCE_NAME = 'permit_documents';
-const NAMESPACE = '@log-company/plugin-permit-documents';
 
 interface AvailableAction {
   options: { aliases?: string | string[] };
@@ -50,7 +54,11 @@ export class PermitDocumentSyncController {
     const params = context.action?.params || {};
     const documentId = params.filterByTk ?? params.resourceIndex;
     if (documentId === null || documentId === undefined || String(documentId).trim().length === 0) {
-      context.throw(400, context.t('errors.documentIdRequired', { ns: NAMESPACE }));
+      context.throw(400, 'Не указан документ для проверки.');
+      return;
+    }
+    if (!['string', 'number', 'bigint'].includes(typeof documentId) || !/^[1-9]\d*$/.test(String(documentId))) {
+      context.throw(400, 'Указан некорректный документ для проверки. Обновите таблицу и выберите документ заново.');
       return;
     }
     const repository = utils.getRepositoryFromParams(context);
@@ -61,7 +69,7 @@ export class PermitDocumentSyncController {
       context,
     });
     if (!permittedRecord) {
-      context.throw(404, context.t('errors.documentNotFound', { ns: NAMESPACE }));
+      context.throw(404, 'Документ не найден или недоступен.');
       return;
     }
     let result: SynchronizePermitDocumentResult;
@@ -72,19 +80,42 @@ export class PermitDocumentSyncController {
         documentId: String(permittedRecord.get('id')),
         errorName: error instanceof Error ? error.name : 'UnknownError',
       });
-      context.throw(503, context.t('errors.checkUnavailable', { ns: NAMESPACE }));
+      context.throw(503, 'Сервис проверки временно недоступен. Повторите проверку позже.');
       return;
     }
     if (result === 'MISSING') {
-      context.throw(404, context.t('errors.documentNotFound', { ns: NAMESPACE }));
+      context.throw(404, 'Документ не найден или недоступен.');
       return;
     }
     if (result === 'STALE') {
-      context.throw(409, context.t('errors.documentChangedDuringCheck', { ns: NAMESPACE }));
+      context.throw(409, 'Во время проверки изменился номер, тип или категория документа. Повторите проверку.');
       return;
     }
     context.status = 200;
-    context.body = { syncStatus: result };
+    if (result === 'ERROR') {
+      const checked = await repository.findOne({
+        filterByTk: documentId,
+        filter: params.filter,
+        fields: ['last_sync_error'],
+        context,
+      });
+      const savedCode: unknown = checked?.get('last_sync_error');
+      const errorCode =
+        typeof savedCode === 'string' && Object.prototype.hasOwnProperty.call(registryErrorMessages, savedCode)
+          ? savedCode
+          : 'INTERNAL_SYNC_ERROR';
+      context.body = { syncStatus: result, errorCode, message: registryErrorMessage(errorCode) };
+    } else {
+      context.body = {
+        syncStatus: result,
+        message:
+          result === 'NOT_FOUND'
+            ? documentNotFoundMessage
+            : result === 'NOT_REQUIRED'
+              ? 'Для добровольного документа проверка по реестру не требуется.'
+              : 'Документ проверен. Сведения обновлены.',
+      };
+    }
     await next();
   };
 }

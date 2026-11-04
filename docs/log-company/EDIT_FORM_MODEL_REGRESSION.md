@@ -89,7 +89,7 @@ TypeError: Cannot read properties of undefined (reading 'findSubModel')
 
 Изменены только:
 
-- `packages/plugins/@log-company/plugin-process-governance/src/client/logistics/ShipmentSynchronizedEditFormModel.ts`;
+- `packages/plugins/@log-company/plugin-process-governance/src/client/features/synchronize-shipment-form/model/ShipmentSynchronizedEditFormModel.ts`;
 - новый тест `src/client/logistics/__tests__/ShipmentSynchronizedEditFormModel.creation.test.ts`;
 - версия плагина: `2.0.93` в исходном рабочем дереве → `2.0.94`;
 - `docs/log-company/PROCESS_GOVERNANCE_PLUGIN.md` и этот отчёт.

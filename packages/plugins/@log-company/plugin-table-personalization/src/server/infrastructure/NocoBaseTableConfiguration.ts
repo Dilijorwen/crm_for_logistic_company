@@ -16,6 +16,8 @@ import { fixedGroup, record, RESIZABLE_TABLE_MODELS, RESIZABLE_COLUMN_MODELS } f
 import type { AuthorizedTable, TableConfigurationGateway } from '../application/ports';
 import { PersonalizationError } from '../domain/PersonalizationError';
 import { MAX_COLUMNS } from '../domain/ColumnPreferences';
+import type { SavedFilter } from '../../shared/filterTemplates';
+import { filterPaths } from '../domain/FilterTemplate';
 
 interface SavedModel {
   uid: string;
@@ -143,6 +145,9 @@ export class NocoBaseTableConfiguration implements TableConfigurationGateway {
       if (configuredPaths.has(name)) continue;
       const uid = `lc_field_${hash([dataSourceKey, collectionName, name])}`;
       existingColumnUids.push(uid);
+      // NocoBase adds identifiers for record binding even when they are absent from the role's visible fields.
+      // Keep previously saved UIDs opaque, but do not offer raw IDs or foreign keys as additional UI columns.
+      if ((name === 'id' && field.options.primaryKey) || field.options.isForeignKey) continue;
       if (!this.canReadPath(dataSourceKey, collectionName, name)) continue;
       resizableColumnUids.push(uid);
       const title = record(field.options.uiSchema).title || name;
@@ -166,6 +171,14 @@ export class NocoBaseTableConfiguration implements TableConfigurationGateway {
       existingColumnUids,
       resizableColumnUids,
     };
+  }
+
+  async canUseFilter(identity: TableIdentity, filter: SavedFilter): Promise<boolean> {
+    const resource = await this.tableResource(await this.findModel(identity.tableUid));
+    const dataSourceKey = typeof resource.dataSourceKey === 'string' ? resource.dataSourceKey : 'main';
+    const collectionName = resource.collectionName;
+    if (typeof collectionName !== 'string') return false;
+    return filterPaths(filter).every((path) => this.canReadPath(dataSourceKey, collectionName, path));
   }
 
   private async tableResource(table: SavedModel): Promise<Record<string, unknown>> {

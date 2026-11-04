@@ -19,3 +19,6 @@ packages/**/locale/**
 storage
 ./lerna.json
 locales/**
+# FSD source segments are not generated package output.
+!packages/plugins/@log-company/*/src/**/lib/
+!packages/plugins/@log-company/*/src/**/lib/**

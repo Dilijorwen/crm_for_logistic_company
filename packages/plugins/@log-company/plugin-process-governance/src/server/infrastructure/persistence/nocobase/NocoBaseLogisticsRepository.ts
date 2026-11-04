@@ -12,7 +12,6 @@ import type { Plugin } from '@nocobase/server';
 import type { LogisticsEntityKind, LogisticsHistoryEntry } from '../../../domain/logistics/LogisticsHistory';
 import { formatLogisticsHistoryValue } from '../../../domain/logistics/LogisticsHistory';
 import type { EntityId } from '../../../domain/shared/Identifiers';
-import type { ShipmentDisplayNameParts } from '../../../domain/logistics/ShipmentDisplayName';
 import type {
   LogisticsRepository,
   LogisticsTransaction,
@@ -36,7 +35,6 @@ const SYSTEM_FIELDS = new Set([
   'updatedById',
   'run_number',
   'shipment_number',
-  'display_name',
   'registration_number_input',
 ]);
 
@@ -172,68 +170,6 @@ export class NocoBaseLogisticsRepository implements LogisticsRepository {
       { replacements: { runIds }, transaction: this.asTransaction(transaction) },
     )) as [Array<{ id: EntityId; registration_number: string }>, unknown];
     return new Map(rows.map((row) => [String(row.id), row.registration_number]));
-  }
-
-  async getShipmentDisplayNameParts(
-    shipmentId: EntityId,
-    transaction?: LogisticsTransaction,
-  ): Promise<ShipmentDisplayNameParts | null> {
-    const [rows] = (await this.plugin.db.sequelize.query(
-      `
-        select
-          s.shipment_number,
-          c.name as client_name,
-          s.invoice_number,
-          s.application_number,
-          s.declaration_number
-        from ${LOGISTICS_COLLECTIONS.shipments} s
-        left join chinese_clients c on c.id = s.chinese_client_id
-        where s.id = :shipmentId
-        limit 1
-      `,
-      { replacements: { shipmentId }, transaction: this.asTransaction(transaction) },
-    )) as [
-      Array<{
-        shipment_number: unknown;
-        client_name: unknown;
-        invoice_number: unknown;
-        application_number: unknown;
-        declaration_number: unknown;
-      }>,
-      unknown,
-    ];
-    const row = rows[0];
-    return row
-      ? {
-          shipmentNumber: row.shipment_number,
-          clientName: row.client_name,
-          invoiceNumber: row.invoice_number,
-          applicationNumber: row.application_number,
-          declarationNumber: row.declaration_number,
-        }
-      : null;
-  }
-
-  async updateShipmentDisplayName(
-    shipmentId: EntityId,
-    displayName: string,
-    transaction?: LogisticsTransaction,
-  ): Promise<void> {
-    await this.plugin.db.sequelize.query(
-      `update ${LOGISTICS_COLLECTIONS.shipments} set display_name = :displayName where id = :shipmentId`,
-      {
-        replacements: { shipmentId, displayName },
-        transaction: this.asTransaction(transaction),
-      },
-    );
-  }
-
-  async getShipmentIdsByClientId(clientId: EntityId, transaction?: LogisticsTransaction): Promise<EntityId[]> {
-    const [rows] = (await this.plugin.db.sequelize.query(
-      `select id from ${LOGISTICS_COLLECTIONS.shipments} where chinese_client_id = :clientId`,
-      { replacements: { clientId }, transaction: this.asTransaction(transaction) },
-    )) as [Array<{ id: EntityId }>, unknown];
-    return rows.map((row) => row.id);
   }
 
   getTrackedFields(entityKind: LogisticsEntityKind): TrackedLogisticsField[] {

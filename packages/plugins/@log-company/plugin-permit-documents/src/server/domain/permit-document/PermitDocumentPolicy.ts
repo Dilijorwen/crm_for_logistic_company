@@ -18,7 +18,7 @@ export type PermitDocumentType = (typeof PERMIT_DOCUMENT_TYPES)[number];
 export const PERMIT_DOCUMENT_STATUSES = ['valid', 'suspended', 'terminated'] as const;
 export type PermitDocumentStatus = (typeof PERMIT_DOCUMENT_STATUSES)[number];
 
-export const PERMIT_DOCUMENT_SYNC_STATUSES = ['PENDING', 'SUCCESS', 'NOT_FOUND', 'ERROR'] as const;
+export const PERMIT_DOCUMENT_SYNC_STATUSES = ['PENDING', 'SUCCESS', 'NOT_FOUND', 'ERROR', 'NOT_REQUIRED'] as const;
 export type PermitDocumentSyncStatus = (typeof PERMIT_DOCUMENT_SYNC_STATUSES)[number];
 
 export type PermitDocumentValidationErrorCode =

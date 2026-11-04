@@ -7,6 +7,7 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import { Readable } from 'node:stream';
 import type { Plugin } from '@nocobase/server';
 import type { Context, Next } from '@nocobase/actions';
 import { canPreviewInline } from '../domain/PreviewPolicy';
@@ -53,6 +54,6 @@ export class FileStorageController {
         file.fileName,
       )}`,
     );
-    context.body = file.stream;
+    context.body = Readable.from(file.stream);
   }
 }

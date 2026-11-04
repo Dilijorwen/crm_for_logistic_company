@@ -20,6 +20,7 @@ function fixture() {
   const api: PersonalizationApi = {
     get: vi.fn().mockResolvedValue(data),
     save: vi.fn().mockResolvedValue({ ...data, settings }),
+    restore: vi.fn().mockResolvedValue({ ...data, settings }),
     reset: vi.fn().mockResolvedValue(data),
     width: vi.fn().mockResolvedValue(data),
   };
@@ -35,6 +36,13 @@ function deferred<T>() {
 }
 
 describe('personalization request lifecycle', () => {
+  it('restores complete template settings through the dedicated API operation', async () => {
+    const { controller, api } = fixture();
+    await controller.activate(identity, 'owner');
+    expect(await controller.restore(settings)).toBe(true);
+    expect(api.restore).toHaveBeenCalledWith(identity, settings, data.schemaSignature);
+    expect(api.save).not.toHaveBeenCalled();
+  });
   function widthFixture() {
     const { api } = fixture();
     const prepare = vi.fn().mockResolvedValue(undefined);

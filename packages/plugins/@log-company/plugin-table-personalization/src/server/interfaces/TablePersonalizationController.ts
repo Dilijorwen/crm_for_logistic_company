@@ -10,15 +10,10 @@
 import type { Context, Next } from '@nocobase/actions';
 import type { Plugin } from '@nocobase/server';
 import { record } from '../../shared/contracts';
-import { TablePersonalizations } from '../application/TablePersonalizations';
+import type { TablePersonalizations } from '../application/TablePersonalizations';
 import { PersonalizationError } from '../domain/PersonalizationError';
-import { NocoBaseTableConfiguration } from '../infrastructure/NocoBaseTableConfiguration';
-import {
-  NocoBasePersonalizationRepository,
-  PERSONALIZATIONS_COLLECTION,
-} from '../infrastructure/NocoBasePersonalizationRepository';
 
-type Operation = 'get' | 'save' | 'reset' | 'width';
+type Operation = 'get' | 'save' | 'restore' | 'reset' | 'width';
 const ERRORS = {
   INVALID_SETTINGS: [400, 'Некорректные настройки колонок'],
   NOT_FOUND: [404, 'Таблица не найдена'],
@@ -27,26 +22,30 @@ const ERRORS = {
 } as const;
 
 export class TablePersonalizationController {
-  constructor(private readonly plugin: Plugin) {}
+  constructor(
+    private readonly plugin: Plugin,
+    private readonly createUseCase: (context: Context, userId: string) => TablePersonalizations,
+    private readonly metadataCollection: string,
+  ) {}
 
   register(): void {
     const actions = Object.fromEntries(
-      (['get', 'save', 'reset', 'width'] as const).map((operation) => [
+      (['get', 'save', 'restore', 'reset', 'width'] as const).map((operation) => [
         operation,
         async (context: Context, next: Next) => this.handle(context, next, operation),
       ]),
     );
     this.plugin.app.resourceManager.define({ name: 'tablePersonalizations', actions });
-    this.plugin.app.acl.allow('tablePersonalizations', ['get', 'save', 'reset', 'width'], 'loggedIn');
+    this.plugin.app.acl.allow('tablePersonalizations', ['get', 'save', 'restore', 'reset', 'width'], 'loggedIn');
     // The metadata collection is private even when a role grants generic collection actions.
     this.plugin.app.resourceManager.use(
       async (context, next) => {
-        if (context.action?.resourceName === PERSONALIZATIONS_COLLECTION) {
+        if (context.action?.resourceName === this.metadataCollection) {
           context.throw(403, 'Прямой доступ к персональным настройкам запрещён');
         }
         if (
           context.action?.resourceName === 'tablePersonalizations' &&
-          !['get', 'save', 'reset', 'width'].includes(context.action.actionName)
+          !['get', 'save', 'restore', 'reset', 'width'].includes(context.action.actionName)
         ) {
           context.throw(403, 'Действие с персональными настройками запрещено');
         }
@@ -62,7 +61,7 @@ export class TablePersonalizationController {
     try {
       const values = record(context.action.params.values);
       const keys =
-        operation === 'save'
+        operation === 'save' || operation === 'restore'
           ? ['identity', 'settings', 'schemaSignature']
           : operation === 'width'
             ? ['identity', 'columnUid', 'width', 'schemaSignature']
@@ -70,11 +69,7 @@ export class TablePersonalizationController {
       if (Object.keys(values).some((key) => !keys.includes(key)) || keys.some((key) => !(key in values))) {
         throw new PersonalizationError('INVALID_SETTINGS');
       }
-      const useCase = new TablePersonalizations(
-        new NocoBaseTableConfiguration(this.plugin, context),
-        new NocoBasePersonalizationRepository(this.plugin.db),
-        String(userId),
-      );
+      const useCase = this.createUseCase(context, String(userId));
       context.body = await useCase.execute(operation, {
         identity: values.identity,
         settings: values.settings,

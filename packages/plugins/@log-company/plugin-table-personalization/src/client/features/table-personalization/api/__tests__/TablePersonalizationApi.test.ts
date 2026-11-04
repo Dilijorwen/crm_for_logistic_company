@@ -11,6 +11,26 @@ import { describe, expect, it, vi } from 'vitest';
 import { TablePersonalizationApi } from '../TablePersonalizationApi';
 
 describe('personalization API parameters', () => {
+  it('sends all widths when restoring a complete template snapshot', async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValue({ data: { data: { settings: null, columns: [], schemaSignature: 'signature' } } });
+    const api = new TablePersonalizationApi({ request });
+    const identity = { tableUid: 'table', referencePath: [] };
+    const settings = {
+      version: 1 as const,
+      columnOrder: ['second', 'first'],
+      hiddenColumnUids: ['first'],
+      columnWidths: { second: 250 },
+    };
+    await api.restore(identity, settings, 'signature');
+    expect(request).toHaveBeenCalledWith({
+      url: 'tablePersonalizations:restore',
+      method: 'post',
+      skipNotify: true,
+      data: { identity, settings, schemaSignature: 'signature' },
+    });
+  });
   it('omits stale width maps from layout saves and sends width mutations independently', async () => {
     const request = vi
       .fn()

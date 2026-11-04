@@ -64,6 +64,8 @@ export class EaeuResponseParser {
       validUntil: null,
       status,
       productInformation: stringValue(data.NAME_PROD)?.trim() || '',
+      manufacturerName: nullableString(data.FIRMMADE_NAME)?.trim() || null,
+      manufacturerAddress: nullableString(data.FIRMMADE_ADDR)?.trim() || null,
       technicalRegulations: parseEaeuTechnicalRegulations(technicalRegulationTexts).map((item) => ({
         source: 'EAEU' as const,
         docNum: item.docNum,

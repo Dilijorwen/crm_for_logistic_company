@@ -39,6 +39,8 @@ export interface RegistryDocument {
   validUntil: string | null;
   status: PermitDocumentStatus;
   productInformation: string;
+  manufacturerName?: string | null;
+  manufacturerAddress?: string | null;
   technicalRegulations: TechnicalRegulationReference[];
 }
 

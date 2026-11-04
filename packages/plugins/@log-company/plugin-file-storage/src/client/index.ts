@@ -7,24 +7,5 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { Plugin } from '@nocobase/client';
-import PluginFileManager from '@nocobase/plugin-file-manager/client';
-
-export default class PluginFileStorageClient extends Plugin {
-  async load(): Promise<void> {
-    this.app.pm.get(PluginFileManager).registerStorageType('log-company-private-minio', {
-      title: 'Файлы Log Company (MinIO)',
-      name: 'log-company-private-minio',
-      fieldset: {
-        title: { type: 'string', title: 'Название', 'x-component': 'Input', 'x-decorator': 'FormItem' },
-        name: {
-          type: 'string',
-          title: 'Имя хранилища',
-          'x-component': 'Input',
-          'x-decorator': 'FormItem',
-          'x-read-pretty': true,
-        },
-      },
-    });
-  }
-}
+export { default } from './app/plugin';
+export * from './app/plugin';

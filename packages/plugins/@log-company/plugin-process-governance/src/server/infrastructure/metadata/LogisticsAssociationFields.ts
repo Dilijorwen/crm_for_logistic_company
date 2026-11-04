@@ -57,7 +57,7 @@ function hasManyShipments(collectionName: string, foreignKey: string) {
         'x-component': 'AssociationField',
         'x-component-props': {
           multiple: true,
-          fieldNames: { value: 'id', label: 'display_name' },
+          fieldNames: { value: 'id', label: 'shipment_number' },
         },
       },
     },

@@ -1,14 +1,23 @@
 # Персональные колонки таблиц
 
+В версии `2.0.74` первичный ключ `id` и физические внешние ключи исключены из списка дополнительных полей.
+Их служебное чтение, которое NocoBase разрешает для привязки записей, не означает возможность добавить такую
+колонку через персонализацию. Существующие сохранённые настройки этих полей остаются непрозрачными и не
+применяются. Колонки, явно размещённые дизайнером в общей схеме, продолжают работать по штатному ACL.
+
+Версия **2.0.72** добавляет отдельную кнопку **«Шаблоны»** слева от **«Колонки»**.
+Личные шаблоны сохраняют фильтр, выбранные и скрытые колонки, их порядок и ширину.
+Поведение, права, API и миграция старых шаблонов описаны в [FILTER_TEMPLATES.md](FILTER_TEMPLATES.md).
+
 `@log-company/plugin-table-personalization` добавляет кнопку с иконкой таблицы в обычные таблицы FlowEngine.
-Она всегда стоит первой в левой части панели, перед **«Фильтром»**, включая таблицы во всплывающих окнах.
+Она стоит после **«Шаблоны»** и перед **«Фильтром»** в левой части панели, включая таблицы во всплывающих окнах.
 Подсказка и доступное имя кнопки — **«Колонки»**; надпись на самой кнопке не отображается.
 Окно **«Мои колонки»** предлагает все доступные для чтения поля коллекции, включая не добавленные в общую таблицу.
 Оно позволяет выбирать поля, менять порядок перетаскиванием или кнопками
 «Выше» / «Ниже», сохранять настройки и сбрасывать только собственные настройки этой таблицы.
 Правую границу заголовка можно перетаскивать для персонального изменения ширины. Стрелки меняют ширину
 на 10 px, Shift + стрелки — на 50 px; двойной клик возвращает общую ширину этой колонки.
-Версия плагина: **2.0.70**; проверяемая версия NocoBase: **2.0.60**.
+Версия плагина: **2.0.72**; проверяемая версия NocoBase: **2.0.60**.
 
 Исследование и согласованное решение:
 [TABLE_PERSONALIZATION_RESEARCH.md](/Users/daniil/log_company/docs/log-company/TABLE_PERSONALIZATION_RESEARCH.md).
@@ -22,7 +31,7 @@
 Порядок и видимость применяются к выходному массиву `getColumns()`. Персонально скрытая колонка не получает
 `model.hidden`: её загрузка, appends, beforeRender и участие в поиске продолжают работать как раньше.
 
-Панель использует исходный `renderComponent()`: плагин добавляет кнопку в начало левого `Space` его React-дерева.
+Панель использует исходный `renderComponent()`: плагин добавляет персональные кнопки в начало левого `Space` его React-дерева.
 В NocoBase 2.0.60 отдельный слот слева отсутствует; штатный `renderConfigureActions()` относится к правой части.
 Общие модели действий, их порядок, настройка конструктора и схема не меняются. Размещение проверяется тестами
 на реальном штатном рендерере, с фильтром и без него. При обновлении NocoBase эти тесты проверяют совместимость панели.
@@ -80,7 +89,7 @@
 
 ## API и права
 
-Все четыре действия вызываются через POST. Параметры — тело запроса, без поля `values`:
+Все действия вызываются через POST. Параметры — тело запроса, без поля `values`:
 
 ```json
 {
@@ -88,12 +97,13 @@
 }
 ```
 
-| Действие                      | Дополнительные параметры                                         | Результат                                                              |
-| ----------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `tablePersonalizations:get`   | Нет                                                              | Доступные дескрипторы, эффективные настройки или `null`, подпись схемы |
-| `tablePersonalizations:save`  | `settings`, `schemaSignature` из последнего get                  | Сохранённые эффективные настройки и актуальные дескрипторы             |
-| `tablePersonalizations:reset` | Нет                                                              | Общие настройки (`settings: null`)                                     |
-| `tablePersonalizations:width` | `columnUid`, `width` (50–3000 px либо `null`), `schemaSignature` | Изменение только ширины одной доступной колонки                        |
+| Действие                        | Дополнительные параметры                                         | Результат                                                              |
+| ------------------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `tablePersonalizations:get`     | Нет                                                              | Доступные дескрипторы, эффективные настройки или `null`, подпись схемы |
+| `tablePersonalizations:save`    | `settings`, `schemaSignature` из последнего get                  | Сохранённые эффективные настройки и актуальные дескрипторы             |
+| `tablePersonalizations:reset`   | Нет                                                              | Общие настройки (`settings: null`)                                     |
+| `tablePersonalizations:restore` | `settings`, включая `columnWidths`, и `schemaSignature`          | Полное восстановление снимка колонок шаблона                           |
+| `tablePersonalizations:width`   | `columnUid`, `width` (50–3000 px либо `null`), `schemaSignature` | Изменение только ширины одной доступной колонки                        |
 
 Ответ NocoBase: `{ data: { columns, settings, schemaSignature } }`. Дескриптор содержит только
 `uid`, `title`, `fieldPath`, `fixed` и необязательный `source: 'collection'` для дополнительного поля.
@@ -134,14 +144,14 @@
 ```sh
 corepack yarn build @log-company/plugin-table-personalization
 corepack yarn tar @log-company/plugin-table-personalization
-docker compose exec -T app yarn pm add /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.70.tgz
+docker compose exec -T app yarn pm add /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.72.tgz
 docker compose exec -T app yarn pm enable @log-company/plugin-table-personalization
 ```
 
 Для уже установленного плагина вместо add/enable:
 
 ```sh
-docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.70.tgz
+docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.72.tgz
 ```
 
 После add/enable или update завершить обновление и перезапустить локальное приложение:
@@ -524,7 +534,7 @@ curl -s -o /dev/null -w '%{http_code}\n' http://localhost:13000/signin
 ```sh
 corepack yarn test:client packages/plugins/@log-company/plugin-table-personalization/src/client --run --maxWorkers=1 --minWorkers=1 --reporter=verbose
 corepack yarn test:client packages/core/client/src/flow/models/blocks/table --run --maxWorkers=1 --minWorkers=1 --reporter=verbose
-corepack yarn test:client packages/plugins/@log-company/plugin-process-governance/src/client/logistics/__tests__/ShipmentSynchronizedEditFormModel.creation.test.ts --run --maxWorkers=1 --minWorkers=1 --reporter=verbose
+corepack yarn test:client packages/plugins/@log-company/plugin-process-governance/src/client/features/synchronize-shipment-form/model/__tests__/ShipmentSynchronizedEditFormModel.creation.test.ts --run --maxWorkers=1 --minWorkers=1 --reporter=verbose
 ```
 
 Версия **2.0.66 установлена** штатным `yarn pm update`, затем выполнен `docker compose restart app`.
@@ -587,7 +597,7 @@ SHA-256 runtime-клиента совпадает с собранным исхо
 | [src/client/features/table-personalization/ui/ColumnSettingsDialog.tsx](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/client/features/table-personalization/ui/ColumnSettingsDialog.tsx)                                                   | Содержимое штатного view, загрузка, черновик, сохранение и сброс                      |
 | [src/client/features/table-personalization/ui/**tests**/ColumnSettingsButton.test.tsx](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/client/features/table-personalization/ui/__tests__/ColumnSettingsButton.test.tsx)                     | Сохранение, отмена, ошибки, pending GET и пересоздание панели                         |
 | [src/client/index.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/client/index.ts)                                                                                                                                                       | Экспорт клиентского плагина                                                           |
-| [src/client/plugin.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/client/plugin.ts)                                                                                                                                                     | Регистрация и восстановление TableBlockModel                                          |
+| [src/client/app/plugin.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/client/app/plugin.ts)                                                                                                                                             | Регистрация и восстановление TableBlockModel                                          |
 | [src/server/**tests**/PersonalizationsPostgres.integration.test.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/server/__tests__/PersonalizationsPostgres.integration.test.ts)                                                           | Реальный PostgreSQL, MagicAttributeModel, ссылки, ACL, upsert и каскады               |
 | [src/server/**tests**/PluginInstallation.test.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/server/__tests__/PluginInstallation.test.ts)                                                                                               | Запуск миграции при первой установке                                                  |
 | [src/server/application/TablePersonalizations.ts](/Users/daniil/log_company/packages/plugins/@log-company/plugin-table-personalization/src/server/application/TablePersonalizations.ts)                                                                                               | Сценарии получения, сохранения и сброса                                               |

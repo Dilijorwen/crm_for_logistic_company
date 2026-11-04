@@ -14,7 +14,7 @@ import { NormalizeShipmentNumericFields } from '../../application/logistics/Norm
 import { RecordLogisticsCreated } from '../../application/logistics/RecordLogisticsCreated';
 import { RecordLogisticsFieldChanges } from '../../application/logistics/RecordLogisticsFieldChanges';
 import { RecordLogisticsRelationChange } from '../../application/logistics/RecordLogisticsRelationChange';
-import { RefreshShipmentDisplayName } from '../../application/logistics/RefreshShipmentDisplayName';
+import { requireTransportType } from '../../domain/logistics/TransportType';
 import { ResolveRunVehicle } from '../../application/logistics/ResolveRunVehicle';
 import { ValidateRunParents } from '../../application/logistics/ValidateRunParents';
 import { ValidateShipmentContract } from '../../application/logistics/ValidateShipmentContract';
@@ -59,7 +59,6 @@ export interface LogisticsHookActions {
   validateRunParents: ValidateRunParents;
   validateShipmentContract: ValidateShipmentContract;
   validateShipmentDeletion: ValidateShipmentDeletion;
-  refreshShipmentDisplayName: RefreshShipmentDisplayName;
 }
 
 interface RelationDescriptor {
@@ -128,7 +127,6 @@ export class LogisticsHooks {
   register(): void {
     this.registerVehicleHooks();
     this.registerRunReadProjection();
-    this.registerShipmentClientHooks();
     this.registerEntityHooks('run', LOGISTICS_COLLECTIONS.runs, 'run_number');
     this.registerEntityHooks('shipment', LOGISTICS_COLLECTIONS.shipments, 'shipment_number');
     this.registerRelationHooks();
@@ -152,6 +150,11 @@ export class LogisticsHooks {
 
   private registerEntityHooks(entityKind: LogisticsEntityKind, collection: string, numberField: string): void {
     this.plugin.db.on(`${collection}.beforeValidate`, async (model: NocoBaseModel, options: HookOptions) => {
+      if (entityKind === 'run' && (model.isNewRecord !== false || model.get('transport_type') !== undefined)) {
+        await this.mapDomainErrors(() => {
+          model.set('transport_type', requireTransportType(model.get('transport_type')));
+        });
+      }
       if (entityKind === 'shipment') {
         this.prepareShipmentAssociations(model, options);
         await this.mapDomainErrors(() => {
@@ -218,18 +221,6 @@ export class LogisticsHooks {
         transaction: options.transaction,
         context: options.context,
       });
-      if (entityKind === 'shipment') {
-        const displayName = await this.actions.refreshShipmentDisplayName.execute(
-          this.requiredIdentifier(model.get('id'), entityKind),
-          options.transaction,
-        );
-        if (displayName) {
-          model.set('display_name', displayName);
-          if (model.dataValues) {
-            model.dataValues.display_name = displayName;
-          }
-        }
-      }
     });
 
     this.plugin.db.on(
@@ -242,18 +233,6 @@ export class LogisticsHooks {
           snapshotScope: options.transaction ?? options.context,
           context: options.context,
         });
-        if (entityKind === 'shipment') {
-          const displayName = await this.actions.refreshShipmentDisplayName.execute(
-            this.requiredIdentifier(model.get('id'), entityKind),
-            options.transaction,
-          );
-          if (displayName) {
-            model.set('display_name', displayName);
-            if (model.dataValues) {
-              model.dataValues.display_name = displayName;
-            }
-          }
-        }
       },
     );
 
@@ -298,16 +277,6 @@ export class LogisticsHooks {
     });
   }
 
-  private registerShipmentClientHooks(): void {
-    this.plugin.db.on('chinese_clients.afterUpdate', async (model: NocoBaseModel, options: HookOptions) => {
-      const clientId = extractIdentifier(model.get('id'));
-      if (clientId === null) {
-        return;
-      }
-      await this.actions.refreshShipmentDisplayName.executeForClient(clientId, options.transaction);
-    });
-  }
-
   private isRunModel(value: unknown): value is NocoBaseModel {
     if (!value || typeof value !== 'object') {
       return false;
@@ -319,7 +288,7 @@ export class LogisticsHooks {
     const modelName = model.constructor?.name;
     return (
       modelName === LOGISTICS_COLLECTIONS.runs ||
-      this.plugin.db.getCollection(modelName)?.name === LOGISTICS_COLLECTIONS.runs
+      (!!modelName && this.plugin.db.getCollection(modelName)?.name === LOGISTICS_COLLECTIONS.runs)
     );
   }
 

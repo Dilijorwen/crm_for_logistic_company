@@ -9,6 +9,7 @@
 
 import type { Plugin } from '@nocobase/server';
 import type { AssignPermitDocumentNumber } from '../../application/AssignPermitDocumentNumber';
+import { permitDocumentCategory } from '../../domain/permit-document/PermitDocumentCategoryPolicy';
 import type {
   PermitDocumentNumberingRepository,
   PermitNumberingTransaction,
@@ -55,6 +56,7 @@ export class PermitDocumentNumberingHooks {
             const documentId = permitDocumentIdentifier(model.get('id'));
             const internalNumber = await this.assign.execute({
               documentId,
+              category: permitDocumentCategory(model.get('category')),
               relatedDocumentId,
               transaction,
               context: options.context,
@@ -62,6 +64,7 @@ export class PermitDocumentNumberingHooks {
             model.set('internal_number', internalNumber);
             model.set('related_document_id', relatedDocumentId);
           } else {
+            if (model.get('category') === 'voluntary') await this.repository.lock(transaction);
             const saved = await this.repository.findById(String(model.get('id')), transaction);
             if (!saved) return;
             const values = options.inputValues ?? options.values ?? {};
@@ -118,7 +121,7 @@ export class PermitDocumentNumberingHooks {
     for (const action of ['create', 'update']) {
       this.plugin.app.resourcer.registerPreActionHandler(`permit_documents:${action}`, async (context, next) => {
         await this.handleErrors(async () => {
-          const payload: unknown = context.action.params.values;
+          const payload: unknown = context.action?.params.values;
           for (const item of Array.isArray(payload) ? payload : [payload]) {
             if (item && typeof item === 'object' && Object.prototype.hasOwnProperty.call(item, 'related_document')) {
               // A selection only carries identity; nested values must never edit the other document.

@@ -60,6 +60,7 @@ export class FsaResponseParser {
     const declaration = documentType === 'declaration_of_conformity';
     const externalId = numberValue(declaration ? card.idDeclaration : card.idCertificate);
     const product = asRecord(card.product);
+    const manufacturer = asRecord(card.manufacturer);
     const technicalRegulations = asArray(card.idTechnicalReglaments).map(numberValue);
     if (externalId === null || technicalRegulations.some((value) => value === null)) {
       throw new InvalidRegistryDocumentError('FSA card identifiers are missing or invalid.');
@@ -74,6 +75,15 @@ export class FsaResponseParser {
       validUntil: this.normalizeDate(nullableString(declaration ? card.declEndDate : card.certEndDate)),
       status,
       productInformation: this.productInformation(product),
+      manufacturerName: nullableString(manufacturer.fullName),
+      manufacturerAddress:
+        Array.from(
+          new Set(
+            asArray(manufacturer.addresses)
+              .map((address) => nullableString(asRecord(address).fullAddress)?.trim())
+              .filter((address): address is string => Boolean(address)),
+          ),
+        ).join('\n') || null,
       technicalRegulations: technicalRegulations.map((fsaId) => ({ source: 'FSA' as const, fsaId: fsaId as number })),
     };
   }

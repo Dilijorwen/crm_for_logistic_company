@@ -8,8 +8,11 @@
  */
 
 import type { Plugin } from '@nocobase/server';
+import {
+  permitDocumentIdentifier,
+  PermitDocumentNumberingError,
+} from '../../domain/permit-document/PermitDocumentNumbering';
 
-const NAMESPACE = '@log-company/plugin-permit-documents';
 const PROTECTED_ACTIONS = [
   'permit_documents.technical_regulations:add',
   'permit_documents.technical_regulations:set',
@@ -27,13 +30,71 @@ interface GuardContext {
   throw(status: number, message: string): never;
 }
 
+function selectionIdentifier(value: unknown, label: string): string | null {
+  try {
+    return permitDocumentIdentifier(value);
+  } catch (error) {
+    if (!(error instanceof PermitDocumentNumberingError)) throw error;
+    throw Object.assign(new Error(`Выберите существующую запись в поле «${label}».`), {
+      status: 422,
+      statusCode: 422,
+      code: 'INVALID_SELECTED_RECORD',
+    });
+  }
+}
+
 export class PermitDocumentManagedFieldsGuard {
   constructor(private readonly plugin: Plugin) {}
 
   register(): void {
     for (const action of PROTECTED_ACTIONS) {
-      this.plugin.app.resourcer.registerPreActionHandler(action, async (context: GuardContext) => {
-        context.throw(403, context.t('errors.registryFieldsReadOnly', { ns: NAMESPACE }));
+      this.plugin.app.resourcer.registerPreActionHandler(action, async (rawContext) => {
+        const context = rawContext as unknown as GuardContext;
+        context.throw(403, 'Реестровые поля и связи изменяются только синхронизацией.');
+      });
+    }
+    for (const action of ['create', 'update']) {
+      this.plugin.app.resourcer.registerPreActionHandler(`permit_documents:${action}`, async (context, next) => {
+        const payload: unknown = context.action?.params.values;
+        const parameters = context.action?.params;
+        for (const raw of Array.isArray(payload) ? payload : [payload]) {
+          if (!raw || typeof raw !== 'object') continue;
+          const values = raw as Record<string, unknown>;
+          const current =
+            action === 'update' && parameters?.filterByTk != null
+              ? await this.plugin.db
+                  .getRepository('permit_documents')
+                  .findOne({ filterByTk: parameters.filterByTk, filter: parameters.filter })
+              : null;
+          const category = values.category ?? current?.get('category') ?? 'ordinary';
+          if ('technical_regulations' in values) {
+            if (!Array.isArray(values.technical_regulations)) context.throw(422, 'Выберите технические регламенты.');
+            const ids = (values.technical_regulations as unknown[]).map((value) =>
+              selectionIdentifier(value, 'Технические регламенты'),
+            );
+            if (category !== 'voluntary') {
+              const saved = current
+                ? await this.plugin.db
+                    .getRepository('document_technical_regulations')
+                    .find({ filter: { document_id: current.get('id') } })
+                : [];
+              const expected = saved
+                .map((row: { get(key: string): unknown }) => String(row.get('technical_regulation_id')))
+                .sort();
+              if (
+                current?.get('category') !== 'voluntary' &&
+                JSON.stringify(ids.map(String).sort()) !== JSON.stringify(expected)
+              ) {
+                context.throw(403, 'Технические регламенты этого документа заполняются из реестра.');
+              }
+              delete values.technical_regulations;
+            } else values.technical_regulations = ids;
+          }
+          if (category === 'voluntary' && Array.isArray(values.documents)) {
+            values.documents = values.documents.map((value) => selectionIdentifier(value, 'Документы'));
+          }
+        }
+        await next();
       });
     }
   }

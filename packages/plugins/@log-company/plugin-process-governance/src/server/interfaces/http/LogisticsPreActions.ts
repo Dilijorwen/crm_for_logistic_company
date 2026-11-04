@@ -174,6 +174,16 @@ export class LogisticsPreActions {
     const rows = Array.isArray(rawValues) ? rawValues : [rawValues];
     for (const rawRow of rows) {
       const values = this.asRecord(rawRow);
+      if (Object.prototype.hasOwnProperty.call(values, 'runs')) {
+        const rawRuns = values.runs;
+        const runs = rawRuns === null ? [] : Array.isArray(rawRuns) ? rawRuns : [rawRuns];
+        if (runs.some((run) => extractIdentifier(run) === null)) {
+          const message = 'Не удалось определить рейс поставки. Выберите рейс и повторите сохранение.';
+          if (context.throw) context.throw(400, message);
+          throw this.httpError(400, message);
+        }
+        values.runs = uniqueIdentifiers(runs);
+      }
       for (const field of SHIPMENT_REFERENCE_FIELDS) {
         if (!Object.prototype.hasOwnProperty.call(values, field)) {
           continue;
@@ -195,6 +205,8 @@ export class LogisticsPreActions {
       params.updateAssociationValues = params.updateAssociationValues.filter(
         (value): value is string =>
           typeof value === 'string' &&
+          value !== 'runs' &&
+          !value.startsWith('runs.') &&
           !SHIPMENT_REFERENCE_FIELDS.some((field) => value === field || value.startsWith(`${field}.`)),
       );
     }

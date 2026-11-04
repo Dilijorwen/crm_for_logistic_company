@@ -80,11 +80,15 @@ describe('PermitDocumentValidationHooks', () => {
     ).not.toThrow();
   });
 
-  it('still rejects creating a new document without a type', () => {
+  it('still rejects creating a new document without a type', async () => {
     const { handlers } = hookFixture();
-    expect(
-      () => handlers.get('permit_documents.beforeValidate')?.(model({ title: 'DOC' }, ['title'], {}, true), {}),
-    ).toThrow();
+    await expect(
+      handlers.get('permit_documents.beforeValidate')?.(model({ title: 'DOC' }, ['title'], {}, true), {}),
+    ).rejects.toMatchObject({
+      status: 422,
+      code: 'INVALID_DOCUMENT_TYPE',
+      message: 'Выберите тип документа: ДС, СС или СГР.',
+    });
   });
 
   it('accepts an existing partial model used to update the company association', async () => {
@@ -99,13 +103,12 @@ describe('PermitDocumentValidationHooks', () => {
 
   it('rejects an explicitly changed invalid document type on a partial model', async () => {
     const { handlers } = hookFixture();
-    expect(
-      () =>
-        handlers.get('permit_documents.beforeValidate')?.(
-          model({ id: '12', document_type: 'invalid' }, ['document_type']),
-          {},
-        ),
-    ).toThrow();
+    await expect(
+      handlers.get('permit_documents.beforeValidate')?.(
+        model({ id: '12', document_type: 'invalid' }, ['document_type']),
+        {},
+      ),
+    ).rejects.toThrow();
   });
   it('resets managed fields without starting synchronization from a model hook', async () => {
     const { handlers } = hookFixture();

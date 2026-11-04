@@ -13,7 +13,7 @@ import type { PermitDocumentIdentity, PermitDocumentRepository } from './ports/P
 import type { PermitRegistryGateway } from './ports/PermitRegistryGateway';
 import type { SyncClock, SyncLogger } from './ports/PermitDocumentSyncSupport';
 
-export type CheckPermitDocumentStatusResult = 'SUCCESS' | 'ERROR' | 'STALE' | 'MISSING';
+export type CheckPermitDocumentStatusResult = 'SUCCESS' | 'ERROR' | 'STALE' | 'MISSING' | 'NOT_REQUIRED';
 
 export class CheckPermitDocumentStatus {
   private readonly activeChecks = new Map<string, Promise<CheckPermitDocumentStatusResult>>();
@@ -44,10 +44,12 @@ export class CheckPermitDocumentStatus {
     if (!snapshot) {
       return 'MISSING';
     }
+    if (snapshot.category === 'voluntary') return 'NOT_REQUIRED';
     const identity: PermitDocumentIdentity = {
       id: snapshot.id,
       title: snapshot.title,
       documentType: snapshot.documentType,
+      category: snapshot.category,
     };
     const checkedAt = this.clock.now();
 

@@ -38,6 +38,7 @@ interface PermitDocumentRow {
   sync_status: unknown;
   status: unknown;
   last_checked_at: Date | string | null;
+  category: 'ordinary' | 'rented' | 'voluntary';
 }
 
 interface TechnicalRegulationRow {
@@ -56,7 +57,7 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
 
   async findById(documentId: string): Promise<PermitDocumentSnapshot | null> {
     const [rows] = (await this.plugin.db.sequelize.query(
-      `select id, title, document_type, external_id, sync_status, status, last_checked_at
+      `select id, title, document_type, external_id, sync_status, status, last_checked_at, category
        from permit_documents where id = :documentId limit 1`,
       { replacements: { documentId } },
     )) as unknown as [PermitDocumentRow[], unknown];
@@ -72,6 +73,7 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
       syncStatus: row.sync_status,
       status: isPermitDocumentStatus(row.status) ? row.status : null,
       lastCheckedAt: row.last_checked_at === null ? null : new Date(row.last_checked_at),
+      category: row.category,
     };
   }
 
@@ -90,7 +92,7 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
     const [, metadata] = (await this.plugin.db.sequelize.query(
       `update permit_documents
        set sync_status = 'PENDING', last_sync_error = null, "updatedAt" = :now
-       where id = :documentId`,
+       where id = :documentId and category <> 'voluntary'`,
       { replacements: { documentId, now: new Date() } },
     )) as unknown as [unknown, number | { rowCount?: number }];
     return this.affectedRows(metadata) > 0;
@@ -106,6 +108,8 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
         valid_from: null,
         valid_until: null,
         product_information: null,
+        manufacturer_name: null,
+        manufacturer_address: null,
         sync_status: 'NOT_FOUND',
         last_checked_at: checkedAt,
         last_sync_error: null,
@@ -147,6 +151,10 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
              valid_from = :validFrom,
              valid_until = :validUntil,
              product_information = :productInformation,
+             manufacturer_name = :manufacturerName,
+             manufacturer_address = :manufacturerAddress,
+             period_from = case when category = 'rented' then rental_from else :validFrom end,
+             period_until = case when category = 'rented' then rental_until else :validUntil end,
              sync_status = 'SUCCESS',
              last_checked_at = :checkedAt,
              last_sync_error = null,
@@ -164,6 +172,8 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
             validFrom: document.validFrom,
             validUntil: document.validUntil,
             productInformation: document.productInformation,
+            manufacturerName: document.manufacturerName ?? null,
+            manufacturerAddress: document.manufacturerAddress ?? null,
             checkedAt,
           },
           transaction,
@@ -210,7 +220,7 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
 
   async listPendingIds(limit: number): Promise<string[]> {
     const [rows] = (await this.plugin.db.sequelize.query(
-      `select id from permit_documents where sync_status = 'PENDING' order by "updatedAt" asc limit :limit`,
+      `select id from permit_documents where category <> 'voluntary' and sync_status = 'PENDING' order by "updatedAt" asc limit :limit`,
       { replacements: { limit } },
     )) as unknown as [IdentifierRow[], unknown];
     return rows.map((row) => String(row.id));
@@ -220,7 +230,7 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
     const [rows] = (await this.plugin.db.sequelize.query(
       `select id
        from permit_documents
-       where (sync_status = 'PENDING' or (sync_status = 'ERROR' and external_id is null))
+       where category <> 'voluntary' and (sync_status = 'PENDING' or (sync_status = 'ERROR' and external_id is null))
          and (status is null or status <> 'terminated')
          and (last_checked_at is null or last_checked_at <= :checkedBefore)
        order by last_checked_at asc nulls first, id asc
@@ -234,7 +244,7 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
     const [rows] = (await this.plugin.db.sequelize.query(
       `select id
        from permit_documents
-       where (sync_status = 'SUCCESS' or (sync_status = 'ERROR' and external_id is not null))
+       where category <> 'voluntary' and (sync_status = 'SUCCESS' or (sync_status = 'ERROR' and external_id is not null))
          and external_id is not null
          and (status is null or status <> 'terminated')
          and (last_checked_at is null or last_checked_at <= :checkedBefore)
@@ -243,6 +253,27 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
       { replacements: { checkedBefore, limit } },
     )) as unknown as [IdentifierRow[], unknown];
     return rows.map((row) => String(row.id));
+  }
+
+  async listLocalPeriods(): Promise<Array<{ id: string; category: 'rented' | 'voluntary'; until: string }>> {
+    const [rows] = await this.plugin.db.sequelize.query(`select id, category,
+      case when category = 'rented' then rental_until else valid_until end as until
+      from permit_documents where category in ('rented', 'voluntary')`);
+    return (rows as Array<{ id: string | number; category: 'rented' | 'voluntary'; until: string }>).map((row) => ({
+      ...row,
+      id: String(row.id),
+    }));
+  }
+
+  async applyLocalState(id: string, category: 'rented' | 'voluntary', until: string, state: string): Promise<void> {
+    const field = category === 'rented' ? 'rental_status' : 'status';
+    const dateField = category === 'rented' ? 'rental_until' : 'valid_until';
+    await this.plugin.db.sequelize.query(
+      `update permit_documents set ${field} = :state
+      where id = :id and category = :category and ${dateField} = :until
+      and (${field} is null or ${field} <> :state)`,
+      { replacements: { id, category, until, state } },
+    );
   }
 
   async clearTechnicalRegulations(documentId: string, transaction?: TransactionContext): Promise<void> {
@@ -269,6 +300,12 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
         transaction,
       });
       if (clearRegulations) {
+        await this.plugin.db.sequelize.query(
+          `update permit_documents set
+          period_from = case when category = 'rented' then rental_from else valid_from end,
+          period_until = case when category = 'rented' then rental_until else valid_until end where id = :id`,
+          { replacements: { id: identity.id }, transaction },
+        );
         await this.clearTechnicalRegulations(identity.id, transaction);
       }
       return 'UPDATED';
@@ -281,16 +318,26 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
     expectedExternalId?: string,
   ): Promise<'UPDATED' | 'STALE' | 'MISSING'> {
     const [rows] = (await this.plugin.db.sequelize.query(
-      `select id, title, document_type, external_id from permit_documents where id = :id limit 1 for update`,
+      `select id, title, document_type, external_id, category from permit_documents where id = :id limit 1 for update`,
       { replacements: { id: identity.id }, transaction },
     )) as unknown as [
-      Array<{ id: string | number | bigint; title: string; document_type: string; external_id: string | null }>,
+      Array<{
+        id: string | number | bigint;
+        title: string;
+        document_type: string;
+        external_id: string | null;
+        category: string;
+      }>,
       unknown,
     ];
     if (!rows[0]) {
       return 'MISSING';
     }
-    const identityMatches = rows[0].title === identity.title && rows[0].document_type === identity.documentType;
+    const identityMatches =
+      rows[0].category !== 'voluntary' &&
+      (identity.category === undefined || rows[0].category === identity.category) &&
+      rows[0].title === identity.title &&
+      rows[0].document_type === identity.documentType;
     const externalIdMatches = expectedExternalId === undefined || rows[0].external_id === expectedExternalId;
     return identityMatches && externalIdMatches ? 'UPDATED' : 'STALE';
   }
@@ -351,7 +398,7 @@ export class NocoBasePermitDocumentRepository implements PermitDocumentRepositor
       fields: ['technical_regulation_id'],
       transaction,
     });
-    const currentIds = existing.map((record: Model) => String(record.get('technical_regulation_id'))).sort();
+    const currentIds: string[] = existing.map((record: Model) => String(record.get('technical_regulation_id'))).sort();
     const nextIds = [...regulationIds].sort();
     if (currentIds.length === nextIds.length && currentIds.every((id, index) => id === nextIds[index])) {
       return;

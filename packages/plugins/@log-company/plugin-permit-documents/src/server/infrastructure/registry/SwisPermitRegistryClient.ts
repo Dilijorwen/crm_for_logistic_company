@@ -108,6 +108,7 @@ export class SwisPermitRegistryClient {
       validUntil: summary.validUntil,
       status: summary.status,
       productInformation: summary.productInformation,
+      ...this.parser.parseManufacturer(response.body),
       technicalRegulations: this.parser.parseTechnicalRegulations(response.body),
     };
   }

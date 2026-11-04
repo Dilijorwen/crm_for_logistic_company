@@ -35,6 +35,7 @@ function fixture() {
   const api: PersonalizationApi = {
     get: vi.fn().mockImplementation(async () => data),
     save: vi.fn(),
+    restore: vi.fn().mockResolvedValue(data),
     reset: vi.fn(),
     width: vi.fn().mockImplementation(async (_identity, uid, width) => {
       data = { ...data, settings: { ...layout, columnWidths: width === null ? {} : { [uid]: width } } };

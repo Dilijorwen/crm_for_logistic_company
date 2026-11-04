@@ -24,6 +24,7 @@ export const permitDocumentCompanyField = {
     type: 'object',
     title,
     'x-component': 'AssociationField',
+    'x-use-component-props': 'usePermitDocumentFieldProps',
     'x-component-props': {
       multiple: false,
       fieldNames: { label: 'name', value: 'id' },

@@ -12,6 +12,7 @@ import { AssignPermitDocumentNumber } from '../application/AssignPermitDocumentN
 import { CheckPermitDocumentStatus } from '../application/CheckPermitDocumentStatus';
 import { SchedulePermitDocumentSync } from '../application/SchedulePermitDocumentSync';
 import { SynchronizePermitDocument } from '../application/SynchronizePermitDocument';
+import { RefreshPermitDocumentLifecycle } from '../application/RefreshPermitDocumentLifecycle';
 import { FetchJsonTransport } from '../infrastructure/http/FetchJsonTransport';
 import { FetchTextTransport } from '../infrastructure/http/FetchTextTransport';
 import { NocoBasePermitDocumentRepository } from '../infrastructure/nocobase/NocoBasePermitDocumentRepository';
@@ -82,7 +83,14 @@ export class PermitDocumentsModule {
     new PermitDocumentManagedFieldsGuard(this.plugin).register();
     new PermitDocumentSubmitSyncMiddleware(this.plugin, repository, synchronize, logger).register();
     new PermitDocumentSyncController(this.plugin, synchronize).register();
-    this.scheduler = new PermitDocumentSyncScheduler(this.plugin, synchronize, checkStatus, schedule, logger);
+    this.scheduler = new PermitDocumentSyncScheduler(
+      this.plugin,
+      synchronize,
+      checkStatus,
+      schedule,
+      logger,
+      new RefreshPermitDocumentLifecycle(repository, clock),
+    );
     this.scheduler.register();
   }
 

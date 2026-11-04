@@ -17,6 +17,7 @@ import {
 } from '../domain/ColumnPreferences';
 import { PersonalizationError } from '../domain/PersonalizationError';
 import type { PersonalizationRepository, PreferenceOwner, TableConfigurationGateway } from './ports';
+import { restoreColumnSettings } from '../domain/RestoreColumnSettings';
 
 export class TablePersonalizations {
   constructor(
@@ -26,7 +27,7 @@ export class TablePersonalizations {
   ) {}
 
   async execute(
-    operation: 'get' | 'save' | 'reset' | 'width',
+    operation: 'get' | 'save' | 'restore' | 'reset' | 'width',
     input: {
       identity: unknown;
       settings?: unknown;
@@ -36,12 +37,9 @@ export class TablePersonalizations {
     },
   ): Promise<TablePersonalization> {
     const identity = parseIdentity(input.identity);
-    const submitted = operation === 'save' ? parseSettings(input.settings) : null;
+    const submitted = operation === 'save' || operation === 'restore' ? parseSettings(input.settings) : null;
     const change = operation === 'width' ? parseWidthChange(input.columnUid, input.width) : null;
-    if (
-      (operation === 'save' || change) &&
-      (typeof input.schemaSignature !== 'string' || input.schemaSignature.length !== 64)
-    ) {
+    if ((submitted || change) && (typeof input.schemaSignature !== 'string' || input.schemaSignature.length !== 64)) {
       throw new PersonalizationError('INVALID_SETTINGS');
     }
     const table = await this.configuration.authorize(identity);
@@ -67,6 +65,15 @@ export class TablePersonalizations {
       if (input.schemaSignature !== table.schemaSignature) throw new PersonalizationError('SCHEMA_CHANGED');
       if (change && !resizableColumnUids.includes(change.columnUid)) throw new PersonalizationError('FORBIDDEN');
       settings = await this.repository.update(owner, (current) => {
+        if (submitted && operation === 'restore') {
+          return restoreColumnSettings(
+            submitted,
+            current,
+            table.columns,
+            table.existingColumnUids,
+            resizableColumnUids,
+          );
+        }
         if (submitted)
           return mergeSettings(submitted, current, table.columns, table.existingColumnUids, resizableColumnUids);
         const baseline = current || {

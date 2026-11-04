@@ -10,7 +10,7 @@
 import type { PermitDocumentType } from '../../domain/permit-document/PermitDocumentPolicy';
 import type { RegistryDocument, RegistryDocumentStatus } from '../../domain/permit-document/RegistryDocument';
 import { RegistryError } from '../../domain/permit-document/RegistryErrors';
-import type { TechnicalRegulationCandidate } from '../../application/ports/PermitDocumentRepository';
+import type { FsaTechnicalRegulationDto } from '../../application/ports/PermitRegistryGateway';
 import type { JsonHttpRequest, JsonHttpResponse, JsonHttpTransport } from '../http/JsonHttpTransport';
 import { FsaAuthTokenProvider } from './FsaAuthTokenProvider';
 import { FsaResponseParser } from './FsaResponseParser';
@@ -76,7 +76,7 @@ export class FsaPermitRegistryClient {
     return document;
   }
 
-  async getTechnicalRegulations(fsaIds: readonly number[]): Promise<TechnicalRegulationCandidate[]> {
+  async getTechnicalRegulations(fsaIds: readonly number[]): Promise<FsaTechnicalRegulationDto[]> {
     if (fsaIds.length === 0) {
       return [];
     }

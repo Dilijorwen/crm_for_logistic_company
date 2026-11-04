@@ -16,7 +16,6 @@ import { NormalizeShipmentNumericFields } from '../../../application/logistics/N
 import { RecordLogisticsCreated } from '../../../application/logistics/RecordLogisticsCreated';
 import { RecordLogisticsFieldChanges } from '../../../application/logistics/RecordLogisticsFieldChanges';
 import { RecordLogisticsRelationChange } from '../../../application/logistics/RecordLogisticsRelationChange';
-import { RefreshShipmentDisplayName } from '../../../application/logistics/RefreshShipmentDisplayName';
 import { WriteLogisticsHistory } from '../../../application/logistics/WriteLogisticsHistory';
 import { logisticsReverseShipmentAssociationFields } from '../../../infrastructure/metadata/LogisticsAssociationFields';
 import { NocoBaseLogisticsRepository } from '../../../infrastructure/persistence/nocobase/NocoBaseLogisticsRepository';
@@ -77,6 +76,7 @@ function registerCollections(db: Database): void {
     name: 'transport_runs',
     fields: [
       { type: 'integer', name: 'run_number' },
+      { type: 'string', name: 'transport_type' },
       { type: 'integer', name: 'vehicle_id', isForeignKey: true },
       {
         type: 'belongsTo',
@@ -108,7 +108,6 @@ function registerCollections(db: Database): void {
     name: 'shipments',
     fields: [
       { type: 'integer', name: 'shipment_number' },
-      { type: 'string', name: 'display_name' },
       {
         type: 'string',
         name: 'status',
@@ -205,13 +204,13 @@ describe('Logistics history database integration', () => {
       validateRunParents: { execute: vi.fn(async () => undefined) },
       validateShipmentContract: { execute: vi.fn(async () => undefined) },
       validateShipmentDeletion: { execute: vi.fn(async () => undefined) },
-      refreshShipmentDisplayName: new RefreshShipmentDisplayName(repository),
     } as unknown as LogisticsHookActions;
     new LogisticsHooks(plugin, repository, actions).register();
 
     const run = await db.getRepository('transport_runs').create({
       values: {
         registration_number_input: 'AB123CD',
+        transport_type: 'road',
         departure_city_id: firstCity.get('id'),
       },
     });
@@ -232,9 +231,7 @@ describe('Logistics history database integration', () => {
     });
     const createdShipment = await db.getRepository('shipments').findOne({ filterByTk: shipment.get('id') });
     expect(createdShipment?.get('invoice_value')).toBe(1);
-    expect(createdShipment?.get('display_name')).toBe(
-      `${String(shipment.get('shipment_number'))}/Клиент/INV-OLD/ЗВ-OLD/—`,
-    );
+    expect(createdShipment?.get('shipment_number')).toBeGreaterThan(0);
     const clientShipments = await db.getRepository('chinese_clients.shipments', client.get('id')).find();
     const companyShipments = await db.getRepository('our_companies.shipments', firstCompany.get('id')).find();
     expect(clientShipments.map((record) => record.get('id'))).toEqual([shipment.get('id')]);
@@ -252,9 +249,7 @@ describe('Logistics history database integration', () => {
     });
     const updatedShipment = await db.getRepository('shipments').findOne({ filterByTk: shipment.get('id') });
     expect(updatedShipment?.get('invoice_value')).toBe(2.5);
-    expect(updatedShipment?.get('display_name')).toBe(
-      `${String(shipment.get('shipment_number'))}/Клиент/INV-NEW/ЗВ-OLD/ДТ-NEW`,
-    );
+    expect(updatedShipment?.get('shipment_number')).toBeGreaterThan(0);
 
     const relatedShipment = await db.getRepository('transport_runs.shipments', run.get('id')).create({
       values: {
@@ -268,9 +263,7 @@ describe('Logistics history database integration', () => {
     const persistedRelatedShipment = await db
       .getRepository('shipments')
       .findOne({ filterByTk: relatedShipment.get('id') });
-    expect(persistedRelatedShipment?.get('display_name')).toBe(
-      `${String(relatedShipment.get('shipment_number'))}/Клиент/INV-MANAGER/ЗВ-MANAGER/—`,
-    );
+    expect(persistedRelatedShipment?.get('shipment_number')).toBeGreaterThan(0);
     expect(await historyRows(db, 'shipment_history', { shipment_id: relatedShipment.get('id') })).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

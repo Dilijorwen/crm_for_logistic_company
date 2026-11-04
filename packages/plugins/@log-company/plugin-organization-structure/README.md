@@ -131,9 +131,9 @@ Use the normal plugin-manager workflow for the target environment. Do not copy s
 
 ```bash
 corepack yarn eslint --fix packages/plugins/@log-company/plugin-organization-structure/src
-corepack yarn test packages/plugins/@log-company/plugin-organization-structure/src/client/features/organization/utils/__tests__/departmentTree.test.ts --run --reporter=verbose
-corepack yarn test packages/plugins/@log-company/plugin-organization-structure/src/client/features/organization/api/__tests__/organizationStructureService.test.ts --run --reporter=verbose
-corepack yarn test packages/plugins/@log-company/plugin-organization-structure/src/client/features/organization/utils/__tests__/departmentMembers.test.ts --run --reporter=verbose
+corepack yarn test packages/plugins/@log-company/plugin-organization-structure/src/client/pages/organization/lib/__tests__/departmentTree.test.ts --run --reporter=verbose
+corepack yarn test packages/plugins/@log-company/plugin-organization-structure/src/client/pages/organization/api/__tests__/organizationStructureService.test.ts --run --reporter=verbose
+corepack yarn test packages/plugins/@log-company/plugin-organization-structure/src/client/pages/organization/lib/__tests__/departmentMembers.test.ts --run --reporter=verbose
 corepack yarn test packages/plugins/@log-company/plugin-organization-structure/src/server/domain/department/__tests__/DepartmentHierarchyPolicy.test.ts --run --reporter=verbose
 corepack yarn test packages/plugins/@log-company/plugin-organization-structure/src/server/application/__tests__/ValidateDepartmentMove.test.ts --run --reporter=verbose
 corepack yarn test packages/plugins/@log-company/__tests__/OnionBoundaries.test.ts --run --reporter=verbose

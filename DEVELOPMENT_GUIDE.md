@@ -189,16 +189,35 @@ HTTP action должен быть тонким: разобрать запрос,
 
 ## 8. Frontend
 
-Для нового функционала используйте feature-oriented структуру:
+Frontend собственных плагинов организован по FSD внутри существующего `src/client/`:
 
 ```text
-src/client/features/<feature>/
-  api/
-  model/
-  hooks/
-  ui/
-  lib/
+src/client/
+  app/                 # Регистрация плагина, маршрутов и моделей, интеграция с NocoBase
+  pages/<slice>/       # Существующие самостоятельные страницы
+  widgets/<slice>/     # Переиспользуемые блоки конструктора
+  features/<slice>/    # Пользовательские действия
+  entities/<slice>/    # Клиентские модели, API и состояние сущностей
+  shared/<segment>/    # Общие технические средства
+  index.ts             # Совместимая публичная точка входа плагина
 ```
+
+Внутри slice используйте `ui/`, `model/`, `api/`, `lib/`, `config/` по реальной необходимости. Hooks состояния
+относятся к `model/`. Пустые слои и каталоги не создаются. Страница может владеть своей локальной логикой,
+если она больше нигде не используется.
+
+- Импорты между слоями идут только вниз: `app → pages → widgets → features → entities → shared`.
+- Slice одного слоя не импортирует соседний slice. `app` и `shared` — исключения: у них сегменты, а не бизнес-slices.
+- Внешние потребители используют `index.ts` slice или сегмента `shared`; внутренние файлы импортируются напрямую
+  только внутри того же slice. Внутри slice запрещено импортировать собственный `index.ts`, чтобы не создавать циклы.
+- `src/client/index.ts(x)` сохраняет совместимость с загрузчиком NocoBase и существующими межплагинными импортами.
+- Клиент не импортирует `src/server`, сервер не импортирует `src/client`. Для общих DTO используются
+  независимые от runtime `src/contracts/` или существующие `src/shared/`. ORM-модели и use cases не экспортируются в UI.
+- Архитектурные проверки запускаются через `yarn test:architecture`. Проверки типов клиента и сервера:
+  `yarn typecheck:log-company:client` и `yarn typecheck:log-company:server`. Они проверяют весь собственный production-код,
+  включая импортируемые контракты, с настоящими типами зависимостей; исходники upstream NocoBase имеют свою strictness.
+  `yarn typecheck:log-company:domain` отдельно проверяет domain/application без ambient-типов Node.js и браузера.
+- Подробности разделения, карта модулей и порядок проверки: [ARCHITECTURE.md](docs/log-company/ARCHITECTURE.md).
 
 - React-компонент отвечает за представление и пользовательские события; загрузка/нормализация данных выносится в typed API client и hooks.
 - Общая логика определения текущего процесса должна быть одной переиспользуемой функцией/hook, а не копироваться между блоками.
@@ -246,7 +265,8 @@ Server tests NocoBase запускаются последовательно, п�
 ```bash
 corepack yarn eslint --fix <изменённые-файлы>
 corepack yarn test <путь-к-тесту> --run --reporter=verbose
-corepack yarn build @log-company/plugin-<name>
+PLUGIN_PACKAGE_PREFIX=@nocobase/plugin-,@nocobase/preset-,@nocobase/plugin-pro-,@log-company/plugin- \
+  corepack yarn build @log-company/plugin-<name>
 corepack yarn tar @log-company/plugin-<name>
 docker compose config
 docker compose ps

@@ -30,8 +30,11 @@ import type {
 import { ProcessDocumentsError, type ProcessDocumentsErrorCode } from '../../domain/documents/DocumentErrors';
 import { normalizeNullableIdentifier, parseDraftToken, parseIdentifier } from '../../domain/documents/DocumentScope';
 
+import { PROCESS_DOCUMENTS_DRAFT_FIELD, type DocumentsListResponse } from '../../../contracts/processDocuments';
+
+import { decodeUploadedName } from './UploadedDocumentName';
+
 const RESOURCE = 'processDocuments';
-const DRAFT_FORM_FIELD = '_shipmentDocumentsDraftToken';
 
 interface UploadedFile {
   path: string;
@@ -94,7 +97,7 @@ export class ProcessDocumentsController {
         ...result,
         folders: result.folders.map((folder) => this.serializeFolder(folder)),
         files: result.files.map((document) => this.serializeDocument(document)),
-      };
+      } satisfies DocumentsListResponse;
       await next();
     });
   };
@@ -127,7 +130,7 @@ export class ProcessDocumentsController {
           files: files.map(
             (file): UploadedDocumentFile => ({
               path: file.path,
-              originalName: file.originalname,
+              originalName: decodeUploadedName(file.originalname),
               mimeType: file.mimetype || 'application/octet-stream',
               size: file.size,
             }),
@@ -237,7 +240,7 @@ export class ProcessDocumentsController {
   }
 
   private draftToken(values: Record<string, unknown>): string | null {
-    return parseDraftToken(values.draftToken ?? values.draft_token ?? values[DRAFT_FORM_FIELD]);
+    return parseDraftToken(values.draftToken ?? values.draft_token ?? values[PROCESS_DOCUMENTS_DRAFT_FIELD]);
   }
 
   private requiredIdentifier(value: unknown, code: ProcessDocumentsErrorCode, message: string): string {
@@ -256,7 +259,7 @@ export class ProcessDocumentsController {
       draft_token: folder.draftToken,
       parent_folder_id: folder.parentFolderId,
       createdById: folder.createdById,
-      createdAt: folder.createdAt,
+      createdAt: folder.createdAt instanceof Date ? folder.createdAt.toISOString() : folder.createdAt,
       updatedAt: folder.updatedAt,
       type: 'folder',
       author: folder.author || '',
@@ -275,7 +278,7 @@ export class ProcessDocumentsController {
       mime_type: document.mimeType,
       file_size: document.fileSize,
       createdById: document.createdById,
-      createdAt: document.createdAt,
+      createdAt: document.createdAt instanceof Date ? document.createdAt.toISOString() : document.createdAt,
       updatedAt: document.updatedAt,
       type: 'file',
       author: document.author || '',

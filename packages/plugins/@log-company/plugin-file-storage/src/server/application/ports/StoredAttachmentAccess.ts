@@ -7,8 +7,6 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import type { Readable } from 'stream';
-
 export interface StoredAttachment {
   key: string;
   fileName: string;
@@ -24,5 +22,5 @@ export interface FileLinkVerifier {
 }
 
 export interface AttachmentObjectStorage {
-  open(key: string): Promise<Readable>;
+  open(key: string): Promise<AsyncIterable<Uint8Array>>;
 }

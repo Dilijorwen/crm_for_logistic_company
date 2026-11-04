@@ -1,8 +1,8 @@
 {
   "name": "@log-company/plugin-table-personalization",
   "displayName": "Персональные колонки таблиц",
-  "description": "Персональные порядок, видимость и ширина колонок FlowEngine.",
-  "version": "2.0.70",
+  "description": "Персональные колонки и личные шаблоны фильтров, состава, порядка и ширины колонок таблиц FlowEngine.",
+  "version": "2.0.74",
   "main": "dist/server/index.js",
   "peerDependencies": {
     "@ant-design/icons": "*",
@@ -14,6 +14,7 @@
     "@nocobase/database": "2.x",
     "@nocobase/flow-engine": "2.x",
     "@nocobase/server": "2.x",
+    "@nocobase/utils": "2.0.60",
     "antd": "*",
     "react": "*",
     "react-dom": "18.2.0"

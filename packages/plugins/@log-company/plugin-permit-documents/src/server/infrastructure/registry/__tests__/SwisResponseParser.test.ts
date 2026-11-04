@@ -45,6 +45,21 @@ function searchHtml(status = 'Действует'): string {
 }
 
 describe('SwisResponseParser', () => {
+  it('reads the address from the manufacturer section rather than applicant or registration authority', () => {
+    const html = `<table><tr><td>Юридический адрес</td><td>Заявитель</td></tr>
+      <tr><td>Полное наименование организации-изготовителя продукции</td><td>Завод</td></tr>
+      <tr><td>Юридический адрес (включая наименование государства)</td><td>Адрес изготовителя</td></tr>
+      <tr><td>Юридический адрес</td><td>Регистрирующий орган</td></tr></table>`;
+    expect(new SwisResponseParser().parseManufacturer(html)).toEqual({
+      manufacturerName: 'Завод',
+      manufacturerAddress: 'Адрес изготовителя',
+    });
+    expect(
+      new SwisResponseParser().parseManufacturer(
+        '<table><tr><td>Юридический адрес</td><td>Заявитель</td></tr></table>',
+      ),
+    ).toEqual({ manufacturerName: null, manufacturerAddress: null });
+  });
   it('parses the exact certificate row, Russian dates, entities and document UUID', () => {
     expect(new SwisResponseParser().parseSearch(searchHtml(), title, 'certificate_of_conformity')).toEqual({
       externalId: '7eb3a979-d6da-413f-ab45-b218803003d7',

@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.build.json",
+  "include": ["*/src/client/**/*.ts", "*/src/client/**/*.tsx", "*/src/client-v2/**/*.ts", "*/src/client-v2/**/*.tsx"]
+}

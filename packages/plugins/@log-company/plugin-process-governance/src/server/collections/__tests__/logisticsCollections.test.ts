@@ -13,11 +13,12 @@ import { logisticsSystemFields } from '../../infrastructure/metadata/LogisticsSy
 import shipmentComments from '../shipmentComments';
 import shipmentHistory from '../shipmentHistory';
 import shipments from '../shipments';
+import logisticsWorkItems from '../logisticsWorkItems';
 import transportRunHistory from '../transportRunHistory';
 import transportRuns from '../transportRuns';
 import vehicles from '../vehicles';
 
-const primaryCollections = [transportRuns, shipments, transportRunHistory, shipmentHistory];
+const primaryCollections = [transportRuns, shipments, logisticsWorkItems, transportRunHistory, shipmentHistory];
 const supportCollections = [vehicles, shipmentComments];
 
 function collectInterfaceText(value: unknown): string[] {
@@ -34,13 +35,33 @@ function collectInterfaceText(value: unknown): string[] {
 }
 
 describe('logistics collection metadata', () => {
-  it('keeps the four primary collections visible in the NocoBase designer', () => {
+  it('keeps operational collections visible in the NocoBase designer', () => {
     expect(primaryCollections.map((collection) => [collection.name, collection.title, collection.hidden])).toEqual([
       ['transport_runs', 'Рейсы', false],
       ['shipments', 'Поставки', false],
+      ['logistics_work_items', 'Общий рабочий список', false],
       ['transport_run_history', 'История рейсов', false],
       ['shipment_history', 'История поставок', false],
     ]);
+  });
+
+  it('uses a read-only view for the common workspace without duplicating operational data', () => {
+    expect(logisticsWorkItems).toMatchObject({
+      name: 'logistics_work_items',
+      view: true,
+      writableView: false,
+      titleField: 'shipment_number',
+    });
+    expect(logisticsWorkItems.fields.map((field) => field.name)).toEqual(
+      expect.arrayContaining([
+        'run_number',
+        'registration_number',
+        'manager_names',
+        'shipment_number',
+        'status',
+        'declaration_number',
+      ]),
+    );
   });
 
   it('hides support collections from the designer', () => {
@@ -54,14 +75,15 @@ describe('logistics collection metadata', () => {
     const interfaceText = [...primaryCollections, ...supportCollections].flatMap(collectInterfaceText);
     expect(interfaceText.some((value) => value.includes('{{t('))).toBe(false);
     expect(interfaceText).toContain('Номер машины');
-    expect(interfaceText).toContain('Название поставки');
+    expect(interfaceText).toContain('Номер поставки');
     expect(interfaceText).toContain('Начальное значение');
     expect(interfaceText).toContain('Добавлен родительский рейс');
     expect(interfaceText).toContain('Добавлен дочерний рейс');
   });
 
-  it('uses the computed shipment title and hides the technical vehicle relation', () => {
-    expect(shipments.titleField).toBe('display_name');
+  it('uses the shipment number as title and hides the technical vehicle relation', () => {
+    expect(shipments.titleField).toBe('shipment_number');
+    expect(shipments.fields?.some((field) => field.name === 'display_name')).toBe(false);
     expect(transportRuns.fields.find((field) => field.name === 'vehicle')?.hidden).toBe(true);
     expect(transportRuns.fields.find((field) => field.name === 'vehicle_id')?.hidden).toBe(true);
   });

@@ -9,6 +9,7 @@
 
 import { defineCollection } from '@nocobase/database';
 import { idField } from './logisticsCollectionFields';
+import { TRANSPORT_TYPES, TRANSPORT_TYPE_LABELS } from '../../shared/transport';
 
 export default defineCollection({
   name: 'transport_runs',
@@ -26,12 +27,26 @@ export default defineCollection({
   filterTargetKey: ['id'],
   migrationRules: ['overwrite', 'schema-only'],
   indexes: [
+    { name: 'transport_runs_type_number_idx', fields: ['transport_type', 'run_number'] },
     { name: 'transport_runs_run_number_unique', unique: true, fields: ['run_number'] },
     { name: 'transport_runs_vehicle_id_idx', fields: ['vehicle_id'] },
     { name: 'transport_runs_departure_city_id_idx', fields: ['departure_city_id'] },
   ],
   fields: [
     idField,
+    {
+      type: 'string',
+      name: 'transport_type',
+      interface: 'select',
+      allowNull: false,
+      uiSchema: {
+        type: 'string',
+        title: 'Тип перевозки',
+        'x-component': 'Select',
+        required: true,
+        enum: TRANSPORT_TYPES.map((value) => ({ value, label: TRANSPORT_TYPE_LABELS[value] })),
+      },
+    },
     {
       type: 'integer',
       name: 'run_number',
@@ -130,7 +145,7 @@ export default defineCollection({
         type: 'array',
         title: 'Поставки',
         'x-component': 'AssociationField',
-        'x-component-props': { multiple: true, fieldNames: { value: 'id', label: 'display_name' } },
+        'x-component-props': { multiple: true, fieldNames: { value: 'id', label: 'shipment_number' } },
       },
     },
     {

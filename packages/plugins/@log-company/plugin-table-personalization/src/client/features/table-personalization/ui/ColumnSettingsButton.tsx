@@ -40,7 +40,9 @@ export const ColumnSettingsButton = observer(({ model }: { model: PersonalizedTa
         icon={<TableOutlined />}
         onClick={() => model.openPersonalizationSettings()}
         disabled={state.isSaving}
-      />
+      >
+        Колонки
+      </Button>
     </Tooltip>
   );
 });

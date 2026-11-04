@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.server.json",
+  "compilerOptions": {
+    "types": [],
+    "lib": ["ES2021"]
+  },
+  "include": ["*/src/server/domain/**/*.ts", "*/src/server/application/**/*.ts"]
+}

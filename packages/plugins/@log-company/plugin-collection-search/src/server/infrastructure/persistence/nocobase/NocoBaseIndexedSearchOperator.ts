@@ -68,11 +68,14 @@ function escapeLike(value: string): string {
 
 export function createIndexedCollectionSearchOperator(
   searchDatabase: Database,
-): (rawValue: unknown, context: OperatorContext) => Record<symbol, unknown> {
-  return (rawValue: unknown, context: OperatorContext) => {
+): (rawValue: unknown, context?: Partial<OperatorContext>) => Record<symbol, unknown> {
+  return (rawValue: unknown, context?: Partial<OperatorContext>) => {
+    if (!context?.db || !context.model)
+      throw new Error('Indexed collection search requires a database and model context.');
     if (context.db.sequelize !== searchDatabase.sequelize) {
       throw new Error('Indexed collection search requires the source collection and search index to share PostgreSQL.');
     }
+    const model = context.model;
     const value = parseValue(rawValue);
     const documents = searchDatabase.getCollection(DOCUMENTS_COLLECTION);
     if (!documents) {
@@ -92,11 +95,11 @@ export function createIndexedCollectionSearchOperator(
     const pattern = `%${escapeLike(value.term)}%`;
 
     const keyConditions = value.keyFields.map((keyField) => {
-      const attribute = context.model.rawAttributes[keyField];
+      const attribute = model.rawAttributes[keyField];
       if (!attribute) {
         throw new Error(`Collection search key field "${keyField}" does not exist.`);
       }
-      const sourceColumn = `${queryGenerator.quoteIdentifier(context.model.name)}.${queryGenerator.quoteIdentifier(
+      const sourceColumn = `${queryGenerator.quoteIdentifier(model.name)}.${queryGenerator.quoteIdentifier(
         attribute.field || keyField,
       )}`;
       return `${alias}.${keyValuesColumn} ->> ${escape(keyField)} = CAST(${sourceColumn} AS TEXT)`;

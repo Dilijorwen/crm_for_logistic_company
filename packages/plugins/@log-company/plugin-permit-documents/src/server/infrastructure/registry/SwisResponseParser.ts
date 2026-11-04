@@ -127,6 +127,24 @@ export class SwisResponseParser {
     };
   }
 
+  parseManufacturer(html: string): { manufacturerName: string | null; manufacturerAddress: string | null } {
+    const { rows } = this.readRows(html);
+    const manufacturerIndex = rows.findIndex((row) =>
+      this.normalizeText(row.cells[0]?.text || '')
+        .toLocaleLowerCase('ru-RU')
+        .startsWith('полное наименование организации-изготовителя'),
+    );
+    const manufacturerName =
+      manufacturerIndex < 0 ? null : this.normalizeText(rows[manufacturerIndex].cells[1]?.text || '') || null;
+    const nextRow = manufacturerIndex < 0 ? undefined : rows[manufacturerIndex + 1];
+    const addressRow = this.normalizeText(nextRow?.cells[0]?.text || '')
+      .toLocaleLowerCase('ru-RU')
+      .startsWith('юридический адрес')
+      ? nextRow
+      : undefined;
+    return { manufacturerName, manufacturerAddress: this.normalizeText(addressRow?.cells[1]?.text || '') || null };
+  }
+
   parseTechnicalRegulations(html: string): EaeuTechnicalRegulationReference[] {
     const result = this.readRows(html);
     const regulationRow = result.rows.find((row) => {

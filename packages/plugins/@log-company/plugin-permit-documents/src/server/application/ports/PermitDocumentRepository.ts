@@ -24,12 +24,14 @@ export interface PermitDocumentSnapshot {
   syncStatus: PermitDocumentSyncStatus;
   status: PermitDocumentStatus | null;
   lastCheckedAt: Date | null;
+  category?: 'ordinary' | 'rented' | 'voluntary';
 }
 
 export interface PermitDocumentIdentity {
   id: string;
   title: string;
   documentType: PermitDocumentType;
+  category?: 'ordinary' | 'rented' | 'voluntary';
 }
 
 export interface TechnicalRegulationRecord {

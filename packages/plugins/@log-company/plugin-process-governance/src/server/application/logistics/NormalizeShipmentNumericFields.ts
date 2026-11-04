@@ -14,7 +14,7 @@ const SHIPMENT_NUMERIC_FIELDS = [
   { name: 'customs_payments_amount', label: 'Сумма таможенных платежей' },
   { name: 'eco_fee', label: 'Экологический сбор' },
   { name: 'ktc_amount', label: 'Сумма КТС' },
-  { name: 'ntm_honest_sign_sum', label: 'Сумма «Честного знака» НТМ' },
+  { name: 'ntm_honest_sign_sum', label: 'Сумма «Честного знака»' },
   { name: 'goods_count', label: 'Количество товаров' },
 ] as const;
 

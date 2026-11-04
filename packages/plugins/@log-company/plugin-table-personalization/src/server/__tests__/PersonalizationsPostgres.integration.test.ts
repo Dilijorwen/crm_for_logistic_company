@@ -8,7 +8,7 @@
  */
 
 import type { Database, MigrationContext, Model } from '@nocobase/database';
-import { createMockDatabase, MagicAttributeModel } from '@nocobase/database';
+import { createMockDatabase, MagicAttributeModel, DataTypes } from '@nocobase/database';
 import type { Context } from '@nocobase/actions';
 import type { Plugin } from '@nocobase/server';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -18,6 +18,13 @@ import { NocoBaseTableConfiguration } from '../infrastructure/NocoBaseTableConfi
 import CascadeMigration from '../migrations/20261009090000-personalization-cascades';
 import type { ColumnSettings } from '../../shared/contracts';
 import { TablePersonalizations } from '../application/TablePersonalizations';
+import tableFilterTemplates from '../collections/tableFilterTemplates';
+import { NocoBaseFilterTemplateRepository } from '../infrastructure/NocoBaseFilterTemplateRepository';
+import FilterTemplateMigration from '../migrations/20261028010000-filter-template-cascades';
+import { TableFilterTemplates } from '../application/TableFilterTemplates';
+import { emptyFilter } from '../../shared/filterTemplates';
+import PersonalTableTemplatesMigration from '../migrations/20261102010000-personal-table-templates';
+import { FilterTemplateError } from '../domain/FilterTemplateError';
 
 const run = process.env.TABLE_PERSONALIZATION_POSTGRES_INTEGRATION === '1' && process.env.DB_DIALECT === 'postgres';
 const settings: ColumnSettings = { version: 1, columnOrder: ['first', 'second'], hiddenColumnUids: ['first'] };
@@ -27,6 +34,8 @@ describe.runIf(run)('personalizations PostgreSQL persistence and access', () => 
   let repository: NocoBasePersonalizationRepository;
   let migration: CascadeMigration;
   let plugin: Plugin;
+  let filterRepository: NocoBaseFilterTemplateRepository;
+  let filterMigration: FilterTemplateMigration;
   const can = vi.fn();
 
   beforeAll(async () => {
@@ -96,6 +105,7 @@ describe.runIf(run)('personalizations PostgreSQL persistence and access', () => 
     });
     database.collection({ name: 'departments', titleField: 'name', fields: [{ name: 'name', type: 'string' }] });
     database.collection(tablePersonalizations);
+    database.collection(tableFilterTemplates);
     await database.sync();
     const context: MigrationContext = {
       db: database,
@@ -105,6 +115,10 @@ describe.runIf(run)('personalizations PostgreSQL persistence and access', () => 
     migration = new CascadeMigration(context);
     await migration.up();
     await migration.up();
+    filterMigration = new FilterTemplateMigration(context);
+    await filterMigration.up();
+    await filterMigration.up();
+    filterRepository = new NocoBaseFilterTemplateRepository(database);
     repository = new NocoBasePersonalizationRepository(database);
     await database.getRepository('users').create({ values: [{ id: '1' }, { id: '2' }, { id: '3' }] });
     const models = [
@@ -183,6 +197,186 @@ describe.runIf(run)('personalizations PostgreSQL persistence and access', () => 
   });
   const gateway = (roles: string[] = ['root']) =>
     new NocoBaseTableConfiguration(plugin, { state: { currentRoles: roles } } as unknown as Context);
+
+  const templateInput = async (identity = { tableUid: 'table', referencePath: [] as string[] }) => ({
+    identity,
+    name: 'Личный',
+    filter: emptyFilter(),
+    columnSettings: { ...settings, columnWidths: { first: 210 } },
+    schemaSignature: (await gateway().authorize(identity)).schemaSignature,
+  });
+
+  it('persists complete personal templates and isolates authors including root accounts', async () => {
+    can.mockReturnValue({ params: {} });
+    const first = new TableFilterTemplates(gateway(), filterRepository, '1');
+    const otherRoot = new TableFilterTemplates(gateway(), filterRepository, '2');
+    const input = await templateInput();
+    const created = await first.execute('create', input);
+    expect(created.templates[0]).toMatchObject({
+      name: input.name,
+      filter: input.filter,
+      columnSettings: { columnWidths: { first: 210 }, hiddenColumnUids: expect.arrayContaining(['first']) },
+    });
+    expect((await otherRoot.execute('list', { identity: input.identity })).templates).toEqual([]);
+    await otherRoot.execute('create', input);
+    expect((await first.execute('list', { identity: input.identity })).templates).toHaveLength(1);
+    await expect(first.execute('create', input)).rejects.toThrow('DUPLICATE_NAME');
+    const template = created.templates[0];
+    await expect(
+      otherRoot.execute('delete', { identity: input.identity, id: template.id, revision: 1 }),
+    ).rejects.toThrow('NOT_FOUND');
+  });
+
+  it('serializes concurrent edits and isolates reference instances', async () => {
+    can.mockReturnValue({ params: {} });
+    const identity = { tableUid: 'table', referencePath: ['ref-one'] };
+    const useCase = new TableFilterTemplates(gateway(), filterRepository, '1');
+    const created = await useCase.execute('create', { ...(await templateInput(identity)), name: 'Гонка' });
+    const template = created.templates[0];
+    const edits = await Promise.allSettled(
+      ['Первая', 'Вторая'].map((name) => useCase.execute('rename', { identity, id: template.id, revision: 1, name })),
+    );
+    expect(edits.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(edits.find((result) => result.status === 'rejected')).toMatchObject({
+      status: 'rejected',
+      reason: new FilterTemplateError('CONFLICT'),
+    });
+    const saved = (await useCase.execute('list', { identity })).templates[0];
+    await expect(
+      useCase.execute('delete', {
+        identity: { ...identity, referencePath: ['ref-two'] },
+        id: saved.id,
+        revision: saved.revision,
+      }),
+    ).rejects.toThrow('NOT_FOUND');
+    await useCase.execute('delete', { identity, id: saved.id, revision: saved.revision });
+    await expect(useCase.execute('delete', { identity, id: saved.id, revision: saved.revision })).rejects.toThrow(
+      'NOT_FOUND',
+    );
+  });
+
+  it('hides inaccessible saved filters and masks restricted columns without deleting their snapshots', async () => {
+    can.mockReturnValue({ params: {} });
+    const identity = { tableUid: 'table', referencePath: [] };
+    const useCase = new TableFilterTemplates(gateway(), filterRepository, '1');
+    await useCase.execute('create', {
+      ...(await templateInput()),
+      name: 'Ограниченный',
+      filter: { logic: '$and', items: [{ path: 'secret', operator: '$eq', value: 'private' }] },
+    });
+    can.mockReturnValue({ params: { fields: ['first'] } });
+    const restricted = new TableFilterTemplates(gateway(['reader']), filterRepository, '1');
+    const listed = await restricted.execute('list', { identity });
+    expect(listed.templates.some((template) => template.name === 'Ограниченный')).toBe(false);
+    expect(listed.templates[0].columnSettings.columnOrder).not.toContain('second');
+    await expect(
+      restricted.execute('create', {
+        ...(await templateInput()),
+        columnSettings: { version: 1, columnOrder: ['first'], hiddenColumnUids: [] },
+        name: 'Запрещённый',
+        filter: { logic: '$and', items: [{ path: 'secret', operator: '$eq', value: 'test' }] },
+      }),
+    ).rejects.toThrow('FORBIDDEN');
+  });
+
+  it('restores exact template widths without affecting another user and resets to the shared baseline', async () => {
+    can.mockReturnValue({ params: {} });
+    const identity = { tableUid: 'table', referencePath: [] };
+    const first = new TablePersonalizations(gateway(), repository, '1');
+    const second = new TablePersonalizations(gateway(), repository, '2');
+    const metadata = await first.execute('get', { identity });
+    for (const useCase of [first, second])
+      await useCase.execute('width', {
+        identity,
+        columnUid: 'first',
+        width: 330,
+        schemaSignature: metadata.schemaSignature,
+      });
+    await first.execute('restore', {
+      identity,
+      settings: { ...settings, columnWidths: { second: 250 } },
+      schemaSignature: metadata.schemaSignature,
+    });
+    expect((await first.execute('get', { identity })).settings?.columnWidths).toEqual({ second: 250 });
+    expect((await second.execute('get', { identity })).settings?.columnWidths).toEqual({ first: 330 });
+    expect((await first.execute('reset', { identity })).settings).toBeNull();
+    await second.execute('reset', { identity });
+  });
+
+  it('upgrades legacy sharing schema, removes only old templates and preserves new data on retry', async () => {
+    const query = database.sequelize.getQueryInterface();
+    const legacyTable = 'lc_template_legacy_migration_test';
+    await query.createTable(legacyTable, {
+      id: { type: DataTypes.STRING, primaryKey: true },
+      userId: { type: DataTypes.BIGINT, allowNull: false },
+      instanceKey: { type: DataTypes.STRING, allowNull: false },
+      name: { type: DataTypes.STRING, allowNull: false },
+      scopeKey: { type: DataTypes.STRING, allowNull: false },
+      visibility: { type: DataTypes.STRING, allowNull: false },
+    });
+    await query.addIndex(legacyTable, ['instanceKey', 'scopeKey', 'name'], {
+      name: 'lc_filter_templates_legacy_test_name',
+      unique: true,
+    });
+    await query.bulkInsert(legacyTable, [
+      { id: 'old', userId: '1', instanceKey: 'instance', name: 'Старый', scopeKey: 'shared', visibility: 'shared' },
+    ]);
+    // The migration resolves the physical table through the collection, including schema/prefix installations.
+    const original = database.getCollection.bind(database);
+    const getCollection = vi
+      .spyOn(database, 'getCollection')
+      .mockImplementation((name) =>
+        name === 'lc_table_filter_templates'
+          ? ({ model: { getTableName: () => legacyTable } } as unknown as ReturnType<Database['getCollection']>)
+          : original(name),
+      );
+    const context: MigrationContext = { db: database, queryInterface: query, sequelize: database.sequelize };
+    try {
+      // Use the production index name after temporarily removing the current-table index in this isolated DB.
+      await query.removeIndex(original('lc_table_filter_templates').model.getTableName(), 'lc_filter_templates_name');
+      const migration = new PersonalTableTemplatesMigration(context);
+      await migration.up();
+      const columns = await query.describeTable(legacyTable);
+      expect(columns.columnSettings.allowNull).toBe(false);
+      expect(columns.scopeKey).toBeUndefined();
+      expect(columns.visibility).toBeUndefined();
+      const [oldRows] = await database.sequelize.query('SELECT id FROM lc_template_legacy_migration_test');
+      expect(oldRows).toEqual([]);
+      await query.bulkInsert(legacyTable, [
+        { id: 'new', userId: '1', instanceKey: 'instance', name: 'Новый', columnSettings: JSON.stringify(settings) },
+      ]);
+      await migration.up();
+      const [newRows] = await database.sequelize.query('SELECT id FROM lc_template_legacy_migration_test');
+      expect(newRows).toEqual([{ id: 'new' }]);
+    } finally {
+      getCollection.mockRestore();
+      await query.dropTable(legacyTable);
+      await query.addIndex(
+        original('lc_table_filter_templates').model.getTableName(),
+        ['instanceKey', 'userId', 'name'],
+        { name: 'lc_filter_templates_name', unique: true },
+      );
+    }
+  });
+
+  it('keeps cascade migrations idempotent and deletes metadata with its author', async () => {
+    await filterMigration.down();
+    await filterMigration.up();
+    await filterMigration.up();
+    await database.getRepository('users').create({ values: { id: '4' } });
+    const saved = await filterRepository.create({
+      userId: '4',
+      instanceKey: 'cascade-filter',
+      instanceRootUid: 'table',
+      tableUid: 'table',
+      name: 'Каскад',
+      filter: emptyFilter(),
+      columnSettings: settings,
+      revision: 1,
+    });
+    await database.getRepository('users').destroy({ filterByTk: '4' });
+    expect(await database.getRepository('lc_table_filter_templates').findOne({ filterByTk: saved.id })).toBeNull();
+  });
 
   it('upserts atomically, isolates users/instances and resets only the owner', async () => {
     await Promise.all([repository.save(owner('1'), settings), repository.save(owner('1'), settings)]);

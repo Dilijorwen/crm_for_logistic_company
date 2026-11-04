@@ -94,6 +94,10 @@ export class PersonalizationController {
     return this.mutate(settings);
   }
 
+  async restore(settings: ColumnSettings): Promise<boolean> {
+    return this.mutate(settings, true);
+  }
+
   async reset(): Promise<boolean> {
     return this.mutate(null);
   }
@@ -166,7 +170,7 @@ export class PersonalizationController {
     return this.widthQueue;
   }
 
-  private async mutate(settings: ColumnSettings | null): Promise<boolean> {
+  private async mutate(settings: ColumnSettings | null, shouldRestore = false): Promise<boolean> {
     const waitingGeneration = this.generation;
     if (this.state.isSavingWidth) await this.widthQueue;
     if (waitingGeneration !== this.generation) return false;
@@ -177,7 +181,9 @@ export class PersonalizationController {
     this.state.error = '';
     try {
       const data = settings
-        ? await this.api.save(this.identity, settings, this.state.data.schemaSignature)
+        ? shouldRestore
+          ? await this.api.restore(this.identity, settings, this.state.data.schemaSignature)
+          : await this.api.save(this.identity, settings, this.state.data.schemaSignature)
         : await this.api.reset(this.identity);
       if (generation !== this.generation || request !== this.requestNumber) return false;
       const isCurrent = () => generation === this.generation && request === this.requestNumber;

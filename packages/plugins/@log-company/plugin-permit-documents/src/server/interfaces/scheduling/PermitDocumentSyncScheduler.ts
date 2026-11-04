@@ -12,6 +12,7 @@ import type { Plugin } from '@nocobase/server';
 import { CheckPermitDocumentStatus } from '../../application/CheckPermitDocumentStatus';
 import { SchedulePermitDocumentSync } from '../../application/SchedulePermitDocumentSync';
 import { SynchronizePermitDocument } from '../../application/SynchronizePermitDocument';
+import type { RefreshPermitDocumentLifecycle } from '../../application/RefreshPermitDocumentLifecycle';
 import type { PermitDocumentSyncMode } from '../../application/ports/PermitDocumentSyncQueue';
 import type { SyncLogger } from '../../application/ports/PermitDocumentSyncSupport';
 import {
@@ -30,6 +31,7 @@ export class PermitDocumentSyncScheduler {
     private readonly checkStatus: CheckPermitDocumentStatus,
     private readonly schedule: SchedulePermitDocumentSync,
     private readonly logger: SyncLogger,
+    private readonly lifecycle: RefreshPermitDocumentLifecycle,
   ) {}
 
   register(): void {
@@ -54,6 +56,7 @@ export class PermitDocumentSyncScheduler {
       timeZone: SCHEDULE_TIME_ZONE,
       onTick: async () => {
         try {
+          await this.lifecycle.execute();
           const count = await this.schedule.enqueueDailyDue();
           this.logger.info('Daily permit document synchronization scheduled.', { count });
         } catch (error) {
@@ -79,6 +82,7 @@ export class PermitDocumentSyncScheduler {
 
   private readonly recoverPending = async (): Promise<void> => {
     try {
+      await this.lifecycle.execute();
       const count = await this.schedule.recoverPending();
       this.logger.info('Pending permit document synchronizations recovered.', { count });
     } catch (error) {

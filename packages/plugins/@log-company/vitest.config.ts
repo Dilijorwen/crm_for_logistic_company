@@ -1,5 +1,7 @@
+import { fileURLToPath } from 'node:url';
+
 export default {
-  root: '.',
+  root: fileURLToPath(new URL('.', import.meta.url)),
   esbuild: {
     tsconfigRaw: {
       compilerOptions: {

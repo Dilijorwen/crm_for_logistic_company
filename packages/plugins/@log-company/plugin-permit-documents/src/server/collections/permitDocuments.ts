@@ -8,6 +8,7 @@
  */
 
 import { defineCollection, type FieldOptions } from '@nocobase/database';
+import { permitDocumentCategoryFields } from '../infrastructure/metadata/permitDocumentCategoryFields';
 import {
   PERMIT_DOCUMENT_STATUSES,
   PERMIT_DOCUMENT_SYNC_STATUSES,
@@ -101,6 +102,7 @@ export const permitDocumentFields: FieldOptions[] = [
     uiSchema: { type: 'string', title: translate('field.title'), 'x-component': 'Input', required: true },
   },
   permitDocumentNameField,
+  ...permitDocumentCategoryFields,
   ...permitDocumentNumberingFields,
   {
     type: 'string',
@@ -151,7 +153,7 @@ export const permitDocumentFields: FieldOptions[] = [
     uiSchema: {
       type: 'string',
       title: translate('field.status'),
-      'x-component': 'Select',
+      'x-component': 'PermitDocumentStatus',
       'x-component-props': readOnlyProps,
       enum: [
         { value: 'valid', label: translate('status.valid') },
@@ -206,7 +208,10 @@ export const permitDocumentFields: FieldOptions[] = [
       title: translate('field.syncStatus'),
       'x-component': 'Select',
       'x-component-props': readOnlyProps,
-      enum: PERMIT_DOCUMENT_SYNC_STATUSES.map((value) => ({ value, label: translate(`syncStatus.${value}`) })),
+      enum: PERMIT_DOCUMENT_SYNC_STATUSES.map((value) => ({
+        value,
+        label: value === 'NOT_REQUIRED' ? 'Не требуется' : translate(`syncStatus.${value}`),
+      })),
     },
   },
   {
@@ -227,7 +232,7 @@ export const permitDocumentFields: FieldOptions[] = [
     uiSchema: {
       type: 'string',
       title: translate('field.lastSyncError'),
-      'x-component': 'Input.TextArea',
+      'x-component': 'PermitDocumentSyncError',
       'x-component-props': readOnlyProps,
     },
   },
@@ -292,6 +297,22 @@ export default defineCollection({
     { name: 'permit_documents_daily_sync_idx', fields: ['status', 'sync_status', 'last_checked_at'] },
     { name: 'permit_documents_internal_number_idx', fields: ['internal_number'] },
     { name: 'permit_documents_related_document_unique', unique: true, fields: ['related_document_id'] },
+    { name: 'permit_documents_category_period_idx', fields: ['category', 'period_until', 'period_from'] },
   ],
-  fields: permitDocumentFields,
+  fields: permitDocumentFields.map((field) => {
+    if (
+      ![
+        'document_type',
+        'valid_from',
+        'valid_until',
+        'product_information',
+        'company',
+        'technical_regulations',
+        'documents',
+      ].includes(field.name || '')
+    )
+      return field;
+    if (field.name === 'documents') return field;
+    return { ...field, uiSchema: { ...field.uiSchema, 'x-use-component-props': 'usePermitDocumentFieldProps' } };
+  }),
 });

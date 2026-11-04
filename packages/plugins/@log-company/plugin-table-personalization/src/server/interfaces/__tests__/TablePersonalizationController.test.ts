@@ -11,6 +11,7 @@ import type { Context } from '@nocobase/actions';
 import type { Plugin } from '@nocobase/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ColumnSettings } from '../../../shared/contracts';
+import { TablePersonalizations } from '../../application/TablePersonalizations';
 import { PersonalizationError } from '../../domain/PersonalizationError';
 import { TablePersonalizationController } from '../TablePersonalizationController';
 
@@ -20,20 +21,6 @@ const adapters = vi.hoisted(() => ({
   save: vi.fn(),
   reset: vi.fn(),
   update: vi.fn(),
-}));
-vi.mock('../../infrastructure/NocoBaseTableConfiguration', () => ({
-  NocoBaseTableConfiguration: class {
-    authorize = adapters.authorize;
-  },
-}));
-vi.mock('../../infrastructure/NocoBasePersonalizationRepository', () => ({
-  PERSONALIZATIONS_COLLECTION: 'lc_table_personalizations',
-  NocoBasePersonalizationRepository: class {
-    find = adapters.find;
-    save = adapters.save;
-    reset = adapters.reset;
-    update = adapters.update;
-  },
 }));
 
 class HttpError extends Error {
@@ -62,7 +49,18 @@ function fixture(
       throw new HttpError(status, message);
     },
   } as unknown as Context;
-  return { controller: new TablePersonalizationController(plugin), context, logger, allow, define, use };
+  return {
+    controller: new TablePersonalizationController(
+      plugin,
+      (_context, ownerId) => new TablePersonalizations({ authorize: adapters.authorize }, adapters, ownerId),
+      'lc_table_personalizations',
+    ),
+    context,
+    logger,
+    allow,
+    define,
+    use,
+  };
 }
 
 beforeEach(() => {
@@ -165,8 +163,12 @@ describe('personalization HTTP boundary', () => {
   it('exposes only dedicated personalization actions', () => {
     const { controller, allow, define, use } = fixture();
     controller.register();
-    expect(allow).toHaveBeenCalledWith('tablePersonalizations', ['get', 'save', 'reset', 'width'], 'loggedIn');
-    expect(Object.keys(define.mock.calls[0][0].actions)).toEqual(['get', 'save', 'reset', 'width']);
+    expect(allow).toHaveBeenCalledWith(
+      'tablePersonalizations',
+      ['get', 'save', 'restore', 'reset', 'width'],
+      'loggedIn',
+    );
+    expect(Object.keys(define.mock.calls[0][0].actions)).toEqual(['get', 'save', 'restore', 'reset', 'width']);
     expect(use).toHaveBeenCalledOnce();
   });
 

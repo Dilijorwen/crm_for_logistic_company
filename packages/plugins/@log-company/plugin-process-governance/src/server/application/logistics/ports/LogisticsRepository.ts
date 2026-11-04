@@ -8,7 +8,6 @@
  */
 
 import type { LogisticsEntityKind, LogisticsHistoryEntry } from '../../../domain/logistics/LogisticsHistory';
-import type { ShipmentDisplayNameParts } from '../../../domain/logistics/ShipmentDisplayName';
 import type { EntityId } from '../../../domain/shared/Identifiers';
 
 export type LogisticsTransaction = unknown;
@@ -41,16 +40,6 @@ export interface LogisticsRepository {
     transaction?: LogisticsTransaction,
   ): Promise<boolean>;
   getRunRegistrationNumbers(runIds: EntityId[], transaction?: LogisticsTransaction): Promise<Map<string, string>>;
-  getShipmentDisplayNameParts(
-    shipmentId: EntityId,
-    transaction?: LogisticsTransaction,
-  ): Promise<ShipmentDisplayNameParts | null>;
-  updateShipmentDisplayName(
-    shipmentId: EntityId,
-    displayName: string,
-    transaction?: LogisticsTransaction,
-  ): Promise<void>;
-  getShipmentIdsByClientId(clientId: EntityId, transaction?: LogisticsTransaction): Promise<EntityId[]>;
   getTrackedFields(entityKind: LogisticsEntityKind): TrackedLogisticsField[];
   findEntityValues(
     entityKind: LogisticsEntityKind,

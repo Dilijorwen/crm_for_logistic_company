@@ -12,6 +12,45 @@ import { EaeuResponseParser } from '../EaeuResponseParser';
 import { FsaResponseParser } from '../FsaResponseParser';
 
 describe('registry response parsers', () => {
+  it('reads manufacturer addresses, not applicants or production sites', () => {
+    expect(
+      new FsaResponseParser().parseCard('certificate_of_conformity', {
+        idCertificate: 2,
+        idStatus: 6,
+        number: 'DOC',
+        certRegDate: '2026-01-01',
+        idTechnicalReglaments: [],
+        product: { identifications: [{ name: 'Продукция' }] },
+        applicant: { fullName: 'Заявитель' },
+        manufacturer: {
+          fullName: 'Завод',
+          addresses: [
+            { fullAddress: 'Адрес изготовителя' },
+            { fullAddress: 'Адрес изготовителя' },
+            { fullAddress: 'Второй адрес' },
+          ],
+        },
+        manufacturerFilials: [{ addresses: [{ fullAddress: 'Площадка' }] }],
+      }),
+    ).toMatchObject({ manufacturerName: 'Завод', manufacturerAddress: 'Адрес изготовителя\nВторой адрес' });
+    expect(
+      new EaeuResponseParser().parseCard({
+        id: 'uuid',
+        data: {
+          NUMB_DOC: 'СГР',
+          DATE_DOC: '2026-01-01',
+          NAME_PROD: 'Продукция',
+          STATUS: null,
+          FIRMMADE_NAME: 'Завод',
+          FIRMMADE_ADDR: 'Адрес изготовителя',
+          FIRMGET_ADDR: 'Адрес заявителя',
+        },
+      }),
+    ).toMatchObject({
+      manufacturerName: 'Завод',
+      manufacturerAddress: 'Адрес изготовителя',
+    });
+  });
   it('uses exact title matching for FSA search and normalizes certificate dates', () => {
     const parser = new FsaResponseParser();
     expect(

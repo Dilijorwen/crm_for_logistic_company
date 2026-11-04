@@ -13,6 +13,7 @@ export interface NumberedPermitDocument {
   id: string;
   internalNumber: string;
   relatedDocumentId: string | null;
+  category?: 'ordinary' | 'rented' | 'voluntary';
 }
 
 export interface PermitDocumentNumberingRepository {

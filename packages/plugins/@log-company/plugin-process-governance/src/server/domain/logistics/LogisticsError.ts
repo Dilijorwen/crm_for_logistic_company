@@ -8,6 +8,7 @@
  */
 
 export type LogisticsErrorCode =
+  | 'INVALID_TRANSPORT_TYPE'
   | 'INVALID_REGISTRATION_NUMBER'
   | 'INVALID_SHIPMENT_DECIMAL'
   | 'RUN_PARENT_SELF'

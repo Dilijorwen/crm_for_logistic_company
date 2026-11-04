@@ -8,11 +8,13 @@
  */
 
 import { Plugin } from '@nocobase/server';
-import { TablePersonalizationController } from './interfaces/TablePersonalizationController';
+import { TablePersonalizationModule } from './composition/TablePersonalizationModule';
+import { TableFilterTemplateModule } from './composition/TableFilterTemplateModule';
 
 export class PluginTablePersonalizationServer extends Plugin {
   async load(): Promise<void> {
-    new TablePersonalizationController(this).register();
+    new TablePersonalizationModule(this).initialize();
+    new TableFilterTemplateModule(this).initialize();
   }
 
   async install(): Promise<void> {

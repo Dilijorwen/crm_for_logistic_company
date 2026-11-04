@@ -83,7 +83,7 @@ export class ActionModel<T extends DefaultStructure = DefaultStructure> extends 
     return scenes.includes(scene);
   }
 
-  getAclActionName() {
+  getAclActionName(): string | null {
     return null;
   }
 

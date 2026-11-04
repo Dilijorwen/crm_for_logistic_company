@@ -9,21 +9,31 @@
 
 import React from 'react';
 import { Space } from 'antd';
-import { TableBlockModel, TableColumnModel } from '@nocobase/client';
-import type { FlowModel } from '@nocobase/flow-engine';
-import type { PersonalizableColumn, TableIdentity } from '../../../../shared/contracts';
-import { fixedGroup, record } from '../../../../shared/contracts';
+import { TableBlockModel, TableColumnModel, type ResourceSettingsInitParams } from '@nocobase/client';
+import { type FlowModel, type FlowModelContext, type MultiRecordResource } from '@nocobase/flow-engine';
+import type { ColumnSettings, PersonalizableColumn, TableIdentity } from '../../../../shared/contracts';
+import { fixedGroup, record, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH } from '../../../../shared/contracts';
 import { TablePersonalizationApi } from '../api/TablePersonalizationApi';
-import { applyColumnLayout } from '../lib/columnLayout';
+import { applyColumnLayout, normalizeDraft } from '../lib/columnLayout';
 import { ColumnSettingsButton } from '../ui/ColumnSettingsButton';
 import { ColumnSettingsDialog } from '../ui/ColumnSettingsDialog';
 import { PersonalizationController } from './PersonalizationController';
 import { PersonalCollectionColumns } from './PersonalCollectionColumns';
+import { tableIdentity } from '../../../shared/lib';
 
 export class PersonalizedTableBlockModel extends TableBlockModel {
   private personalController?: PersonalizationController;
   private personalizationView?: FlowModel['context']['view'];
   private readonly personalColumns = new PersonalCollectionColumns(this);
+
+  createResource(context: FlowModelContext, params: ResourceSettingsInitParams): MultiRecordResource {
+    const resource = super.createResource(context, params);
+    const initialize = context.initializeTableResource as
+      | ((current: MultiRecordResource, model: TableBlockModel) => void)
+      | undefined;
+    if (typeof initialize === 'function') initialize(resource, this);
+    return resource;
+  }
 
   get personalization(): PersonalizationController {
     if (!this.personalController) {
@@ -37,15 +47,7 @@ export class PersonalizedTableBlockModel extends TableBlockModel {
   }
 
   getPersonalizationIdentity(): TableIdentity {
-    const referencePath: string[] = [];
-    const visited = new Set<string>();
-    let parent: FlowModel | null = this.parent;
-    while (parent && !visited.has(parent.uid)) {
-      visited.add(parent.uid);
-      if (parent.use === 'ReferenceBlockModel') referencePath.unshift(parent.uid);
-      parent = parent.parent;
-    }
-    return { tableUid: this.uid, referencePath };
+    return tableIdentity(this);
   }
 
   getPersonalizationOwner(): string {
@@ -67,7 +69,7 @@ export class PersonalizedTableBlockModel extends TableBlockModel {
     if (this.personalizationView || this.context.flowSettingsEnabled) return;
     // The engine's view holder survives toolbar remounts caused by asynchronous column updates.
     const view: FlowModel['context']['view'] & Promise<unknown> = this.context.viewer.dialog({
-      title: 'Мои колонки',
+      title: 'Колонки',
       closable: true,
       destroyOnClose: true,
       styles: { body: { maxHeight: '65vh', overflowY: 'auto' } },
@@ -158,6 +160,44 @@ export class PersonalizedTableBlockModel extends TableBlockModel {
     return [...configured, ...additional];
   }
 
+  async captureColumnSettings(): Promise<ColumnSettings> {
+    const identity = this.getPersonalizationIdentity();
+    const owner = this.getPersonalizationOwner();
+    if (!this.personalization.matches(identity, owner)) await this.personalization.activate(identity, owner);
+    else await this.personalization.reload();
+    const state = this.personalization.state;
+    if (
+      !this.personalization.matches(identity, owner) ||
+      !state.data ||
+      state.error ||
+      state.widthError ||
+      state.isSaving
+    ) {
+      throw new Error('Не удалось получить актуальные настройки колонок. Повторите попытку');
+    }
+    const draft = normalizeDraft(state.data.settings, this.getPersonalizableColumns());
+    const columnWidths = { ...draft.columnWidths };
+    const allowed = state.data.resizableColumnUids || state.data.columns.map((column) => column.uid);
+    this.mapSubModels('columns', (column) => {
+      const width = column.getColumnProps()?.width;
+      if (
+        columnWidths[column.uid] === undefined &&
+        allowed.includes(column.uid) &&
+        typeof width === 'number' &&
+        Number.isInteger(width) &&
+        width >= MIN_COLUMN_WIDTH &&
+        width <= MAX_COLUMN_WIDTH
+      ) {
+        columnWidths[column.uid] = width;
+      }
+    });
+    return { ...draft, columnWidths };
+  }
+
+  protected renderPersonalizationActions(): React.ReactNode {
+    return <ColumnSettingsButton key="personal-columns" model={this} />;
+  }
+
   renderComponent(): ReturnType<TableBlockModel['renderComponent']> {
     const rendered = super.renderComponent();
     if (this.context.flowSettingsEnabled || rendered.type !== React.Fragment) return rendered;
@@ -175,10 +215,10 @@ export class PersonalizedTableBlockModel extends TableBlockModel {
     const personalizedActions = React.cloneElement(
       leftActions,
       undefined,
-      <ColumnSettingsButton key="personal-columns" model={this} />,
+      this.renderPersonalizationActions(),
       leftActions.props.children,
     );
-    return React.cloneElement(
+    const personalized = React.cloneElement(
       rendered,
       undefined,
       React.cloneElement(
@@ -188,6 +228,12 @@ export class PersonalizedTableBlockModel extends TableBlockModel {
       ),
       ...content,
     );
+    // A surrounding block can project native rows without replacing the table,
+    // its column models, personalization, templates or configured actions.
+    const decorate = this.context.decorateTableElement as
+      | ((element: React.ReactElement, model: TableBlockModel) => React.ReactElement)
+      | undefined;
+    return typeof decorate === 'function' ? decorate(personalized, this) : personalized;
   }
 }
 

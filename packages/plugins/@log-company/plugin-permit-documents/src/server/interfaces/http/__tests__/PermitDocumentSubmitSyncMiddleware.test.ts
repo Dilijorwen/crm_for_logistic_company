@@ -102,7 +102,7 @@ describe('PermitDocumentSubmitSyncMiddleware', () => {
       handle(context('create'), async () => {
         throw new Error('validation failed');
       }),
-    ).rejects.toThrow('validation failed');
+    ).rejects.toMatchObject({ status: 500, code: 'PERMIT_DOCUMENT_SAVE_FAILED' });
 
     expect(synchronize.execute).not.toHaveBeenCalled();
   });

@@ -12,6 +12,7 @@ import type { Plugin } from '@nocobase/server';
 import type { SynchronizePermitDocument } from '../../application/SynchronizePermitDocument';
 import type { PermitDocumentRepository } from '../../application/ports/PermitDocumentRepository';
 import type { SyncLogger } from '../../application/ports/PermitDocumentSyncSupport';
+import { permitDocumentSaveError } from './PermitDocumentSaveError';
 
 const RESOURCE_NAME = 'permit_documents';
 const CREATE_ACTION = 'create';
@@ -30,7 +31,7 @@ export class PermitDocumentSubmitSyncMiddleware {
   ) {}
 
   register(): void {
-    this.plugin.app.resourceManager.use(this.handle, {
+    this.plugin.app.resourceManager.use((context, next) => this.handle(context as Context, next), {
       tag: 'log-company.permit-documents.sync-after-submit',
       after: 'acl',
     });
@@ -46,7 +47,15 @@ export class PermitDocumentSubmitSyncMiddleware {
     const updateDocumentId = actionName === UPDATE_ACTION ? this.toDocumentId(params.filterByTk) : null;
     const identityBeforeUpdate = updateDocumentId ? await this.repository.findById(updateDocumentId) : null;
 
-    await next();
+    try {
+      await next();
+    } catch (error) {
+      this.logger.error('Permit document submit failed.', {
+        actionName,
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+      });
+      throw permitDocumentSaveError(error);
+    }
 
     if (actionName === CREATE_ACTION) {
       const createdDocumentId = this.documentIdFromBody(context.body);
@@ -63,7 +72,8 @@ export class PermitDocumentSubmitSyncMiddleware {
     if (
       identityAfterUpdate &&
       (identityAfterUpdate.title !== identityBeforeUpdate.title ||
-        identityAfterUpdate.documentType !== identityBeforeUpdate.documentType)
+        identityAfterUpdate.documentType !== identityBeforeUpdate.documentType ||
+        (identityBeforeUpdate.category === 'voluntary' && identityAfterUpdate.category !== 'voluntary'))
     ) {
       await this.synchronizeSafely(updateDocumentId);
     }

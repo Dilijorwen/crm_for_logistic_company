@@ -7,7 +7,7 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import type { TechnicalRegulationCandidate } from '../../application/ports/PermitDocumentRepository';
+import type { FsaTechnicalRegulationDto } from '../../application/ports/PermitRegistryGateway';
 import type { PermitRegistryGateway } from '../../application/ports/PermitRegistryGateway';
 import type { PermitDocumentType } from '../../domain/permit-document/PermitDocumentPolicy';
 import type { RegistryDocument, RegistryDocumentStatus } from '../../domain/permit-document/RegistryDocument';
@@ -54,7 +54,7 @@ export class CompositePermitRegistryGateway implements PermitRegistryGateway {
       : this.fsa.getByExternalId(documentType, externalId);
   }
 
-  getFsaTechnicalRegulations(fsaIds: readonly number[]): Promise<TechnicalRegulationCandidate[]> {
+  getFsaTechnicalRegulations(fsaIds: readonly number[]): Promise<FsaTechnicalRegulationDto[]> {
     return this.fsa.getTechnicalRegulations(fsaIds);
   }
 

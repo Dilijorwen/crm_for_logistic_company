@@ -59,7 +59,7 @@ export class SearchConfigurationGuard {
   readonly handle = async (context: Context, next: Next): Promise<void> => {
     if (
       context.action.params.resourceName !== 'flowModels' ||
-      !MUTATING_ACTIONS.has(context.action.params.actionName)
+      !MUTATING_ACTIONS.has(context.action.params.actionName ?? '')
     ) {
       await next();
       return;

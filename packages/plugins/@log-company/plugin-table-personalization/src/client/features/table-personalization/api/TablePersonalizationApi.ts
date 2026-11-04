@@ -13,6 +13,7 @@ import type { ColumnSettings, TableIdentity, TablePersonalization } from '../../
 export interface PersonalizationApi {
   get(identity: TableIdentity): Promise<TablePersonalization>;
   save(identity: TableIdentity, settings: ColumnSettings, schemaSignature: string): Promise<TablePersonalization>;
+  restore(identity: TableIdentity, settings: ColumnSettings, schemaSignature: string): Promise<TablePersonalization>;
   reset(identity: TableIdentity): Promise<TablePersonalization>;
   width(
     identity: TableIdentity,
@@ -26,7 +27,7 @@ export class TablePersonalizationApi implements PersonalizationApi {
   constructor(private readonly api: Pick<APIClient, 'request'>) {}
 
   private async request(
-    operation: 'get' | 'save' | 'reset' | 'width',
+    operation: 'get' | 'save' | 'restore' | 'reset' | 'width',
     values: {
       identity: TableIdentity;
       settings?: ColumnSettings;
@@ -52,6 +53,10 @@ export class TablePersonalizationApi implements PersonalizationApi {
     // An open layout dialog must not overwrite widths changed later in another header or tab.
     const { version, columnOrder, hiddenColumnUids } = settings;
     return this.request('save', { identity, settings: { version, columnOrder, hiddenColumnUids }, schemaSignature });
+  }
+
+  restore(identity: TableIdentity, settings: ColumnSettings, schemaSignature: string): Promise<TablePersonalization> {
+    return this.request('restore', { identity, settings, schemaSignature });
   }
 
   reset(identity: TableIdentity): Promise<TablePersonalization> {

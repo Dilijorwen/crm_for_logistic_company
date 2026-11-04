@@ -37,6 +37,7 @@ function fixture(isDesigner = false) {
   const api: PersonalizationApi = {
     get: vi.fn().mockResolvedValue(data),
     save: vi.fn().mockImplementation(async (_identity, settings) => ({ ...data, settings })),
+    restore: vi.fn().mockResolvedValue(data),
     reset: vi.fn().mockResolvedValue(data),
     width: vi.fn().mockResolvedValue(data),
   };
@@ -93,11 +94,11 @@ async function openDialog(): Promise<HTMLElement> {
 }
 
 describe('column settings dialog', () => {
-  it('keeps an accessible name and tooltip on the icon-only button', async () => {
+  it('shows the labeled columns button with its accessible name and tooltip', async () => {
     const { model, engine } = fixture();
     render(<Harness model={model} engine={engine} />);
     const button = screen.getByRole('button', { name: 'Колонки' });
-    expect(button.textContent).toBe('');
+    expect(button).toHaveTextContent('Колонки');
     expect(button.querySelector('[aria-label="table"]')).not.toBeNull();
     fireEvent.mouseEnter(button);
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Колонки');
@@ -148,7 +149,7 @@ describe('column settings dialog', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Колонки' }));
     const dialog = await screen.findByRole('dialog');
     await waitFor(() => expect(controller.state.isLoading).toBe(true));
-    await waitFor(() => expect(within(dialog).getByText('Мои колонки')).toBeVisible());
+    await waitFor(() => expect(within(dialog).getByText('Колонки')).toBeVisible());
     fireEvent.click(within(dialog).getByRole('button', { name: 'Отмена' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     await act(async () => {

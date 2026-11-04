@@ -82,4 +82,5 @@ export const LOGISTICS_COLLECTIONS = {
   runHistory: 'transport_run_history',
   shipmentHistory: 'shipment_history',
   shipmentComments: 'shipment_comments',
+  workItems: 'logistics_work_items',
 } as const;

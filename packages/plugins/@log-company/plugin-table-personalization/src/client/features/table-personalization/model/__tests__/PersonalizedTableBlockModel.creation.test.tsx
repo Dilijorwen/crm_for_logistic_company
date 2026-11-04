@@ -10,8 +10,9 @@
 import { Application, TableActionsColumnModel, TableBlockModel, TableSelectModel } from '@nocobase/client';
 import type { CreateModelOptions, ModelConstructor } from '@nocobase/flow-engine';
 import { describe, expect, it } from 'vitest';
-import { PluginTablePersonalizationClient } from '../../../../plugin';
+import { PluginTablePersonalizationClient } from '../../../../app/plugin';
 import { PersonalizedTableBlockModel } from '../PersonalizedTableBlockModel';
+import { TableTemplatesBlockModel } from '../../../../widgets/table-templates';
 
 async function scenario(collectionName?: string, loadPlugin = true) {
   const app = new Application();
@@ -64,7 +65,7 @@ function expectStandardTable(options: CreateModelOptions, collectionName: string
 describe('registered TableBlockModel designer creation', () => {
   it('retains the native menu label, search, group, sorting and creation factory', async () => {
     const { RegisteredTable } = await scenario();
-    expect(RegisteredTable).toBe(PersonalizedTableBlockModel);
+    expect(RegisteredTable).toBe(TableTemplatesBlockModel);
     expect(RegisteredTable.meta).toEqual(TableBlockModel.meta);
     expect(RegisteredTable.meta).toMatchObject({ searchable: true, sort: 300 });
   });

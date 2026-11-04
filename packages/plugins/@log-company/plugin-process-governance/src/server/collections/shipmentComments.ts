@@ -41,7 +41,7 @@ export default defineCollection({
         type: 'object',
         title: 'Поставка',
         'x-component': 'AssociationField',
-        'x-component-props': { multiple: false, fieldNames: { value: 'id', label: 'display_name' } },
+        'x-component-props': { multiple: false, fieldNames: { value: 'id', label: 'shipment_number' } },
         required: true,
       },
     },

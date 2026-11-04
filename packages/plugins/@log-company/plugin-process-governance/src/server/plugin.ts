@@ -11,6 +11,7 @@ import path from 'path';
 import { Plugin } from '@nocobase/server';
 import { LogisticsModule } from './composition/LogisticsModule';
 import { ProcessGovernanceModule } from './composition/ProcessGovernanceModule';
+import { LegacyProcessCollectionsCatalog } from './interfaces/http/LegacyProcessCollectionsCatalog';
 
 export class PluginProcessGovernanceServer extends Plugin {
   async load(): Promise<void> {
@@ -22,6 +23,7 @@ export class PluginProcessGovernanceServer extends Plugin {
     });
     new ProcessGovernanceModule(this).initialize();
     new LogisticsModule(this).initialize();
+    new LegacyProcessCollectionsCatalog(this).register();
   }
 }
 

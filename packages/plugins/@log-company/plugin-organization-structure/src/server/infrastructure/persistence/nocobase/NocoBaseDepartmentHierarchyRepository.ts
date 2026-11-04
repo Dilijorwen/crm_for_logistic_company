@@ -7,7 +7,7 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import type { Database } from '@nocobase/database';
+import type { Database, Filter } from '@nocobase/database';
 import type {
   DepartmentAccessScope,
   DepartmentHierarchyRepository,
@@ -29,7 +29,7 @@ export class NocoBaseDepartmentHierarchyRepository implements DepartmentHierarch
     const model = (await this.database.getRepository('departments').findOne({
       filterByTk: departmentId,
       fields: ['id', 'parentId'],
-      filter: accessScope?.filter,
+      filter: accessScope?.filter as Filter | undefined,
     })) as unknown as DepartmentModelLike | null;
     if (!model) {
       return null;

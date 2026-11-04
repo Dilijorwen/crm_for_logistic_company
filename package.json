@@ -39,7 +39,11 @@
     "version:alpha": "lerna version prerelease --preid alpha --force-publish=* --no-git-tag-version -m \"chore(versions): publish packages %s\"",
     "release:force": "lerna publish from-package --yes --no-git-tag-version",
     "release": "lerna publish",
-    "git-multi": "node scripts/git-multi.js"
+    "git-multi": "node scripts/git-multi.js",
+    "test:architecture": "vitest run --config packages/plugins/@log-company/vitest.config.ts __tests__/ArchitectureBoundaries.test.ts __tests__/ArchitectureRules.test.ts __tests__/OnionBoundaries.test.ts --maxWorkers=1 --minWorkers=1",
+    "typecheck:log-company:client": "node scripts/check-log-company-types.cjs client",
+    "typecheck:log-company:server": "node scripts/check-log-company-types.cjs server",
+    "typecheck:log-company:domain": "tsc --noEmit -p packages/plugins/@log-company/tsconfig.domain.json"
   },
   "resolutions": {
     "@ant-design/icons": "^5.6.1",
