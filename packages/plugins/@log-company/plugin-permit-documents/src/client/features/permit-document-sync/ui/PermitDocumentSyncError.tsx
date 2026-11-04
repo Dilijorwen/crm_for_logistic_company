@@ -12,7 +12,7 @@ import { DisplayTextFieldModel } from '@nocobase/client';
 import { DisplayItemModel } from '@nocobase/flow-engine';
 import { registryErrorMessage } from '../../../../contracts/permitDocumentMessages';
 
-export function PermitDocumentSyncError({ value }: { value?: string | null }) {
+export function PermitDocumentSyncError({ value }: React.PropsWithChildren<{ value?: string | null }>) {
   return <span>{value ? registryErrorMessage(value) : '—'}</span>;
 }
 

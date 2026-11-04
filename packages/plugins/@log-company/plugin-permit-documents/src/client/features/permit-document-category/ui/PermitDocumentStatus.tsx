@@ -12,10 +12,10 @@ import { Space, Tag } from 'antd';
 import { useRecord, DisplayEnumFieldModel } from '@nocobase/client';
 import { DisplayItemModel } from '@nocobase/flow-engine';
 
-interface StatusProps {
+type StatusProps = React.PropsWithChildren<{
   value?: string | null;
   rentalStatus?: string | null;
-}
+}>;
 const labels: Record<string, string> = { valid: 'Действителен', suspended: 'Приостановлен', terminated: 'Прекращен' };
 
 export function PermitStatusTags({ value, rentalStatus }: StatusProps) {
