@@ -10,11 +10,13 @@
 import { randomUUID } from 'node:crypto';
 import type { Database, Model } from '@nocobase/database';
 import type { FilterTemplateRepository, StoredFilterTemplate } from '../application/FilterTemplatePorts';
+import type { PreferenceOwner } from '../application/ports';
 import { parseRevision, parseSavedFilter, parseTemplateName } from '../domain/FilterTemplate';
 import { parseSettings } from '../domain/ColumnPreferences';
 import { FilterTemplateError } from '../domain/FilterTemplateError';
 
 export const FILTER_TEMPLATES_COLLECTION = 'lc_table_filter_templates';
+export const TEMPLATE_INITIALIZATIONS_COLLECTION = 'lc_table_template_initializations';
 
 function fromRow(row: Model): StoredFilterTemplate {
   return {
@@ -46,6 +48,27 @@ export class NocoBaseFilterTemplateRepository implements FilterTemplateRepositor
       sort: ['name', 'id'],
     });
     return rows.map(fromRow);
+  }
+
+  async initialize(
+    owner: PreferenceOwner,
+    templates: Pick<StoredFilterTemplate, 'name' | 'filter' | 'columnSettings'>[],
+  ): Promise<void> {
+    const initializations = this.database.getCollection(TEMPLATE_INITIALIZATIONS_COLLECTION).model;
+    const model = this.database.getCollection(FILTER_TEMPLATES_COLLECTION).model;
+    await this.database.sequelize.transaction(async (transaction) => {
+      const [, created] = await initializations.findOrCreate({
+        where: { instanceKey: owner.instanceKey, userId: owner.userId },
+        defaults: { ...owner, id: randomUUID() },
+        transaction,
+      });
+      if (created) {
+        await model.bulkCreate(
+          templates.map((template) => ({ ...owner, ...template, id: randomUUID(), revision: 1 })),
+          { transaction, ignoreDuplicates: true },
+        );
+      }
+    });
   }
 
   async create(template: Omit<StoredFilterTemplate, 'id'>): Promise<StoredFilterTemplate> {

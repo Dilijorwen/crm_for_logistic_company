@@ -10,7 +10,7 @@
 import { ExpandOutlined } from '@ant-design/icons';
 import { Alert, Button, Collapse, Descriptions, Empty, Skeleton, Space, Tabs, Tag, Typography } from 'antd';
 import React from 'react';
-import { LOGISTICS_STATUS_LABELS, type LogisticsStatus } from '../../../../shared/logistics';
+import { LOGISTICS_STATUS_COLORS, LOGISTICS_STATUS_LABELS, type LogisticsStatus } from '../../../../shared/logistics';
 import { TRANSPORT_TYPE_LABELS, type TransportType } from '../../../../shared/transport';
 import { ScopedNativeBlock } from '../../../features/scoped-native-block';
 import {
@@ -111,18 +111,16 @@ function Overview({ group }: { group: WorkspaceRunGroup }) {
                     <div className="lc-workspace-secondary">{shipment.invoice}</div>
                     <WorkspaceSharedShipmentBadge host={table} shipmentId={shipment.id} />
                   </div>
-                  <Tag
-                    color={
-                      shipment.status === 'release' ? 'success' : shipment.status === 'queue' ? 'default' : 'processing'
-                    }
-                  >
+                  <Tag color={LOGISTICS_STATUS_COLORS[shipment.status as LogisticsStatus]}>
                     {LOGISTICS_STATUS_LABELS[shipment.status as LogisticsStatus] || shipment.status || '—'}
                   </Tag>
                   <WorkspaceShipmentDetachButton host={table} runId={group.id} shipmentId={shipment.id} />
                 </div>
               ))}
-              {!summary.shipments.length ? <Typography.Text type="secondary">Поставок пока нет</Typography.Text> : null}
-              <WorkspaceShipmentAddButton host={table} runId={group.id} rowId={group.row.id} />
+              <Space wrap>
+                {!summary.shipments.length && <Typography.Text type="secondary">Поставок пока нет</Typography.Text>}
+                <WorkspaceShipmentAddButton host={table} runId={group.id} rowId={group.row.id} />
+              </Space>
             </>
           ),
         },

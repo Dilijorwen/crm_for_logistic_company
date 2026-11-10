@@ -79,6 +79,9 @@ The plugin marks NocoBase's sign-in, sign-up, forgot-password, and reset-passwor
 This prevents background protected requests from showing misleading authentication errors or redirecting an
 unauthenticated user back to sign-in while they are recovering access.
 
+The password sign-in form hides the **Create an account** link. Direct access to `/signup` follows the authenticator's
+registration settings.
+
 ## Password policy
 
 NocoBase 2.0.60 displays a password-strength indicator but does not enforce a password policy on the server. This plugin

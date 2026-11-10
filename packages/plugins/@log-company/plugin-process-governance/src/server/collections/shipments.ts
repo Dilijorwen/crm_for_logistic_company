@@ -8,6 +8,7 @@
  */
 
 import { defineCollection, type FieldOptions } from '@nocobase/database';
+import { SHIPMENT_CUSTOMS_FIELD_LABELS } from '../../shared/logistics';
 import { idField, statusField } from './logisticsCollectionFields';
 
 function stringField(name: string, title: string): FieldOptions {
@@ -130,7 +131,7 @@ export default defineCollection({
     booleanField('documents_in_badis', 'Документы в БАДИС'),
     numberField('customs_payments_amount', 'Сумма таможенных платежей', '0.01'),
     numberField('eco_fee', 'Экологический сбор', '0.01'),
-    numberField('ktc_amount', 'Сумма КТС', '0.01'),
+    numberField('ktc_amount', SHIPMENT_CUSTOMS_FIELD_LABELS.ktc_amount, '0.01'),
     textField('ntm_certificate_goods', 'Товары для сертификата'),
     textField('ntm_skk_goods', 'Товары для СКК'),
     textField('ntm_kfk_goods', 'Товары для КФК'),
@@ -140,7 +141,11 @@ export default defineCollection({
     numberField('goods_count', 'Количество товаров', '1'),
     booleanField('entered_in_1c', 'Внесено в 1С'),
     booleanField('sent_to_client', 'Отправлено клиенту'),
-    dateField('additional_check_response_deadline', 'Срок ответа по дополнительной проверке'),
+    dateField('additional_check_response_deadline', SHIPMENT_CUSTOMS_FIELD_LABELS.additional_check_response_deadline),
+    dateField(
+      'additional_check_response_deadline_60_days',
+      SHIPMENT_CUSTOMS_FIELD_LABELS.additional_check_response_deadline_60_days,
+    ),
     booleanField('actual_control', 'Фактический контроль'),
     booleanField('anosov_distributed', 'Распределено Аносовым'),
     textField('manager_comment', 'Комментарий менеджера'),

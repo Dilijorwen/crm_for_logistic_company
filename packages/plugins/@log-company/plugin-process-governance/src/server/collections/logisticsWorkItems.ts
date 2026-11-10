@@ -8,7 +8,7 @@
  */
 
 import { defineCollection, type FieldOptions } from '@nocobase/database';
-import { LOGISTICS_STATUS_LABELS, LOGISTICS_STATUS_VALUES } from '../../shared/logistics';
+import { LOGISTICS_STATUS_OPTIONS, SHIPMENT_CUSTOMS_FIELD_LABELS } from '../../shared/logistics';
 import { TRANSPORT_TYPES, TRANSPORT_TYPE_LABELS } from '../../shared/transport';
 import shipments from './shipments';
 
@@ -107,7 +107,7 @@ export default defineCollection({
         type: 'string',
         title: 'Статус',
         'x-component': 'Select',
-        enum: LOGISTICS_STATUS_VALUES.map((value) => ({ value, label: LOGISTICS_STATUS_LABELS[value] })),
+        enum: LOGISTICS_STATUS_OPTIONS,
       },
     },
     field('string', 'invoice_number', 'Номер инвойса'),
@@ -120,7 +120,7 @@ export default defineCollection({
     field('boolean', 'documents_in_badis', 'Документы в БАДИС', 'checkbox'),
     numberField('customs_payments_amount', 'Сумма таможенных платежей'),
     numberField('eco_fee', 'Экологический сбор'),
-    numberField('ktc_amount', 'Сумма КТС'),
+    numberField('ktc_amount', SHIPMENT_CUSTOMS_FIELD_LABELS.ktc_amount),
     field('text', 'ntm_certificate_goods', 'Товары для сертификата', 'textarea'),
     field('text', 'ntm_skk_goods', 'Товары для СКК', 'textarea'),
     field('text', 'ntm_kfk_goods', 'Товары для КФК', 'textarea'),
@@ -130,7 +130,11 @@ export default defineCollection({
     numberField('goods_count', 'Количество товаров'),
     field('boolean', 'entered_in_1c', 'Внесено в 1С', 'checkbox'),
     field('boolean', 'sent_to_client', 'Отправлено клиенту', 'checkbox'),
-    dateField('additional_check_response_deadline', 'Срок ответа по дополнительной проверке'),
+    dateField('additional_check_response_deadline', SHIPMENT_CUSTOMS_FIELD_LABELS.additional_check_response_deadline),
+    dateField(
+      'additional_check_response_deadline_60_days',
+      SHIPMENT_CUSTOMS_FIELD_LABELS.additional_check_response_deadline_60_days,
+    ),
     field('boolean', 'actual_control', 'Фактический контроль', 'checkbox'),
     field('boolean', 'anosov_distributed', 'Распределено Аносовым', 'checkbox'),
     field('text', 'manager_comment', 'Комментарий менеджера', 'textarea'),

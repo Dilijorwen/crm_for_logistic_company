@@ -144,6 +144,25 @@ describe('permit documents persistence', () => {
     },
   );
 
+  it('saves manual marking, keeps it when changing the registry identity, and allows clearing it', async () => {
+    const repository = database.getRepository('permit_documents');
+    const marking = 'ZHEJIANG RELIABLE INDUSTRIAL AND TRAIDING CO., LTD';
+    const created = await repository.create({
+      values: { title: 'ДС-1', document_type: 'declaration_of_conformity', marking },
+    });
+    const filterByTk = created.get('id');
+    expect((await repository.findOne({ filterByTk })).get('marking')).toBe(marking);
+
+    await repository.update({ filterByTk, values: { marking: 'Марка A\nМарка Б' } });
+    await repository.update({ filterByTk, values: { title: 'ДС-2' } });
+    const updated = await repository.findOne({ filterByTk });
+    expect(updated.get('sync_status')).toBe('PENDING');
+    expect(updated.get('marking')).toBe('Марка A\nМарка Б');
+
+    await repository.update({ filterByTk, values: { marking: null } });
+    expect((await repository.findOne({ filterByTk })).get('marking')).toBeNull();
+  });
+
   async function manualValues() {
     await database.getRepository('our_companies').create({ values: { id: '1001', name: 'Компания' } });
     await database.getRepository('technical_regulations').create({ values: { id: '3001', doc_num: 'ТР ТС 008/2011' } });

@@ -9,14 +9,10 @@
 
 import type { ColumnSettings, TableIdentity } from '../../shared/contracts';
 import type { SavedFilter } from '../../shared/filterTemplates';
-import type { AuthorizedTable } from './ports';
+import type { AuthorizedTable, PreferenceOwner } from './ports';
 
-export interface StoredFilterTemplate {
+export interface StoredFilterTemplate extends PreferenceOwner {
   id: string;
-  userId: string;
-  instanceKey: string;
-  instanceRootUid: string;
-  tableUid: string;
   name: string;
   filter: SavedFilter;
   columnSettings: ColumnSettings;
@@ -30,6 +26,10 @@ export interface FilterTemplateConfiguration {
 
 export interface FilterTemplateRepository {
   list(instanceKey: string, userId: string): Promise<StoredFilterTemplate[]>;
+  initialize(
+    owner: PreferenceOwner,
+    templates: Pick<StoredFilterTemplate, 'name' | 'filter' | 'columnSettings'>[],
+  ): Promise<void>;
   create(template: Omit<StoredFilterTemplate, 'id'>): Promise<StoredFilterTemplate>;
   change(
     instanceKey: string,

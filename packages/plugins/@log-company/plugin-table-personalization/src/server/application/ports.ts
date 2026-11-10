@@ -24,6 +24,7 @@ export interface AuthorizedTable {
   columns: PersonalizableColumn[];
   existingColumnUids: string[];
   resizableColumnUids?: string[];
+  statusOptions?: { value: string | number; label: string }[];
 }
 
 export interface TableConfigurationGateway {

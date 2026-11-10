@@ -12,6 +12,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   LOGISTICS_HISTORY_EVENT_LABELS,
   LOGISTICS_STATUS_LABELS,
+  SHIPMENT_CUSTOMS_FIELD_LABELS,
   type LogisticsStatus,
 } from '../../../../shared/logistics';
 import { apiErrorMessage } from '../api/apiResponse';
@@ -56,7 +57,7 @@ const FIELD_LABELS: Record<string, string> = {
   documents_in_badis: 'Документы в БАДИС',
   customs_payments_amount: 'Сумма таможенных платежей',
   eco_fee: 'Экологический сбор',
-  ktc_amount: 'Сумма КТС',
+  ktc_amount: SHIPMENT_CUSTOMS_FIELD_LABELS.ktc_amount,
   ntm_certificate_goods: 'Товары для сертификата',
   ntm_skk_goods: 'Товары для СКК',
   ntm_kfk_goods: 'Товары для КФК',
@@ -68,7 +69,8 @@ const FIELD_LABELS: Record<string, string> = {
   sent_to_client: 'Отправлено клиенту',
   declaration_release_date: 'Дата выпуска декларации',
   application_release_date: 'Дата выпуска заявления',
-  additional_check_response_deadline: 'Срок ответа по дополнительной проверке',
+  additional_check_response_deadline: SHIPMENT_CUSTOMS_FIELD_LABELS.additional_check_response_deadline,
+  additional_check_response_deadline_60_days: SHIPMENT_CUSTOMS_FIELD_LABELS.additional_check_response_deadline_60_days,
   actual_control: 'Фактический контроль',
   anosov_distributed: 'Распределено Аносовым',
   manager_comment: 'Комментарий менеджера',

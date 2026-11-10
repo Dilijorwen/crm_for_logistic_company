@@ -21,6 +21,7 @@ import {
 import { FilterTemplateError } from '../domain/FilterTemplateError';
 import { PersonalizationError } from '../domain/PersonalizationError';
 import type { FilterTemplateConfiguration, FilterTemplateRepository } from './FilterTemplatePorts';
+import { statusTemplateDrafts } from '../domain/StatusTemplateDrafts';
 
 const INPUT_KEYS = {
   list: ['identity'],
@@ -52,6 +53,13 @@ export class TableFilterTemplates {
     const revision = id ? parseRevision(values.revision) : undefined;
     const table = await this.configuration.authorize(identity);
     const resizable = table.resizableColumnUids || table.columns.map((column) => column.uid);
+    if (operation === 'list' && table.statusOptions?.length) {
+      const templates = statusTemplateDrafts(table.statusOptions, table.columns);
+      if (templates.length) {
+        const { instanceKey, instanceRootUid, tableUid } = table;
+        await this.repository.initialize({ userId: this.userId, instanceKey, instanceRootUid, tableUid }, templates);
+      }
+    }
     if (submittedColumns && values.schemaSignature !== table.schemaSignature)
       throw new PersonalizationError('SCHEMA_CHANGED');
     if (filter && !(await this.configuration.canUseFilter(identity, filter)))

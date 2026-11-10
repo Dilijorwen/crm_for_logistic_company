@@ -25,6 +25,7 @@ export class TableFilterTemplateApi implements FilterTemplateApi {
     const response = await this.api.request<{ data: FilterTemplateList }>({
       url: `tableFilterTemplates:${operation}`,
       method: 'post',
+      ...(operation === 'update' ? { params: { filterByTk: input.id } } : {}),
       data: input,
       skipNotify: true,
     });

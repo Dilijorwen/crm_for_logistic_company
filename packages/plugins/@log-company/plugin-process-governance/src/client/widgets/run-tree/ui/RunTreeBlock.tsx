@@ -24,6 +24,7 @@ import { observer } from '@formily/react';
 import { Alert, Button, Empty, Spin, Tag, theme as antdTheme } from 'antd';
 import dayjs from 'dayjs';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LOGISTICS_STATUS_LABELS } from '../../../../shared/logistics';
 
 const PROCESS_COLLECTION = 'customs_processes';
 const HISTORY_COLLECTION = 'process_history';
@@ -130,26 +131,7 @@ type TreeData = {
 
 type LoadDirection = 'up' | 'down' | 'both';
 
-const statusFallbackLabels: Record<string, string> = {
-  queue: 'В очереди',
-  in_work: 'В работе',
-  knr: 'КНР',
-  in_russia: 'В России',
-  warehouse: 'Склад',
-  submission: 'Подача',
-  clearance: 'Оформление',
-  inspection: 'Досмотр',
-  expertise: 'Экспертиза',
-  release_application: 'Выпуск по заявлению',
-  release: 'Выпуск',
-  release_guarantee_prepare: 'Выпуск с ДП (подготовка ответа)',
-  release_guarantee_badis_answer: 'Выпуск с ДП (ответ в Бадисе)',
-  release_guarantee_to_customs: 'Выпуск с ДП (отправка ответа в ТО)',
-  release_guarantee_wait_customs: 'Выпуск с ДП (ожидание решения ТО)',
-  release_security_ktc: 'Выпуск под обеспечение (КТС)',
-  release_security_cost_accepted: 'Выпуск под обеспечение (стоимость принята)',
-  re_export: 'Реэкспорт',
-};
+const statusFallbackLabels: Record<string, string> = LOGISTICS_STATUS_LABELS;
 
 function isEmptyResourceKey(value: unknown): value is null | undefined | '' {
   return value === undefined || value === null || value === '';

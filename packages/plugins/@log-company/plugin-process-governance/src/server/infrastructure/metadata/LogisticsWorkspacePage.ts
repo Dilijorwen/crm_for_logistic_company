@@ -8,7 +8,7 @@
  */
 
 import type { Database, Transaction } from '@nocobase/database';
-import { LOGISTICS_COLLECTIONS, LOGISTICS_STATUS_LABELS, LOGISTICS_STATUS_VALUES } from '../../../shared/logistics';
+import { LOGISTICS_COLLECTIONS, LOGISTICS_STATUS_OPTIONS } from '../../../shared/logistics';
 
 export const LOGISTICS_WORKSPACE_ROUTE_UID = 'lclogworkspace';
 export const LOGISTICS_WORKSPACE_TAB_UID = 'lclogworkspacetab';
@@ -183,7 +183,7 @@ async function buildWorkspacePage(db: Database, transaction: Transaction): Promi
       props:
         column.fieldPath === 'status'
           ? {
-              options: LOGISTICS_STATUS_VALUES.map((value) => ({ value, label: LOGISTICS_STATUS_LABELS[value] })),
+              options: LOGISTICS_STATUS_OPTIONS,
             }
           : null,
       stepParams: { displayFieldSettings: { clickToOpen: { clickToOpen: false } } },

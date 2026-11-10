@@ -66,6 +66,7 @@ const SHIPMENT_CUSTOMS = [
   'additional_check_response_deadline',
   'actual_control',
   'anosov_distributed',
+  'additional_check_response_deadline_60_days',
 ];
 const SHIPMENT_NTM = [
   'ntm_certificate_goods',

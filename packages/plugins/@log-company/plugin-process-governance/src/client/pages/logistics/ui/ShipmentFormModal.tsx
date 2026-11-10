@@ -15,6 +15,7 @@ import {
   DEFAULT_LOGISTICS_STATUS,
   LOGISTICS_STATUS_LABELS,
   LOGISTICS_STATUS_VALUES,
+  SHIPMENT_CUSTOMS_FIELD_LABELS,
 } from '../../../../shared/logistics';
 import { apiErrorMessage, isFormValidationError } from '../api/apiResponse';
 import { HistoryTable } from './HistoryTable';
@@ -47,6 +48,7 @@ interface ShipmentFormValues {
   enteredIn1c?: boolean;
   sentToClient?: boolean;
   additionalCheckResponseDeadline?: Dayjs;
+  additionalCheckResponseDeadline60Days?: Dayjs;
   actualControl?: boolean;
   anosovDistributed?: boolean;
   managerComment?: string;
@@ -65,9 +67,10 @@ interface ShipmentFormModalProps {
 const FIELD_LABELS = {
   customsPaymentsAmount: 'Сумма таможенных платежей',
   ecoFee: 'Экологический сбор',
-  ktcAmount: 'Сумма КТС',
+  ktcAmount: SHIPMENT_CUSTOMS_FIELD_LABELS.ktc_amount,
   ntmHonestSignSum: 'Сумма «Честного знака»',
-  additionalCheckResponseDeadline: 'Срок ответа по дополнительной проверке',
+  additionalCheckResponseDeadline: SHIPMENT_CUSTOMS_FIELD_LABELS.additional_check_response_deadline,
+  additionalCheckResponseDeadline60Days: SHIPMENT_CUSTOMS_FIELD_LABELS.additional_check_response_deadline_60_days,
   documentsInBadis: 'Документы в БАДИС',
   enteredIn1c: 'Внесено в 1С',
   sentToClient: 'Отправлено клиенту',
@@ -133,6 +136,7 @@ export function ShipmentFormModal({
       enteredIn1c: shipment?.enteredIn1c ?? false,
       sentToClient: shipment?.sentToClient ?? false,
       additionalCheckResponseDeadline: dateValue(shipment?.additionalCheckResponseDeadline ?? null),
+      additionalCheckResponseDeadline60Days: dateValue(shipment?.additionalCheckResponseDeadline60Days ?? null),
       actualControl: shipment?.actualControl ?? false,
       anosovDistributed: shipment?.anosovDistributed ?? false,
       managerComment: shipment?.managerComment,
@@ -171,6 +175,7 @@ export function ShipmentFormModal({
         status: values.status !== (shipment?.status || DEFAULT_LOGISTICS_STATUS) ? values.status : undefined,
         customsWarehouseStorageDate: dateString(values.customsWarehouseStorageDate),
         additionalCheckResponseDeadline: dateString(values.additionalCheckResponseDeadline),
+        additionalCheckResponseDeadline60Days: dateString(values.additionalCheckResponseDeadline60Days),
       };
       if (shipment) {
         await service.updateShipment(shipment.id, input);
@@ -294,7 +299,7 @@ export function ShipmentFormModal({
           </Form.Item>
         </Col>
       ))}
-      {(['additionalCheckResponseDeadline'] as const).map((name) => (
+      {(['additionalCheckResponseDeadline', 'additionalCheckResponseDeadline60Days'] as const).map((name) => (
         <Col xs={24} md={12} key={name}>
           <Form.Item name={name} label={FIELD_LABELS[name]}>
             <DatePicker format="DD.MM.YYYY" style={{ width: '100%' }} />

@@ -9,6 +9,7 @@
 
 import type { Context, Next } from '@nocobase/actions';
 import type { Plugin } from '@nocobase/server';
+import { record } from '../../shared/contracts';
 import type { FilterTemplateOperation } from '../../shared/filterTemplates';
 import type { TableFilterTemplates } from '../application/TableFilterTemplates';
 import { FilterTemplateError } from '../domain/FilterTemplateError';
@@ -29,7 +30,7 @@ export class TableFilterTemplateController {
   constructor(
     private readonly plugin: Plugin,
     private readonly createUseCase: (context: Context, userId: string) => TableFilterTemplates,
-    private readonly metadataCollection: string,
+    private readonly metadataCollections: readonly string[],
   ) {}
 
   register(): void {
@@ -46,7 +47,7 @@ export class TableFilterTemplateController {
     this.plugin.app.resourceManager.use(
       async (context, next) => {
         if (
-          context.action?.resourceName === this.metadataCollection ||
+          this.metadataCollections.includes(context.action?.resourceName ?? '') ||
           (context.action?.resourceName === 'tableFilterTemplates' &&
             (!OPERATIONS.includes(context.action.actionName as FilterTemplateOperation) || context.method !== 'POST'))
         )
@@ -60,8 +61,12 @@ export class TableFilterTemplateController {
   async handle(context: Context, next: Next, operation: FilterTemplateOperation): Promise<void> {
     const userId: unknown = context.state.currentUser?.id;
     if (typeof userId !== 'string' && typeof userId !== 'number') context.throw(401, 'Требуется вход в систему');
+    const { filterByTk, values } = context.action.params;
+    if (operation === 'update' && (typeof filterByTk !== 'string' || filterByTk !== record(values).id)) {
+      context.throw(400, ERRORS.INVALID_TEMPLATE[1], { code: 'INVALID_TEMPLATE' });
+    }
     try {
-      context.body = await this.createUseCase(context, String(userId)).execute(operation, context.action.params.values);
+      context.body = await this.createUseCase(context, String(userId)).execute(operation, values);
     } catch (error) {
       if (error instanceof FilterTemplateError || error instanceof PersonalizationError) {
         const [status, message] = ERRORS[error.code];

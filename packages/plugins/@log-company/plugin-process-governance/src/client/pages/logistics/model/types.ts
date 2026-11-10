@@ -46,6 +46,7 @@ export interface ShipmentRecord {
   enteredIn1c: boolean;
   sentToClient: boolean;
   additionalCheckResponseDeadline: string | null;
+  additionalCheckResponseDeadline60Days: string | null;
   actualControl: boolean;
   anosovDistributed: boolean;
   managerComment: string;
@@ -110,6 +111,7 @@ export interface ShipmentMutationInput {
   enteredIn1c?: boolean;
   sentToClient?: boolean;
   additionalCheckResponseDeadline?: string | null;
+  additionalCheckResponseDeadline60Days?: string | null;
   actualControl?: boolean;
   anosovDistributed?: boolean;
   managerComment?: string;

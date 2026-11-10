@@ -24,6 +24,9 @@ interface SavedModel {
   options: Record<string, unknown>;
 }
 
+const STATUS_LABEL_EXPRESSION =
+  /^\{\{\s*t\(\s*(['"])([\w.-]+)\1(?:\s*,\s*\{\s*ns\s*:\s*(['"])([@\w./-]+)\3\s*\})?\s*\)\s*\}\}$/u;
+
 function step(model: SavedModel, flow: string, key: string): Record<string, unknown> {
   return record(record(record(model.options.stepParams)[flow])[key]);
 }
@@ -162,6 +165,12 @@ export class NocoBaseTableConfiguration implements TableConfigurationGateway {
     if (existingColumnUids.length > MAX_COLUMNS) throw new PersonalizationError('INVALID_SETTINGS');
     collectionFields.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
     structuralColumns.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+    const statusField = collection.getField('status');
+    const statusEnum = record(statusField?.options.uiSchema).enum;
+    const statusOptions =
+      Array.isArray(statusEnum) && this.canReadPath(dataSourceKey, collectionName, 'status')
+        ? await this.statusOptions(statusEnum)
+        : undefined;
     return {
       tableUid: table.uid,
       instanceRootUid,
@@ -170,7 +179,27 @@ export class NocoBaseTableConfiguration implements TableConfigurationGateway {
       columns,
       existingColumnUids,
       resizableColumnUids,
+      ...(statusOptions?.length ? { statusOptions } : {}),
     };
+  }
+
+  private async statusOptions(options: unknown[]): Promise<NonNullable<AuthorizedTable['statusOptions']>> {
+    const entries = options.flatMap((option) => {
+      const { value, label } = record(option);
+      if (typeof value !== 'string' && typeof value !== 'number') return [];
+      if (typeof value === 'string' ? !value.trim() : !Number.isFinite(value)) return [];
+      const text = typeof label === 'string' ? label.trim() : '';
+      return [{ value, text, translation: STATUS_LABEL_EXPRESSION.exec(text) }];
+    });
+    const locale = 'ru-RU';
+    if (entries.some(({ translation }) => translation)) await this.plugin.app.localeManager.loadResourcesByLang(locale);
+    return entries.map(({ value, text, translation }) => {
+      const defaultLabel = String(value);
+      const localized = translation
+        ? this.plugin.app.i18n.t(translation[2], { ns: translation[4], lng: locale, defaultValue: defaultLabel })
+        : text || defaultLabel;
+      return { value, label: typeof localized === 'string' ? localized : defaultLabel };
+    });
   }
 
   async canUseFilter(identity: TableIdentity, filter: SavedFilter): Promise<boolean> {

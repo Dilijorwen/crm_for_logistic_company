@@ -29,8 +29,25 @@ function object(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
-/** Append missing native inputs without replacing existing fields, actions, or popup settings. */
-export async function ensurePermitDocumentEditFields(db: Database, transaction: Transaction): Promise<void> {
+export function ensurePermitDocumentEditFields(db: Database, transaction: Transaction): Promise<void> {
+  return appendPermitDocumentFields(db, transaction, { EditFormModel: EDIT_FIELDS });
+}
+
+export function ensurePermitDocumentMarkingFields(db: Database, transaction: Transaction): Promise<void> {
+  const markingInput = [['marking', 'TextareaFieldModel']] as const;
+  return appendPermitDocumentFields(db, transaction, {
+    CreateFormModel: markingInput,
+    EditFormModel: markingInput,
+    DetailsBlockModel: [['marking', 'DisplayTextFieldModel']],
+  });
+}
+
+/** Append missing native items while retaining the saved layout and popup actions. */
+async function appendPermitDocumentFields(
+  db: Database,
+  transaction: Transaction,
+  fieldsByBlock: Partial<Record<string, ReadonlyArray<readonly [fieldPath: string, use: string]>>>,
+): Promise<void> {
   if (!db.getCollection('flowModels')) return;
   const repository = db.getRepository('flowModels');
   const models: Model[] = await repository.find({ transaction });
@@ -46,12 +63,15 @@ export async function ensurePermitDocumentEditFields(db: Database, transaction: 
       context: { transaction: Transaction },
     ): Promise<unknown>;
   };
-  for (const form of models) {
-    const options = optionsOf(form);
+  for (const block of models) {
+    const options = optionsOf(block);
     const init = object(object(object(options.stepParams).resourceSettings).init);
-    if (options.use !== 'EditFormModel' || init.collectionName !== 'permit_documents') continue;
+    if (init.collectionName !== 'permit_documents' || (init.dataSourceKey ?? 'main') !== 'main') continue;
+    const fields = fieldsByBlock[String(options.use)];
+    if (!Array.isArray(fields)) continue;
+    const isDetails = options.use === 'DetailsBlockModel';
     const grid = models.find(
-      (candidate) => parentOf(candidate) === form.get('uid') && optionsOf(candidate).subKey === 'grid',
+      (candidate) => parentOf(candidate) === block.get('uid') && optionsOf(candidate).subKey === 'grid',
     );
     if (!grid) continue;
     const gridUid = String(grid.get('uid'));
@@ -62,13 +82,13 @@ export async function ensurePermitDocumentEditFields(db: Database, transaction: 
       children.map((child) => object(object(object(optionsOf(child).stepParams).fieldSettings).init).fieldPath),
     );
     const appended: string[] = [];
-    for (const [fieldPath, use] of EDIT_FIELDS) {
+    for (const [fieldPath, use] of fields) {
       if (existing.has(fieldPath)) continue;
-      const uid = `pde${form.get('uid')}${fieldPath}`;
+      const uid = `pde${block.get('uid')}${fieldPath}`;
       await flowRepository.upsertModel(
         {
           uid,
-          use: 'FormItemModel',
+          use: isDetails ? 'DetailsItemModel' : 'FormItemModel',
           parentId: gridUid,
           subKey: 'items',
           subType: 'array',
@@ -76,8 +96,9 @@ export async function ensurePermitDocumentEditFields(db: Database, transaction: 
             fieldSettings: {
               init: { dataSourceKey: init.dataSourceKey ?? 'main', collectionName: 'permit_documents', fieldPath },
             },
+            ...(isDetails ? { detailItemSettings: { model: { use } } } : {}),
           },
-          subModels: { field: { uid: `${uid}input`, use } },
+          subModels: { field: { uid: `${uid}${isDetails ? 'field' : 'input'}`, use } },
         },
         { transaction },
       );

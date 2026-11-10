@@ -7,13 +7,14 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import { SHIPMENT_CUSTOMS_FIELD_LABELS } from '../../../shared/logistics';
 import { normalizeShipmentDecimal } from '../../domain/logistics/ShipmentDecimal';
 
 const SHIPMENT_NUMERIC_FIELDS = [
   { name: 'invoice_value', label: 'Стоимость по инвойсу' },
   { name: 'customs_payments_amount', label: 'Сумма таможенных платежей' },
   { name: 'eco_fee', label: 'Экологический сбор' },
-  { name: 'ktc_amount', label: 'Сумма КТС' },
+  { name: 'ktc_amount', label: SHIPMENT_CUSTOMS_FIELD_LABELS.ktc_amount },
   { name: 'ntm_honest_sign_sum', label: 'Сумма «Честного знака»' },
   { name: 'goods_count', label: 'Количество товаров' },
 ] as const;

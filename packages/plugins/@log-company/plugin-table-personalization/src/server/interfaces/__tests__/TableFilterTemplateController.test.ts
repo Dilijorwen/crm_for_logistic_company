@@ -35,11 +35,10 @@ function fixture(userId: number | null = 1, roles = ['member']) {
       throw Object.assign(new Error(message), { status });
     },
   } as unknown as Context;
-  const controller = new TableFilterTemplateController(
-    { app } as unknown as Plugin,
-    create,
+  const controller = new TableFilterTemplateController({ app } as unknown as Plugin, create, [
     'lc_table_filter_templates',
-  );
+    'lc_table_template_initializations',
+  ]);
   return { controller, context, create, execute, app };
 }
 
@@ -62,6 +61,14 @@ describe('filter template HTTP boundary', () => {
   it('requires authentication', async () => {
     const { controller, context, create } = fixture(null);
     await expect(controller.handle(context, async () => undefined, 'list')).rejects.toMatchObject({ status: 401 });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, 'another-template'])('rejects a missing or mismatched update key (%s)', async (filterByTk) => {
+    const { controller, context, create } = fixture();
+    context.action.params.filterByTk = filterByTk;
+    context.action.params.values = { id: 'template' };
+    await expect(controller.handle(context, async () => undefined, 'update')).rejects.toMatchObject({ status: 400 });
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -90,6 +97,7 @@ describe('filter template HTTP boundary', () => {
   it.each([
     ['lc_table_filter_templates', 'list', 'POST'],
     ['lc_table_filter_templates', 'update', 'POST'],
+    ['lc_table_template_initializations', 'list', 'POST'],
     ['tableFilterTemplates', 'destroy', 'POST'],
     ['tableFilterTemplates', 'create', 'GET'],
   ])('blocks generic or unsafe access: %s:%s via %s', async (resourceName, actionName, method) => {

@@ -14,7 +14,7 @@
  * manager one place to create or attach the first shipment without returning
  * to the separate runs table.
  */
-export const LOGISTICS_WORKSPACE_VIEW_SQL = `
+const WORKSPACE_SELECT = `
   CREATE OR REPLACE VIEW public.logistics_work_items AS
   SELECT
     run.id::text || ':' || COALESCE(link.shipment_id::text, '0') AS id,
@@ -54,7 +54,9 @@ export const LOGISTICS_WORKSPACE_VIEW_SQL = `
     shipment.manager_comment,
     run.id AS run_id,
     shipment.id AS shipment_id,
-    run.transport_type
+    run.transport_type`;
+
+const WORKSPACE_FROM = `
   FROM transport_runs run
   INNER JOIN vehicles vehicle ON vehicle.id = run.vehicle_id
   LEFT JOIN transport_run_shipments link ON link.transport_run_id = run.id
@@ -83,3 +85,8 @@ export const LOGISTICS_WORKSPACE_VIEW_SQL = `
     WHERE declarant_link.transport_run_id = run.id
   ) declarant_list ON true
 `;
+
+// Older migrations create the view before the second deadline column exists.
+export const LOGISTICS_WORKSPACE_VIEW_SQL = `${WORKSPACE_SELECT}${WORKSPACE_FROM}`;
+export const LOGISTICS_WORKSPACE_VIEW_WITH_60_DAY_DEADLINE_SQL = `${WORKSPACE_SELECT},
+    shipment.additional_check_response_deadline_60_days${WORKSPACE_FROM}`;

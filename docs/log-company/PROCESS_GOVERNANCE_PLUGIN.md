@@ -1,5 +1,18 @@
 # Рейсы, поставки и история изменений
 
+В версии `2.0.122` поле «Сумма КТС» называется «Сумма обеспечения». Срок ответа на дополнительную проверку
+указывается двумя датами с ручным вводом. Поле `additional_check_response_deadline` показывает прежние даты
+под подписью «Срок ответа на дополнительную проверку (10 дней)». Новое поле
+`additional_check_response_deadline_60_days` хранит срок на 60 дней и изначально пустое. Оба срока доступны
+в формах поставки и в настройках колонок. Сохранённые фильтры по прежнему полю работают со сроком на 10 дней.
+
+Миграция `20261110010000-split-shipment-check-deadlines` добавляет необязательную дату в `shipments`, дополняет
+представление `logistics_work_items` и добавляет поле в существующие формы со сроком. Права на дату на 60 дней
+следуют правам на прежний срок для каждого действия. Суммы и даты на 10 дней сохраняются в прежних столбцах.
+
+В версии `2.0.120` в обзоре рейса между сообщением «Поставок пока нет» и кнопкой «Добавить поставку» есть отступ.
+Если оба элемента не помещаются рядом, кнопка переносится на следующую строку.
+
 Сверка от 04.11.2026: все 35 бизнес-полей рейсов и поставок представлены в общем списке;
 права менеджера выровнены по исходным коллекциям (28 доступных полей), создана копия роли «Декларант».
 [Полная сверка и проверка ролей](WORKSPACE_PERMISSIONS_AUDIT_2026-11-04.md).
@@ -310,6 +323,46 @@ docker compose restart app
 
 После обновления необходимо дождаться сообщения `app has been started`, открыть страницу под авторизованным
 пользователем и проверить ACL нужных рабочих ролей.
+
+## Названия и цвета статусов в 2.0.119
+
+«Таможенное оформление», таблицы поставок и общий рабочий список используют один справочник из 18 статусов.
+Варианты поля `status` передают HEX-коды в штатное свойство `color` NocoBase. Существующие метки используют те же
+цвета. «Реэкспорт» отображается графитовым `#334155`. Значения статусов, сохранённые в поставках и условиях фильтров,
+сохраняются без преобразования.
+
+Миграция `20261109020000-update-logistics-status-presentation` обновляет метаданные поля `status` в `shipments` и
+`logistics_work_items`, а также сохранённые варианты колонки общего рабочего списка. Для существующих начальных
+шаблонов она сверяет прежнее стандартное имя, точное условие по статусу и отметку инициализации личного списка.
+При совпадении имён в личном списке сохраняются обе записи. Настройки колонок и фильтров остаются сохранёнными.
+При первом открытии списка новые начальные шаблоны получают подписи из обновлённого справочника.
+
+| Файл относительно `packages/plugins/@log-company/plugin-process-governance/`                  | Назначение                                                           |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `package.json`                                                                                | Версия 2.0.119                                                       |
+| `src/shared/logistics.ts`                                                                     | Общие подписи, цвета и варианты поля                                 |
+| `src/server/collections/logisticsCollectionFields.ts`                                         | Варианты статуса поставки в метаданных NocoBase                      |
+| `src/server/collections/logisticsWorkItems.ts`                                                | Варианты статуса в метаданных общего рабочего списка                 |
+| `src/server/infrastructure/metadata/LogisticsWorkspacePage.ts`                                | Варианты поля в исходной схеме общего рабочего списка                |
+| `src/server/migrations/20261109020000-update-logistics-status-presentation.ts`                | Обновление сохранённых метаданных и начальных шаблонов               |
+| `src/server/migrations/__tests__/20261109020000-update-logistics-status-presentation.test.ts` | Проверка миграции, повторного запуска и сохранности личных вариантов |
+| `src/client/pages/logistics/ui/LogisticsWorkspaceTable.tsx`                                   | Палитра в существующих метках общей таблицы                          |
+| `src/client/pages/logistics/ui/RunShipmentsPanel.tsx`                                         | Палитра в существующих метках таблицы поставок                       |
+| `src/client/widgets/run-tree/ui/RunTreeBlock.tsx`                                             | Общие подписи в дереве                                               |
+| `src/client/widgets/workspace-shipment-page/ui/WorkspaceShipmentEditFormModel.tsx`            | Палитра метки в карточке поставки                                    |
+| `src/client/widgets/workspace-table/ui/WorkspaceRunSidebar.tsx`                               | Палитра меток в обзоре рейса                                         |
+
+### Проверки 2.0.119
+
+- `corepack yarn eslint --fix --no-ignore <изменённые TS-файлы>`, проверка Prettier и `git diff --check` прошли.
+- `corepack yarn typecheck:log-company:client`, `corepack yarn typecheck:log-company:server`, `corepack yarn typecheck:log-company:domain` прошли. `corepack yarn test:architecture` прошёл, 24 проверки.
+- `corepack yarn test:client packages/plugins/@log-company/plugin-process-governance/src/client --run --maxWorkers=1 --minWorkers=1 --silent` прошёл, 122 теста.
+- `DB_DIALECT=sqlite DB_STORAGE=:memory: corepack yarn test:server packages/plugins/@log-company/plugin-process-governance/src/server --run --maxWorkers=1 --minWorkers=1 --silent` прошёл, 173 теста. PostgreSQL-тест миграции запускался отдельно.
+- `DB_DIALECT=postgres DB_HOST=127.0.0.1 DB_PORT=15437 DB_USER=nocobase DB_DATABASE=logistics_palette_test DB_TEST_PREFIX=logistics_palette_test corepack yarn vitest run --config packages/plugins/@log-company/vitest.config.ts 20261109020000-update-logistics-status-presentation --maxWorkers=1 --minWorkers=1 --silent` прошёл в отдельном контейнере PostgreSQL, включая повторный запуск миграции, сохранение личных названий и разрешение конфликта имён.
+- `PLUGIN_PACKAGE_PREFIX=@nocobase/plugin-,@nocobase/preset-,@nocobase/plugin-pro-,@log-company/plugin- corepack yarn build @log-company/plugin-process-governance` и `corepack yarn tar @log-company/plugin-process-governance` прошли. Rspack предупредил о размере клиентского файла 261.344 KiB.
+- `docker compose config -q`, `docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-process-governance-2.0.119.tgz`, `docker compose exec -T app yarn nocobase upgrade --skip-code-update` и `docker compose restart app` прошли. Версия 2.0.119 включена. Контрольная сумма клиентской сборки совпала с установленным файлом.
+- SQL-проверка локальной базы подтвердила 18 названий и цветов в обоих полях и сохранённой колонке. Все 18 имён начальных шаблонов совпадают со справочником, миграция переименовала 10 записей. Контрольные суммы условий, колонок и кодов статусов поставок совпали с состоянием до миграции. HTTP-проверка через `curl` вернула 200 для `/signin` и 401 для `logistics_work_items:list` без входа.
+- `graphify update .` обновил граф кода. Визуальную проверку выполняет пользователь.
 
 ## Исправления общего окна 2.0.108
 

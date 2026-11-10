@@ -10,7 +10,12 @@
 import { DeleteOutlined, EditOutlined, LinkOutlined, SettingOutlined } from '@ant-design/icons';
 import { Button, Space, Table, Tag, Tooltip, type TableColumnsType } from 'antd';
 import React, { useMemo } from 'react';
-import { LOGISTICS_STATUS_LABELS, type LogisticsStatus } from '../../../../shared/logistics';
+import {
+  LOGISTICS_STATUS_COLORS,
+  LOGISTICS_STATUS_LABELS,
+  SHIPMENT_CUSTOMS_FIELD_LABELS,
+  type LogisticsStatus,
+} from '../../../../shared/logistics';
 import type { LogisticsWorkspaceView, LogisticsWorkItem } from '../model/workspace';
 
 interface LogisticsWorkspaceTableProps {
@@ -59,6 +64,7 @@ type ColumnKey =
   | 'enteredIn1c'
   | 'sentToClient'
   | 'additionalCheckResponseDeadline'
+  | 'additionalCheckResponseDeadline60Days'
   | 'actualControl'
   | 'anosovDistributed'
   | 'managerComment';
@@ -99,6 +105,7 @@ const VIEW_COLUMNS: Record<LogisticsWorkspaceView, ColumnKey[]> = {
     'declarationNumber',
     'applicationNumber',
     'additionalCheckResponseDeadline',
+    'additionalCheckResponseDeadline60Days',
     'customsPaymentsAmount',
     'ktcAmount',
     'ntmHonestSignSum',
@@ -137,6 +144,7 @@ const VIEW_COLUMNS: Record<LogisticsWorkspaceView, ColumnKey[]> = {
     'enteredIn1c',
     'sentToClient',
     'additionalCheckResponseDeadline',
+    'additionalCheckResponseDeadline60Days',
     'actualControl',
     'anosovDistributed',
     'managerComment',
@@ -240,7 +248,7 @@ export function LogisticsWorkspaceTable({
         width: 180,
         render: (_, item) =>
           item.shipment ? (
-            <Tag color="blue">
+            <Tag color={LOGISTICS_STATUS_COLORS[item.shipment.status as LogisticsStatus]}>
               {LOGISTICS_STATUS_LABELS[item.shipment.status as LogisticsStatus] || item.shipment.status}
             </Tag>
           ) : (
@@ -330,7 +338,7 @@ export function LogisticsWorkspaceTable({
     }
     if (has('ktcAmount')) {
       shipmentColumns.push({
-        title: 'Сумма КТС',
+        title: SHIPMENT_CUSTOMS_FIELD_LABELS.ktc_amount,
         width: 130,
         align: 'right',
         render: (_, item) => (item.shipment ? formatAmount(item.shipment.ktcAmount) : '—'),
@@ -405,11 +413,18 @@ export function LogisticsWorkspaceTable({
         render: (_, item) => (item.shipment ? formatBoolean(item.shipment.sentToClient) : '—'),
       });
     }
-    if (has('additionalCheckResponseDeadline')) {
+    for (const [key, title] of [
+      ['additionalCheckResponseDeadline', SHIPMENT_CUSTOMS_FIELD_LABELS.additional_check_response_deadline],
+      [
+        'additionalCheckResponseDeadline60Days',
+        SHIPMENT_CUSTOMS_FIELD_LABELS.additional_check_response_deadline_60_days,
+      ],
+    ] as const) {
+      if (!has(key)) continue;
       shipmentColumns.push({
-        title: 'Срок ответа',
-        width: 140,
-        render: (_, item) => (item.shipment ? formatDate(item.shipment.additionalCheckResponseDeadline) : '—'),
+        title,
+        width: 250,
+        render: (_, item) => (item.shipment ? formatDate(item.shipment[key]) : '—'),
       });
     }
     if (has('actualControl')) {

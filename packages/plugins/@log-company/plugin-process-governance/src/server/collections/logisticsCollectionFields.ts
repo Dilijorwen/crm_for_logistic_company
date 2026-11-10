@@ -8,7 +8,7 @@
  */
 
 import type { FieldOptions } from '@nocobase/database';
-import { LOGISTICS_STATUS_LABELS, LOGISTICS_STATUS_VALUES } from '../../shared/logistics';
+import { LOGISTICS_STATUS_OPTIONS, LOGISTICS_STATUS_VALUES } from '../../shared/logistics';
 
 export const idField: FieldOptions = {
   type: 'snowflakeId',
@@ -36,6 +36,6 @@ export const statusField: FieldOptions = {
     type: 'string',
     title: 'Статус',
     'x-component': 'Select',
-    enum: LOGISTICS_STATUS_VALUES.map((value) => ({ value, label: LOGISTICS_STATUS_LABELS[value] })),
+    enum: LOGISTICS_STATUS_OPTIONS,
   },
 };

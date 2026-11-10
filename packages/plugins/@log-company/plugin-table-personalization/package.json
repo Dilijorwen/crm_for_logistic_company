@@ -2,7 +2,7 @@
   "name": "@log-company/plugin-table-personalization",
   "displayName": "Персональные колонки таблиц",
   "description": "Персональные колонки и личные шаблоны фильтров, состава, порядка и ширины колонок таблиц FlowEngine.",
-  "version": "2.0.74",
+  "version": "2.0.75",
   "main": "dist/server/index.js",
   "peerDependencies": {
     "@ant-design/icons": "*",

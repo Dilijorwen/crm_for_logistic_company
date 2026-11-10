@@ -41,6 +41,7 @@ function shipment(overrides: Partial<ShipmentRecord> = {}): ShipmentRecord {
     enteredIn1c: false,
     sentToClient: false,
     additionalCheckResponseDeadline: null,
+    additionalCheckResponseDeadline60Days: null,
     actualControl: false,
     anosovDistributed: false,
     managerComment: '',

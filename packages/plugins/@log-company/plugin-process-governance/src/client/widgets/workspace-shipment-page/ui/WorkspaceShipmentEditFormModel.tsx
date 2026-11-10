@@ -13,7 +13,7 @@ import React from 'react';
 import { ShipmentSynchronizedEditFormModel } from '../../../features/synchronize-shipment-form';
 import { WorkspaceRecordHeader } from '../../../features/workspace-record-header';
 import { workspaceAnchors } from '../../../shared/lib';
-import { LOGISTICS_STATUS_LABELS, type LogisticsStatus } from '../../../../shared/logistics';
+import { LOGISTICS_STATUS_COLORS, LOGISTICS_STATUS_LABELS, type LogisticsStatus } from '../../../../shared/logistics';
 
 interface NativeFormProps {
   actions?: React.ReactNode;
@@ -45,9 +45,7 @@ export class LogisticsWorkspaceShipmentEditFormModel extends ShipmentSynchronize
             ) : null}
             <Space>
               {status ? (
-                <Tag color={status === 'release' ? 'success' : status === 'queue' ? 'default' : 'processing'}>
-                  {LOGISTICS_STATUS_LABELS[status]}
-                </Tag>
+                <Tag color={LOGISTICS_STATUS_COLORS[status]}>{LOGISTICS_STATUS_LABELS[status] || status}</Tag>
               ) : null}
               {typeof current?.invoice_number === 'string' ? (
                 <Typography.Text>{current.invoice_number}</Typography.Text>

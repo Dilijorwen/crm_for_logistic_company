@@ -1,6 +1,6 @@
 # Личные шаблоны таблиц
 
-`@log-company/plugin-table-personalization` версии **2.0.72**, NocoBase **2.0.60**.
+`@log-company/plugin-table-personalization` версии **2.0.75**, NocoBase **2.0.60**.
 
 ## Пользовательское поведение
 
@@ -17,8 +17,11 @@
 
 Все шаблоны личные. Пользователь видит, создаёт, обновляет, переименовывает и удаляет только свои шаблоны.
 Root также не получает доступа к чужим шаблонам. Разделов «Общие» / «Личные» и выбора доступности больше нет.
-Предустановленные варианты пока не добавлены. Когда такие варианты будут согласованы, они должны создаваться
-как независимые записи пользователей; общие редактируемые записи в текущей модели отсутствуют.
+При первом открытии списка для каждого доступного значения поля `status` создаётся личный шаблон с названием
+статуса и условием «Статус равен этому значению». Он использует исходный набор, порядок и ширину колонок таблицы.
+Сохранённый пользователем шаблон с тем же названием имеет приоритет. Начальные шаблоны можно изменять и удалять.
+После удаления начальный шаблон не появляется повторно. При отсутствии доступного поля `status` с настроенным
+списком значений начальные шаблоны не создаются.
 
 Выбор шаблона заменяет текущий фильтр и настройки колонок. Выбор **«Без шаблона»** очищает пользовательский
 фильтр и удаляет персональную настройку колонок, возвращая текущий исходный вид таблицы из конструктора.
@@ -64,7 +67,8 @@ Root также не получает доступа к чужим шаблон�
 ## API и права
 
 Существующее имя ресурса `tableFilterTemplates` сохранено. Все действия вызываются через POST,
-параметры передаются непосредственно в теле запроса.
+параметры передаются непосредственно в теле запроса. Для `update` в строке запроса также передаётся
+`filterByTk=<id>`, который NocoBase проверяет до обработки запроса. Его значение должно совпадать с `id` из тела.
 
 | Action   | Параметры сверх `identity: { tableUid, referencePath }`         |
 | -------- | --------------------------------------------------------------- |
@@ -114,12 +118,18 @@ Generic API служебных коллекций закрыт, включая r
 и индексы создаёт штатная синхронизация определения коллекции; дополнительные DDL не дублируются.
 Переход forward-only: удалённые старые шаблоны не восстанавливаются откатом миграции.
 
+С версии 2.0.75 скрытая коллекция `lc_table_template_initializations` фиксирует однократное создание начальных
+шаблонов. Уникальный индекс `(userId, instanceKey)` защищает от повторной инициализации. Запись о создании и
+шаблоны сохраняются в одной транзакции. Миграция `20261109010000-template-initialization-cascades` добавляет
+каскадное удаление отметки при удалении пользователя, таблицы или корня экземпляра. Существующие шаблоны
+сохраняются.
+
 ## Установка
 
 ```sh
 PLUGIN_PACKAGE_PREFIX=@nocobase/plugin-,@nocobase/preset-,@nocobase/plugin-pro-,@log-company/plugin- corepack yarn build @log-company/plugin-table-personalization
 corepack yarn tar @log-company/plugin-table-personalization
-docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.72.tgz
+docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.75.tgz
 docker compose exec -T app yarn nocobase upgrade --skip-code-update
 docker compose restart app
 ```
@@ -197,7 +207,7 @@ docker compose restart app
 «Колонки», неизменность общей схемы, отсутствие кнопки фильтра, операторы без значения, повторы,
 конкурентные изменения, HTTP-ошибки и повторный запуск миграции с сохранением новых шаблонов.
 
-## Установка и проверка runtime
+## Установка и проверка runtime — 2 ноября 2026
 
 - Сборка и упаковка командами из раздела «Установка» завершились успешно.
 - `docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.72.tgz`,
@@ -208,3 +218,43 @@ docker compose restart app
 - HTTP через `curl`: `/signin` — **200**; POST `tableFilterTemplates:list` и `tablePersonalizations:restore` без входа — **401**.
 - Изолированная тестовая PostgreSQL остановлена и удалена. Рабочие volumes и файлы конфигурации не пересоздавались.
 - Визуальная проверка не выполнялась по прямой просьбе пользователя.
+
+## Файлы версии 2.0.75
+
+Пути `src/` и `package.json` относятся к `packages/plugins/@log-company/plugin-table-personalization/`.
+
+| Файл                                                                           | Изменение                                                                             |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `package.json`                                                                 | Версия плагина 2.0.75                                                                 |
+| `src/client/features/filter-templates/api/FilterTemplateApi.ts`                | Параметр `filterByTk` в HTTP-запросе обновления                                       |
+| `src/client/features/filter-templates/api/__tests__/FilterTemplateApi.test.ts` | Проверка параметра в запросе                                                          |
+| `src/server/application/FilterTemplatePorts.ts`                                | Порт однократного сохранения начальных шаблонов                                       |
+| `src/server/application/TableFilterTemplates.ts`                               | Инициализация при открытии личного списка                                             |
+| `src/server/application/__tests__/TableFilterTemplates.test.ts`                | Проверка таблицы без начальных вариантов                                              |
+| `src/server/application/ports.ts`                                              | Доступные варианты статусов в метаданных таблицы                                      |
+| `src/server/collections/tableTemplateInitializations.ts`                       | Коллекция отметок и индексы                                                           |
+| `src/server/composition/TableFilterTemplateModule.ts`                          | Регистрация защиты служебных коллекций                                                |
+| `src/server/domain/StatusTemplateDrafts.ts`                                    | Условия по статусам и исходный состав колонок                                         |
+| `src/server/domain/__tests__/StatusTemplateDrafts.test.ts`                     | Проверки снимка, дубликатов и ограничений                                             |
+| `src/server/infrastructure/NocoBaseFilterTemplateRepository.ts`                | Транзакционное создание личных шаблонов и отметки                                     |
+| `src/server/infrastructure/NocoBaseTableConfiguration.ts`                      | Чтение доступных статусов и их подписей                                               |
+| `src/server/infrastructure/__tests__/NocoBaseTableConfiguration.test.ts`       | Типизация тестовых моделей конфигурации                                               |
+| `src/server/interfaces/TableFilterTemplateController.ts`                       | Сверка идентификатора и защита коллекций                                              |
+| `src/server/interfaces/__tests__/TableFilterTemplateController.test.ts`        | Проверки идентификатора и закрытого служебного API                                    |
+| `src/server/migrations/20261109010000-template-initialization-cascades.ts`     | Каскадные внешние ключи                                                               |
+| `src/server/__tests__/PersonalizationsPostgres.integration.test.ts`            | Проверки HTTP, прав, независимости копий, параллельного открытия, удаления и миграции |
+| `docs/log-company/FILTER_TEMPLATES.md`                                         | Контракт, поведение, миграция и результаты проверок                                   |
+| `docs/log-company/TABLE_PERSONALIZATION_PLUGIN.md`                             | Версия, установка и описание начальных вариантов                                      |
+
+## Проверки версии 2.0.75
+
+- `corepack yarn eslint --fix --no-ignore <изменённые TS-файлы>` и `node node_modules/prettier/bin/prettier.cjs --check --ignore-path /dev/null <изменённые файлы>` прошли. `git diff --check` прошёл.
+- `node --max-old-space-size=8192 packages/plugins/@log-company/plugin-table-personalization/scripts/check-types.cjs` прошёл с 0 диагностик. `corepack yarn typecheck:log-company:domain` прошёл.
+- `corepack yarn test:architecture` прошёл, 24 проверки.
+- `corepack yarn test:client packages/plugins/@log-company/plugin-table-personalization/src/client --run --maxWorkers=1 --minWorkers=1 --silent` прошёл, 95 тестов.
+- `TABLE_PERSONALIZATION_POSTGRES_INTEGRATION=1 DB_DIALECT=postgres DB_HOST=127.0.0.1 DB_PORT=15436 DB_USER=nocobase DB_DATABASE=table_personalization_test_status DB_TEST_PREFIX=table_personalization_test_status corepack yarn vitest run --config packages/plugins/@log-company/vitest.config.ts plugin-table-personalization --maxWorkers=1 --minWorkers=1 --silent` прошёл, 172 теста, включая 26 интеграционных. Проверены запрос `update` через штатный HTTP-обработчик NocoBase, параллельная инициализация, доступ к полю статуса, локализованные подписи, повторяемость миграции и каскадное удаление.
+- Сборка и упаковка командами из раздела «Установка» прошли. Архив содержит клиентскую сборку, определение коллекции и миграцию.
+- `docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.75.tgz`, `docker compose exec -T app yarn nocobase upgrade --skip-code-update` и `docker compose restart app` прошли. Установленная версия 2.0.75 включена, SHA-256 клиентского файла совпал со сборкой.
+- Read-only запросы через `docker compose exec -T postgres psql` подтвердили запись о миграции, уникальный индекс владельца и экземпляра, индексы таблицы и корня, три каскадных внешних ключа. До и после обновления в рабочей базе было 0 сохранённых шаблонов.
+- HTTP-проверка `curl` после перезапуска прошла. `/signin` вернул 200. Запросы `tableFilterTemplates:list` и `tableFilterTemplates:update` с параметром `filterByTk` для обновления вернули 401 без входа.
+- `graphify update .` обновил граф кода. Визуальную проверку выполняет пользователь.

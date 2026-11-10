@@ -7,7 +7,8 @@
 
 Версия **2.0.72** добавляет отдельную кнопку **«Шаблоны»** слева от **«Колонки»**.
 Личные шаблоны сохраняют фильтр, выбранные и скрытые колонки, их порядок и ширину.
-Поведение, права, API и миграция старых шаблонов описаны в [FILTER_TEMPLATES.md](FILTER_TEMPLATES.md).
+С версии **2.0.75** список автоматически пополняется личными шаблонами по доступным статусам при первом открытии.
+Поведение, права, API и миграции описаны в [FILTER_TEMPLATES.md](FILTER_TEMPLATES.md).
 
 `@log-company/plugin-table-personalization` добавляет кнопку с иконкой таблицы в обычные таблицы FlowEngine.
 Она стоит после **«Шаблоны»** и перед **«Фильтром»** в левой части панели, включая таблицы во всплывающих окнах.
@@ -17,7 +18,7 @@
 «Выше» / «Ниже», сохранять настройки и сбрасывать только собственные настройки этой таблицы.
 Правую границу заголовка можно перетаскивать для персонального изменения ширины. Стрелки меняют ширину
 на 10 px, Shift + стрелки — на 50 px; двойной клик возвращает общую ширину этой колонки.
-Версия плагина: **2.0.72**; проверяемая версия NocoBase: **2.0.60**.
+Версия плагина **2.0.75**, проверяемая версия NocoBase **2.0.60**.
 
 Исследование и согласованное решение:
 [TABLE_PERSONALIZATION_RESEARCH.md](/Users/daniil/log_company/docs/log-company/TABLE_PERSONALIZATION_RESEARCH.md).
@@ -144,14 +145,14 @@
 ```sh
 corepack yarn build @log-company/plugin-table-personalization
 corepack yarn tar @log-company/plugin-table-personalization
-docker compose exec -T app yarn pm add /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.72.tgz
+docker compose exec -T app yarn pm add /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.75.tgz
 docker compose exec -T app yarn pm enable @log-company/plugin-table-personalization
 ```
 
 Для уже установленного плагина вместо add/enable:
 
 ```sh
-docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.72.tgz
+docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-table-personalization-2.0.75.tgz
 ```
 
 После add/enable или update завершить обновление и перезапустить локальное приложение:

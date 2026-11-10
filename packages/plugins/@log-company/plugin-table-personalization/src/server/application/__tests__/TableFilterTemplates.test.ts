@@ -34,7 +34,7 @@ const template: StoredFilterTemplate = {
   revision: 1,
 };
 const configuration = { authorize: vi.fn(), canUseFilter: vi.fn() };
-const repository = { list: vi.fn(), create: vi.fn(), change: vi.fn() };
+const repository = { list: vi.fn(), create: vi.fn(), change: vi.fn(), initialize: vi.fn() };
 const useCase = (userId = '1') => new TableFilterTemplates(configuration, repository, userId);
 
 beforeEach(() => {
@@ -84,6 +84,7 @@ describe('personal table templates', () => {
   it('loads only the current owner and instance, including for a root account', async () => {
     await useCase('root-user').execute('list', { identity });
     expect(repository.list).toHaveBeenCalledWith('instance', 'root-user');
+    expect(repository.initialize).not.toHaveBeenCalled();
   });
 
   it.each(['rename', 'update', 'delete'] as const)('rejects another author for %s', async (operation) => {

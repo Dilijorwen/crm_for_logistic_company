@@ -35,6 +35,14 @@ export const permitDocumentNameField: FieldOptions = {
   },
 };
 
+export const permitDocumentMarkingField = {
+  type: 'text',
+  name: 'marking',
+  interface: 'textarea',
+  allowNull: true,
+  uiSchema: { type: 'string', title: 'Маркировка', 'x-component': 'Input.TextArea' },
+} satisfies FieldOptions;
+
 export const permitDocumentNumberingFields: FieldOptions[] = [
   {
     type: 'bigInt',
@@ -173,6 +181,7 @@ export const permitDocumentFields: FieldOptions[] = [
       'x-component-props': readOnlyProps,
     },
   },
+  permitDocumentMarkingField,
   { type: 'bigInt', name: 'company_id', interface: 'integer', isForeignKey: true, allowNull: true },
   {
     type: 'string',

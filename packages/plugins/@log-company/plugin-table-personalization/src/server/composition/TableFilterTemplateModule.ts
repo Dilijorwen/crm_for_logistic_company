@@ -12,6 +12,7 @@ import { TableFilterTemplates } from '../application/TableFilterTemplates';
 import { NocoBaseTableConfiguration } from '../infrastructure/NocoBaseTableConfiguration';
 import {
   FILTER_TEMPLATES_COLLECTION,
+  TEMPLATE_INITIALIZATIONS_COLLECTION,
   NocoBaseFilterTemplateRepository,
 } from '../infrastructure/NocoBaseFilterTemplateRepository';
 import { TableFilterTemplateController } from '../interfaces/TableFilterTemplateController';
@@ -25,7 +26,7 @@ export class TableFilterTemplateModule {
       this.plugin,
       (context, userId) =>
         new TableFilterTemplates(new NocoBaseTableConfiguration(this.plugin, context), repository, userId),
-      FILTER_TEMPLATES_COLLECTION,
+      [FILTER_TEMPLATES_COLLECTION, TEMPLATE_INITIALIZATIONS_COLLECTION],
     ).register();
   }
 }

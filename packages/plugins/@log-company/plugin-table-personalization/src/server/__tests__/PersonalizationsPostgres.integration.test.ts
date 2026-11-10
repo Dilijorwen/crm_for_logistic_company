@@ -10,7 +10,8 @@
 import type { Database, MigrationContext, Model } from '@nocobase/database';
 import { createMockDatabase, MagicAttributeModel, DataTypes } from '@nocobase/database';
 import type { Context } from '@nocobase/actions';
-import type { Plugin } from '@nocobase/server';
+import { Application, type Plugin } from '@nocobase/server';
+import supertest from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import tablePersonalizations from '../collections/tablePersonalizations';
 import { NocoBasePersonalizationRepository } from '../infrastructure/NocoBasePersonalizationRepository';
@@ -19,12 +20,19 @@ import CascadeMigration from '../migrations/20261009090000-personalization-casca
 import type { ColumnSettings } from '../../shared/contracts';
 import { TablePersonalizations } from '../application/TablePersonalizations';
 import tableFilterTemplates from '../collections/tableFilterTemplates';
-import { NocoBaseFilterTemplateRepository } from '../infrastructure/NocoBaseFilterTemplateRepository';
+import {
+  FILTER_TEMPLATES_COLLECTION,
+  NocoBaseFilterTemplateRepository,
+  TEMPLATE_INITIALIZATIONS_COLLECTION,
+} from '../infrastructure/NocoBaseFilterTemplateRepository';
 import FilterTemplateMigration from '../migrations/20261028010000-filter-template-cascades';
 import { TableFilterTemplates } from '../application/TableFilterTemplates';
 import { emptyFilter } from '../../shared/filterTemplates';
 import PersonalTableTemplatesMigration from '../migrations/20261102010000-personal-table-templates';
 import { FilterTemplateError } from '../domain/FilterTemplateError';
+import tableTemplateInitializations from '../collections/tableTemplateInitializations';
+import TemplateInitializationMigration from '../migrations/20261109010000-template-initialization-cascades';
+import { TableFilterTemplateController } from '../interfaces/TableFilterTemplateController';
 
 const run = process.env.TABLE_PERSONALIZATION_POSTGRES_INTEGRATION === '1' && process.env.DB_DIALECT === 'postgres';
 const settings: ColumnSettings = { version: 1, columnOrder: ['first', 'second'], hiddenColumnUids: ['first'] };
@@ -37,6 +45,8 @@ describe.runIf(run)('personalizations PostgreSQL persistence and access', () => 
   let filterRepository: NocoBaseFilterTemplateRepository;
   let filterMigration: FilterTemplateMigration;
   const can = vi.fn();
+  const loadResourcesByLang = vi.fn();
+  const translate = vi.fn(() => 'В работе');
 
   beforeAll(async () => {
     if (
@@ -104,8 +114,26 @@ describe.runIf(run)('personalizations PostgreSQL persistence and access', () => 
       ],
     });
     database.collection({ name: 'departments', titleField: 'name', fields: [{ name: 'name', type: 'string' }] });
+    database.collection({
+      name: 'status_records',
+      fields: [
+        {
+          name: 'status',
+          type: 'string',
+          interface: 'select',
+          uiSchema: {
+            enum: [
+              { value: 'queue', label: 'В очереди' },
+              { value: 'in_work', label: '{{t("status.in_work", { ns: "@log-company/plugin-test" })}}' },
+            ],
+          },
+        },
+        { name: 'title', type: 'string' },
+      ],
+    });
     database.collection(tablePersonalizations);
     database.collection(tableFilterTemplates);
+    database.collection(tableTemplateInitializations);
     await database.sync();
     const context: MigrationContext = {
       db: database,
@@ -118,6 +146,9 @@ describe.runIf(run)('personalizations PostgreSQL persistence and access', () => 
     filterMigration = new FilterTemplateMigration(context);
     await filterMigration.up();
     await filterMigration.up();
+    const initializationMigration = new TemplateInitializationMigration(context);
+    await initializationMigration.up();
+    await initializationMigration.up();
     filterRepository = new NocoBaseFilterTemplateRepository(database);
     repository = new NocoBasePersonalizationRepository(database);
     await database.getRepository('users').create({ values: [{ id: '1' }, { id: '2' }, { id: '3' }] });
@@ -130,6 +161,13 @@ describe.runIf(run)('personalizations PostgreSQL persistence and access', () => 
           stepParams: {
             resourceSettings: { init: { dataSourceKey: 'main', collectionName: 'records' } },
           },
+        },
+      },
+      {
+        uid: 'status-table',
+        options: {
+          use: 'TableBlockModel',
+          stepParams: { resourceSettings: { init: { dataSourceKey: 'main', collectionName: 'status_records' } } },
         },
       },
       ...['first', 'second', 'relation'].map((uid, index) => ({
@@ -157,7 +195,11 @@ describe.runIf(run)('personalizations PostgreSQL persistence and access', () => 
     ];
     await database.getRepository('flowModels').create({ values: models });
     await database.getRepository('flowModelTreePath').create({
-      values: ['table', 'ref-one', 'ref-two'].map((uid) => ({ ancestor: 'page', descendant: uid, depth: 1 })),
+      values: ['table', 'status-table', 'ref-one', 'ref-two'].map((uid) => ({
+        ancestor: 'page',
+        descendant: uid,
+        depth: 1,
+      })),
     });
     await database.getRepository('flowModelTreePath').create({
       values: ['first', 'second', 'relation'].map((uid, sort) => ({
@@ -172,6 +214,8 @@ describe.runIf(run)('personalizations PostgreSQL persistence and access', () => 
     plugin = {
       db: database,
       app: {
+        localeManager: { loadResourcesByLang },
+        i18n: { t: translate },
         dataSourceManager: {
           get: () => ({
             acl: { can },
@@ -204,6 +248,97 @@ describe.runIf(run)('personalizations PostgreSQL persistence and access', () => 
     filter: emptyFilter(),
     columnSettings: { ...settings, columnWidths: { first: 210 } },
     schemaSignature: (await gateway().authorize(identity)).schemaSignature,
+  });
+
+  it('creates independent personal status templates once without replacing custom templates', async () => {
+    can.mockReturnValue({ params: {} });
+    const identity = { tableUid: 'status-table', referencePath: [] };
+    const first = new TableFilterTemplates(gateway(), filterRepository, '1');
+    const second = new TableFilterTemplates(gateway(), filterRepository, '2');
+    const table = await gateway().authorize(identity);
+    const ownTemplate = {
+      identity,
+      name: 'В работе',
+      filter: emptyFilter(),
+      columnSettings: { version: 1, columnOrder: [], hiddenColumnUids: [] },
+      schemaSignature: table.schemaSignature,
+    };
+    await first.execute('create', ownTemplate);
+    const [firstList, concurrentList, secondList] = await Promise.all([
+      first.execute('list', { identity }),
+      first.execute('list', { identity }),
+      second.execute('list', { identity }),
+    ]);
+    expect(firstList).toEqual(concurrentList);
+    expect(firstList.templates).toHaveLength(2);
+    expect(firstList.templates.find(({ name }) => name === ownTemplate.name)?.filter).toEqual(emptyFilter());
+    expect(secondList.templates.find(({ name }) => name === ownTemplate.name)?.filter.items).toEqual([
+      { path: 'status', operator: '$eq', value: 'in_work' },
+    ]);
+    const firstQueue = firstList.templates.find(({ name }) => name === 'В очереди');
+    if (!firstQueue) throw new Error('Missing status template');
+    expect(secondList.templates.find(({ name }) => name === firstQueue.name)?.id).not.toBe(firstQueue.id);
+    await first.execute('delete', { identity, id: firstQueue.id, revision: firstQueue.revision });
+    expect((await first.execute('list', { identity })).templates).toHaveLength(1);
+    expect((await second.execute('list', { identity })).templates).toHaveLength(2);
+  });
+
+  it('checks status field permissions before initial creation and sends update through the real HTTP guard', async () => {
+    const identity = { tableUid: 'status-table', referencePath: [] };
+    const reader = new TableFilterTemplates(gateway(['reader']), filterRepository, '3');
+    can.mockReturnValue({ params: { fields: ['title'] } });
+    expect((await reader.execute('list', { identity })).templates).toEqual([]);
+    can.mockReturnValue({ params: {} });
+    const { templates, schemaSignature } = await reader.execute('list', { identity });
+    expect(templates).toHaveLength(2);
+    expect(loadResourcesByLang).toHaveBeenCalledWith('ru-RU');
+    expect(translate).toHaveBeenCalledWith('status.in_work', {
+      ns: '@log-company/plugin-test',
+      lng: 'ru-RU',
+      defaultValue: 'in_work',
+    });
+    const [template] = templates;
+    const app = new Application({
+      database: { dialect: 'sqlite', storage: ':memory:' },
+      resourcer: { prefix: '/api' },
+      acl: false,
+      dataWrapping: false,
+      registerActions: false,
+    });
+    try {
+      new TableFilterTemplateController(
+        { app } as Plugin,
+        (_context, userId) => new TableFilterTemplates(gateway(['reader']), filterRepository, userId),
+        [FILTER_TEMPLATES_COLLECTION, TEMPLATE_INITIALIZATIONS_COLLECTION],
+      ).register();
+      app.resourceManager.use(
+        async (ctx, next) => {
+          ctx.state.currentUser = { id: '3' };
+          await next();
+        },
+        { tag: 'test-authentication', before: 'auth' },
+      );
+      const filter = emptyFilter();
+      const payload = {
+        identity,
+        id: template.id,
+        revision: template.revision,
+        filter,
+        columnSettings: template.columnSettings,
+        schemaSignature,
+      };
+      const request = supertest(app.callback());
+      const endpoint = '/api/tableFilterTemplates:update';
+      expect((await request.post(endpoint).send(payload)).status).toBe(500);
+      const response = await request.post(endpoint).query({ filterByTk: template.id }).send(payload);
+      expect(response.status, response.text).toBe(200);
+      expect(response.body.templates.find(({ id }: { id: string }) => id === template.id)).toMatchObject({
+        filter,
+        revision: template.revision + 1,
+      });
+    } finally {
+      await app.destroy();
+    }
   });
 
   it('persists complete personal templates and isolates authors including root accounts', async () => {
@@ -751,13 +886,17 @@ describe.runIf(run)('personalizations PostgreSQL persistence and access', () => 
   });
 
   it('cascades user, reference placement and table deletion', async () => {
+    const initializations = database.getRepository(TEMPLATE_INITIALIZATIONS_COLLECTION);
     await repository.save(owner('3', 'user-deletion'), settings);
     await database.getRepository('users').destroy({ filterByTk: '3' });
     expect(await repository.find(owner('3', 'user-deletion'))).toBeNull();
+    expect(await initializations.count({ filter: { userId: '3' } })).toBe(0);
     await repository.save(owner('1', 'reference-deletion', 'ref-one'), settings);
     await database.getRepository('flowModels').destroy({ filterByTk: 'ref-one' });
     expect(await repository.find(owner('1', 'reference-deletion', 'ref-one'))).toBeNull();
     await database.getRepository('flowModels').destroy({ filterByTk: 'table' });
     expect(await database.getRepository('lc_table_personalizations').count()).toBe(0);
+    await database.getRepository('flowModels').destroy({ filterByTk: 'status-table' });
+    expect(await initializations.count()).toBe(0);
   });
 });

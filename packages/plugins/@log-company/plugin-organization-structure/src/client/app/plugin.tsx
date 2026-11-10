@@ -8,9 +8,11 @@
  */
 
 import { Plugin } from '@nocobase/client';
+import AuthPlugin from '@nocobase/plugin-auth/client';
 import enUS from '../../locale/en-US.json';
 import ruRU from '../../locale/ru-RU.json';
 import { configurePublicAuthRoutes } from './configurePublicAuthRoutes';
+import { hideSignUpLink } from './hideSignUpLink';
 import { MENU_TITLE_KEY, NAMESPACE } from '../shared/lib';
 import { OrganizationStructurePage } from '../pages/organization';
 import { SECURE_RESET_PASSWORD_COMPONENT, SecureResetPasswordPage } from '../pages/reset-password';
@@ -22,6 +24,8 @@ export class PluginOrganizationStructureClient extends Plugin {
       'plugin:auth:loaded',
       () => {
         configurePublicAuthRoutes(this.app.router);
+        const passwordAuth = this.app.pm.get(AuthPlugin)?.authTypes.get('Email/Password');
+        hideSignUpLink(passwordAuth?.components);
       },
       { once: true },
     );

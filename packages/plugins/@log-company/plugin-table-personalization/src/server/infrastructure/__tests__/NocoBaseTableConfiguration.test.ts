@@ -8,7 +8,7 @@
  */
 
 import type { Context } from '@nocobase/actions';
-import { createMockDatabase, MagicAttributeModel, type Database } from '@nocobase/database';
+import { createMockDatabase, MagicAttributeModel, type Database, type Model } from '@nocobase/database';
 import type { Plugin } from '@nocobase/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NocoBaseTableConfiguration } from '../NocoBaseTableConfiguration';
@@ -20,7 +20,9 @@ describe('personal column catalog identifiers', () => {
 
   beforeEach(async () => {
     db = await createMockDatabase({ dialect: 'sqlite', storage: ':memory:' });
-    db.registerModels({ FlowSchemaModel: MagicAttributeModel });
+    db.registerModels({
+      FlowSchemaModel: MagicAttributeModel as unknown as Parameters<Database['registerModels']>[0][string],
+    });
     db.collection({
       name: 'flowModels',
       model: 'FlowSchemaModel',
@@ -121,8 +123,8 @@ describe('personal column catalog identifiers', () => {
       },
     });
     expect(
-      (await db.getRepository('flowModels').find({ filter: { 'options.parentId': 'history-table' } })).map((model) =>
-        model.get('options'),
+      (await db.getRepository('flowModels').find({ filter: { 'options.parentId': 'history-table' } })).map(
+        (model: Model) => model.get('options'),
       ),
     ).toEqual([expect.objectContaining({ use: 'TableColumnModel' })]);
     const result = await configuration.authorize({ tableUid: 'history-table', referencePath: [] });
