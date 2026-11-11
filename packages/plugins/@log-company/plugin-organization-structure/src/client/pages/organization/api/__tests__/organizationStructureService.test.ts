@@ -50,6 +50,7 @@ class FakeApiClient {
 
   resource(resourceName: string, resourceId?: string) {
     return {
+      get: (options: Record<string, unknown>) => this.invoke(resourceName, resourceId, 'get', options),
       list: (options: Record<string, unknown>) => this.invoke(resourceName, resourceId, 'list', options),
       create: (options: Record<string, unknown>) => this.invoke(resourceName, resourceId, 'create', options),
       update: (options: Record<string, unknown>) => this.invoke(resourceName, resourceId, 'update', options),
@@ -71,6 +72,74 @@ class FakeApiClient {
 }
 
 describe('organization structure DTO normalization', () => {
+  it('loads current direct roles and offers only assignable roles', async () => {
+    const api = new FakeApiClient([
+      {
+        data: {
+          data: {
+            id: 2,
+            roles: [
+              { name: 'root', title: 'Root' },
+              { name: 'manager', title: 'Manager' },
+            ],
+          },
+        },
+      },
+      {
+        data: {
+          data: [
+            { name: 'manager', title: 'Manager' },
+            { name: 'member', title: '{{t("Member")}}' },
+            { name: 'hidden-role', hidden: true },
+            { name: 'root' },
+            { name: 'anonymous' },
+          ],
+        },
+      },
+    ]);
+    const service = new OrganizationStructureService(api as unknown as APIClient);
+
+    expect(await service.getEmployeeRoles('2')).toEqual([
+      { name: 'root', title: 'Root' },
+      { name: 'manager', title: 'Manager' },
+    ]);
+    expect(await service.getAssignableRoles()).toEqual([
+      { name: 'manager', title: 'Manager' },
+      { name: 'member', title: 'Участник' },
+    ]);
+    expect(api.calls[0]).toMatchObject({
+      resourceName: 'users',
+      action: 'get',
+      options: { filterByTk: '2', appends: ['roles'] },
+    });
+  });
+
+  it.each([null, { id: 2 }])('rejects an unavailable employee or a missing roles field', async (data) => {
+    const service = new OrganizationStructureService(new FakeApiClient([{ data: { data } }]) as unknown as APIClient);
+    await expect(service.getEmployeeRoles('2')).rejects.toThrow('Не удалось прочитать назначенные роли');
+  });
+
+  it.each([[['manager', 'member']], [[]]])('updates only the stock roles field with %j', async (roleNames) => {
+    const api = new FakeApiClient([{ data: { data: [{ id: 2 }] } }]);
+    const service = new OrganizationStructureService(api as unknown as APIClient);
+
+    await service.updateEmployeeRoles('2', roleNames);
+
+    expect(api.calls).toEqual([
+      {
+        resourceName: 'users',
+        resourceId: undefined,
+        action: 'update',
+        options: { filterByTk: '2', values: { roles: roleNames } },
+      },
+    ]);
+  });
+
+  it('reports an update that matched no users', async () => {
+    const service = new OrganizationStructureService(new FakeApiClient() as unknown as APIClient);
+    await expect(service.updateEmployeeRoles('2', ['manager'])).rejects.toThrow('Сотрудник не найден');
+  });
+
   it('normalizes snowflake identifiers and optional employee fields without any casts', () => {
     expect(
       normalizeEmployee({

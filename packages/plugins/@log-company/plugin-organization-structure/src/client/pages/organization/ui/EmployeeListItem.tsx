@@ -8,7 +8,8 @@
  */
 
 import { MoreOutlined } from '@ant-design/icons';
-import { Avatar, Button, Dropdown, Flex, Tooltip, Typography, theme, type MenuProps } from 'antd';
+import { Avatar, Button, Dropdown, Flex, Tooltip, Typography, theme } from 'antd';
+import type { MenuProps } from 'antd';
 import React from 'react';
 import { useOrganizationTranslation } from '../../../shared/lib';
 import type { OrganizationEmployee } from '../model/types';
@@ -19,6 +20,7 @@ interface EmployeeListItemProps {
   compact?: boolean;
   onSelect?: () => void;
   onOpen?: () => void;
+  onEditRoles?: () => void;
   onAssign?: () => void;
   onMove?: () => void;
   onRemove?: () => void;
@@ -41,6 +43,7 @@ export function EmployeeListItem({
   compact,
   onSelect,
   onOpen,
+  onEditRoles,
   onAssign,
   onMove,
   onRemove,
@@ -51,6 +54,7 @@ export function EmployeeListItem({
   const { token } = theme.useToken();
   const primaryActions: MenuProps['items'] = [
     onOpen ? { key: 'open', label: t('employees.open') } : null,
+    onEditRoles ? { key: 'editRoles', label: 'Изменить роли' } : null,
     onAssign ? { key: 'assign', label: t('employees.assign') } : null,
     onMove ? { key: 'move', label: t('employees.move') } : null,
     onMakeManager ? { key: 'manager', label: t('employees.makeManager') } : null,
@@ -64,6 +68,7 @@ export function EmployeeListItem({
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
     const handlers: Record<string, (() => void) | undefined> = {
       assign: onAssign,
+      editRoles: onEditRoles,
       manager: onMakeManager,
       move: onMove,
       open: onOpen,

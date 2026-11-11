@@ -9,14 +9,7 @@
 
 export type DocumentCategory = 'ordinary' | 'rented' | 'voluntary';
 
-const manualFields = [
-  'valid_from',
-  'valid_until',
-  'product_information',
-  'manufacturer_name',
-  'manufacturer_address',
-  'technical_regulations',
-];
+const manualFields = ['valid_from', 'valid_until', 'product_information', 'manufacturer_name', 'manufacturer_address'];
 
 const generatedFields = [
   'id',
@@ -45,6 +38,8 @@ export function categoryFieldState(category: DocumentCategory, name: string, isN
   if (name === 'related_document') return { visible: !voluntary && isNew, disabled: !isNew, required: false };
   if (name === 'rental_from' || name === 'rental_until') return { visible: rented, disabled: false, required: rented };
   if (name === 'document_type') return { visible: true, disabled: voluntary, required: true };
+  if (name === 'technical_regulations')
+    return { visible: voluntary || !isNew, disabled: !voluntary && isNew, required: voluntary };
   if (manualFields.includes(name)) return { visible: voluntary, disabled: !voluntary, required: voluntary };
   if (name === 'documents') return { visible: true, disabled: false, required: voluntary };
   return undefined;

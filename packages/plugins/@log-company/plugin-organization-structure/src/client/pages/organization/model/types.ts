@@ -93,6 +93,7 @@ export interface OrganizationPermissions {
   canMoveEmployee: (employeeId: Identifier) => boolean;
   canRemoveEmployee: (employeeId: Identifier) => boolean;
   canTerminateEmployee: (employeeId: Identifier) => boolean;
+  canEditEmployeeRoles: (employeeId: Identifier) => boolean;
   canAddMembers: (departmentId: Identifier) => boolean;
   canAssignManager: (departmentId?: Identifier) => boolean;
 }

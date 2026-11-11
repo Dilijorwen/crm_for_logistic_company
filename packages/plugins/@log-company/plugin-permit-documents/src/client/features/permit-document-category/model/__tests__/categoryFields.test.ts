@@ -52,4 +52,16 @@ describe('permit document category form fields', () => {
         expect(categoryFieldState(category, name, false)).toMatchObject({ visible: false, disabled: true });
     }
   });
+  it.each(['ordinary', 'rented'] as const)('allows optional regulation selection only on %s edit', (category) => {
+    expect(categoryFieldState(category, 'technical_regulations', false)).toEqual({
+      visible: true,
+      disabled: false,
+      required: false,
+    });
+    expect(categoryFieldState(category, 'technical_regulations', true)).toEqual({
+      visible: false,
+      disabled: true,
+      required: false,
+    });
+  });
 });

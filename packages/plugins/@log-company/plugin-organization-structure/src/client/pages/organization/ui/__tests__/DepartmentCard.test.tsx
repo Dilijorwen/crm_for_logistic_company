@@ -40,6 +40,7 @@ const permissions: OrganizationPermissions = {
   canMoveEmployee: () => false,
   canRemoveEmployee: () => false,
   canTerminateEmployee: () => false,
+  canEditEmployeeRoles: () => false,
   canAddMembers: () => false,
   canAssignManager: () => false,
 };
@@ -68,6 +69,7 @@ describe('DepartmentCard', () => {
         onMoveEmployee={vi.fn()}
         onRemoveEmployee={vi.fn()}
         onTerminateEmployee={vi.fn()}
+        onEditEmployeeRoles={vi.fn()}
         onMakeManager={vi.fn()}
       />,
     );

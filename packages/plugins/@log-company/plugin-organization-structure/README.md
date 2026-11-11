@@ -54,6 +54,10 @@ employee action menu exposes **Terminate employee** only when the current role h
 to that record. Termination delegates to the stock `users:destroy` action, including NocoBase's ACL scope, cascading
 association cleanup, audit hooks, and built-in protection that prevents deletion of the root user with ID `1`.
 
+В меню сотрудника «Изменить роли» открывает редактор прямых назначений `users.roles`. Действие требует доступа к
+каталогу ролей и прав чтения и изменения этого поля у пользователя. Диалог загружает текущие назначения и сохраняет
+выбор через штатное действие `users:update`. Уже назначенные роли вне доступного списка сохраняются.
+
 ## Employee onboarding email
 
 The employee sidebar contains an **Add employee** action. Its form accepts the full name, email, and login. A

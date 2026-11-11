@@ -9,7 +9,8 @@
 
 import type { PasswordField } from '@nocobase/database';
 import type { Plugin } from '@nocobase/server';
-import { createMockServer, type ExtendedAgent, type MockServer } from '@nocobase/test';
+import { createMockServer } from '@nocobase/test';
+import type { ExtendedAgent, MockServer } from '@nocobase/test';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { OrganizationStructureModule } from '../composition/OrganizationStructureModule';
 
@@ -247,5 +248,32 @@ describe.runIf(runPostgresIntegration)('organization structure PostgreSQL integr
       .findOne({ filterByTk: createdUser.id })) as unknown as UserModel;
     const passwordField = app.db.getCollection('users').getField<PasswordField>('password');
     expect(await passwordField.verify(strongPassword, storedUser.password)).toBe(true);
+  });
+
+  it('uses standard user ACL and role associations to replace or clear an employee’s direct roles', async () => {
+    const employees = app.db.getRepository('users');
+    const employee = await employees.create({ values: { username: 'organization-role-target' } });
+    const restrictedUser = await employees.create({ values: { username: 'organization-role-restricted' } });
+    const restrictedAgent = await app.agent().login(restrictedUser);
+    const employeeId = String(employee.get('id'));
+    const parameters = { filterByTk: employeeId, values: { roles: ['admin', 'member'] } };
+
+    expect((await restrictedAgent.resource('users').update(parameters)).status).toBe(403);
+    const updated = await rootAgent.resource('users').update(parameters);
+    expect(updated.status).toBe(200);
+    expect(updated.body.data).toHaveLength(1);
+    expect(String(updated.body.data[0].id)).toBe(employeeId);
+
+    const record = await rootAgent
+      .resource('users')
+      .get({ filterByTk: employeeId, fields: ['id'], appends: ['roles'] });
+    expect(record.body.data.roles.map((role: { name: string }) => role.name).sort()).toEqual(['admin', 'member']);
+
+    const cleared = await rootAgent.resource('users').update({ filterByTk: employeeId, values: { roles: [] } });
+    expect(cleared.status).toBe(200);
+    const reloaded = await rootAgent
+      .resource('users')
+      .get({ filterByTk: employeeId, fields: ['id'], appends: ['roles'] });
+    expect(reloaded.body.data.roles).toEqual([]);
   });
 });

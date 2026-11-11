@@ -19,6 +19,7 @@ import { CreateEmployeeModal } from './CreateEmployeeModal';
 import { DepartmentFormModal } from './DepartmentFormModal';
 import { DepartmentSidebar } from './DepartmentSidebar';
 import { DepartmentMembersModal, UserDetailsModal } from './DetailsModals';
+import { EditEmployeeRolesModal } from './EditEmployeeRolesModal';
 import { EmployeeSidebar } from './EmployeeSidebar';
 import { AddEmployeesModal, ManagerModal } from './ManageEmployeesModal';
 import { MoveDepartmentModal } from './MoveDepartmentModal';
@@ -46,8 +47,10 @@ export function OrganizationStructurePage() {
   const [createEmployeeOpen, setCreateEmployeeOpen] = useState(false);
   const [addEmployeesDepartment, setAddEmployeesDepartment] = useState<OrganizationDepartment | null>(null);
   const [managerDepartment, setManagerDepartment] = useState<OrganizationDepartment | null>(null);
-  const [membersDepartment, setMembersDepartment] = useState<OrganizationDepartment | null>(null);
+  const [membersDepartmentId, setMembersDepartmentId] = useState<Identifier | null>(null);
   const [userDetails, setUserDetails] = useState<OrganizationEmployee | null>(null);
+  const [employeeToEditRoles, setEmployeeToEditRoles] = useState<OrganizationEmployee | null>(null);
+  const membersDepartment = state.departments.find(({ id }) => id === membersDepartmentId) ?? null;
 
   const showMutationError = (error: unknown): void => {
     message.error(apiErrorMessage(error, t('errors.mutation')));
@@ -119,7 +122,7 @@ export function OrganizationStructurePage() {
           if (focusTarget?.employeeId === employee.id) {
             setFocusTarget(null);
           }
-          setMembersDepartment(null);
+          setMembersDepartmentId(null);
         } catch (error) {
           showMutationError(error);
           throw error;
@@ -179,6 +182,7 @@ export function OrganizationStructurePage() {
             onLocate={locate}
             onAssign={setAssignEmployee}
             onOpen={setUserDetails}
+            onEditRoles={setEmployeeToEditRoles}
             onTerminate={confirmTerminateEmployee}
             onCreate={() => setCreateEmployeeOpen(true)}
           />
@@ -195,8 +199,9 @@ export function OrganizationStructurePage() {
             onDelete={confirmDeleteDepartment}
             onAssignManager={setManagerDepartment}
             onAddEmployees={setAddEmployeesDepartment}
-            onShowMembers={setMembersDepartment}
+            onShowMembers={(department) => setMembersDepartmentId(department.id)}
             onOpenEmployee={setUserDetails}
+            onEditEmployeeRoles={setEmployeeToEditRoles}
             onMoveEmployee={setAssignEmployee}
             onRemoveEmployee={confirmRemoveEmployee}
             onTerminateEmployee={confirmTerminateEmployee}
@@ -337,8 +342,9 @@ export function OrganizationStructurePage() {
       <DepartmentMembersModal
         department={membersDepartment}
         permissions={permissions}
-        onClose={() => setMembersDepartment(null)}
+        onClose={() => setMembersDepartmentId(null)}
         onOpenEmployee={setUserDetails}
+        onEditEmployeeRoles={setEmployeeToEditRoles}
         onMoveEmployee={setAssignEmployee}
         onRemoveEmployee={(employee) => {
           if (membersDepartment) {
@@ -353,6 +359,21 @@ export function OrganizationStructurePage() {
         }}
       />
       <UserDetailsModal employee={userDetails} onClose={() => setUserDetails(null)} />
+      {employeeToEditRoles && (
+        <EditEmployeeRolesModal
+          key={employeeToEditRoles.id}
+          employeeId={employeeToEditRoles.id}
+          employeeName={employeeToEditRoles.nickname}
+          service={state.service}
+          onClose={() => setEmployeeToEditRoles(null)}
+          onSave={async (roleNames) => {
+            await state.service.updateEmployeeRoles(employeeToEditRoles.id, roleNames);
+            await state.refreshAll();
+            setEmployeeToEditRoles(null);
+            message.success('Роли сотрудника обновлены');
+          }}
+        />
+      )}
     </div>
   );
 }

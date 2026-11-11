@@ -50,7 +50,7 @@ export class PermitDocumentManagedFieldsGuard {
     for (const action of PROTECTED_ACTIONS) {
       this.plugin.app.resourcer.registerPreActionHandler(action, async (rawContext) => {
         const context = rawContext as unknown as GuardContext;
-        context.throw(403, 'Реестровые поля и связи изменяются только синхронизацией.');
+        context.throw(403, 'Изменяйте технические регламенты через форму разрешительного документа.');
       });
     }
     for (const action of ['create', 'update']) {
@@ -69,26 +69,29 @@ export class PermitDocumentManagedFieldsGuard {
           const category = values.category ?? current?.get('category') ?? 'ordinary';
           if ('technical_regulations' in values) {
             if (!Array.isArray(values.technical_regulations)) context.throw(422, 'Выберите технические регламенты.');
-            const ids = (values.technical_regulations as unknown[]).map((value) =>
-              selectionIdentifier(value, 'Технические регламенты'),
-            );
-            if (category !== 'voluntary') {
-              const saved = current
-                ? await this.plugin.db
-                    .getRepository('document_technical_regulations')
-                    .find({ filter: { document_id: current.get('id') } })
-                : [];
-              const expected = saved
-                .map((row: { get(key: string): unknown }) => String(row.get('technical_regulation_id')))
-                .sort();
-              if (
-                current?.get('category') !== 'voluntary' &&
-                JSON.stringify(ids.map(String).sort()) !== JSON.stringify(expected)
-              ) {
+            const ids = [
+              ...new Set(
+                (values.technical_regulations as unknown[]).map((value) =>
+                  selectionIdentifier(value, 'Технические регламенты'),
+                ),
+              ),
+            ];
+            if (action === 'create' && category !== 'voluntary') {
+              if (ids.length) {
                 context.throw(403, 'Технические регламенты этого документа заполняются из реестра.');
               }
               delete values.technical_regulations;
-            } else values.technical_regulations = ids;
+            } else {
+              if (ids.length) {
+                const count = await this.plugin.db
+                  .getRepository('technical_regulations')
+                  .count({ filter: { id: { $in: ids } } });
+                if (ids.includes(null) || count !== ids.length) {
+                  context.throw(422, 'Один из выбранных технических регламентов не найден.');
+                }
+              }
+              values.technical_regulations = ids;
+            }
           }
           if (category === 'voluntary' && Array.isArray(values.documents)) {
             values.documents = values.documents.map((value) => selectionIdentifier(value, 'Документы'));

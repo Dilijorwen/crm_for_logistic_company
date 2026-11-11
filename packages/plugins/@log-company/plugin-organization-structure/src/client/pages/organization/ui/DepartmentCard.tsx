@@ -8,7 +8,8 @@
  */
 
 import { DownOutlined, MoreOutlined, PlusOutlined, UpOutlined } from '@ant-design/icons';
-import { Button, Dropdown, Flex, Tooltip, Typography, theme, type MenuProps } from 'antd';
+import { Button, Dropdown, Flex, Tooltip, Typography, theme } from 'antd';
+import type { MenuProps } from 'antd';
 import React, { useMemo } from 'react';
 import { useOrganizationTranslation } from '../../../shared/lib';
 import { buildDepartmentMemberPreview } from '../lib/departmentMembers';
@@ -33,6 +34,7 @@ interface DepartmentCardProps {
   onAddEmployees: () => void;
   onShowMembers: () => void;
   onOpenEmployee: (employee: OrganizationEmployee) => void;
+  onEditEmployeeRoles: (employee: OrganizationEmployee) => void;
   onMoveEmployee: (employee: OrganizationEmployee) => void;
   onRemoveEmployee: (employee: OrganizationEmployee) => void;
   onTerminateEmployee: (employee: OrganizationEmployee) => void;
@@ -132,6 +134,9 @@ export function DepartmentCard(props: DepartmentCardProps) {
                 compact
                 highlighted={props.highlightedEmployeeId === owner.id}
                 onOpen={() => props.onOpenEmployee(owner)}
+                onEditRoles={
+                  props.permissions.canEditEmployeeRoles(owner.id) ? () => props.onEditEmployeeRoles(owner) : undefined
+                }
                 onMove={props.permissions.canMoveEmployee(owner.id) ? () => props.onMoveEmployee(owner) : undefined}
                 onRemove={
                   props.permissions.canRemoveEmployee(owner.id) ? () => props.onRemoveEmployee(owner) : undefined
@@ -160,6 +165,11 @@ export function DepartmentCard(props: DepartmentCardProps) {
                 compact
                 highlighted={props.highlightedEmployeeId === member.id}
                 onOpen={() => props.onOpenEmployee(member)}
+                onEditRoles={
+                  props.permissions.canEditEmployeeRoles(member.id)
+                    ? () => props.onEditEmployeeRoles(member)
+                    : undefined
+                }
                 onMove={props.permissions.canMoveEmployee(member.id) ? () => props.onMoveEmployee(member) : undefined}
                 onRemove={
                   props.permissions.canRemoveEmployee(member.id) ? () => props.onRemoveEmployee(member) : undefined

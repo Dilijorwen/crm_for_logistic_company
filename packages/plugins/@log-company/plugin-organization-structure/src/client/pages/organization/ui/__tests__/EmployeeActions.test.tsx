@@ -7,7 +7,7 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { fireEvent, render, screen } from '@nocobase/test/client';
+import { act, fireEvent, render, screen, waitFor } from '@nocobase/test/client';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { OrganizationEmployee } from '../../model/types';
@@ -17,6 +17,7 @@ vi.mock('../../../../shared/lib', () => ({
 }));
 
 import { UserDetailsModal } from '../DetailsModals';
+import { EditEmployeeRolesModal } from '../EditEmployeeRolesModal';
 import { EmployeeListItem } from '../EmployeeListItem';
 
 const employee: OrganizationEmployee = {
@@ -48,5 +49,66 @@ describe('employee actions and details', () => {
     fireEvent.click(await screen.findByText('employees.terminate'));
 
     expect(onTerminate).toHaveBeenCalledOnce();
+  });
+
+  it('opens the role editor through the employee menu when the action is provided', async () => {
+    const onEditRoles = vi.fn();
+    const { rerender } = render(<EmployeeListItem employee={employee} onOpen={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'common.actions Anna Employee' }));
+    expect(screen.queryByRole('menuitem', { name: 'Изменить роли' })).not.toBeInTheDocument();
+
+    rerender(<EmployeeListItem employee={employee} onOpen={vi.fn()} onEditRoles={onEditRoles} />);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Изменить роли' }));
+    expect(onEditRoles).toHaveBeenCalledOnce();
+  });
+
+  it('preserves unavailable assignments and prevents duplicate saves', async () => {
+    let finishSave: () => void;
+    const onSave = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSave = resolve;
+        }),
+    );
+    render(
+      <EditEmployeeRolesModal
+        employeeId={employee.id}
+        employeeName={employee.nickname}
+        service={{
+          getEmployeeRoles: async () => [{ name: 'hidden', title: 'Служебная роль' }],
+          getAssignableRoles: async () => [{ name: 'manager', title: 'Менеджер' }],
+        }}
+        onClose={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+
+    const save = screen.getByRole('button', { name: 'Сохранить' });
+    expect(save).toBeDisabled();
+    expect(await screen.findByText('Служебная роль')).toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Роли сотрудника' }));
+    fireEvent.click(await screen.findByText('Менеджер'));
+    fireEvent.click(save);
+    fireEvent.click(save);
+
+    expect(onSave).toHaveBeenCalledOnce();
+    expect(onSave).toHaveBeenCalledWith(['manager', 'hidden']);
+    await act(async () => finishSave());
+  });
+
+  it('allows retrying a failed role lookup', async () => {
+    const getEmployeeRoles = vi.fn().mockRejectedValueOnce(new Error('Forbidden')).mockResolvedValueOnce([]);
+    render(
+      <EditEmployeeRolesModal
+        employeeId={employee.id}
+        employeeName={employee.nickname}
+        service={{ getEmployeeRoles, getAssignableRoles: async () => [] }}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Повторить' }));
+    await waitFor(() => expect(getEmployeeRoles).toHaveBeenCalledTimes(2));
+    expect(await screen.findByRole('combobox', { name: 'Роли сотрудника' })).toBeDisabled();
   });
 });

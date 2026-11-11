@@ -76,8 +76,9 @@ describe('native edit popup category flows', () => {
     const props = (name: string) => items.find((item) => item.uid === name).props;
     expect(props('company').hidden).toBe(true);
     expect(props('rental_until')).toMatchObject({ hidden: false, required: true });
-    for (const name of ['status', 'period_from', 'related_document', 'technical_regulations'])
-      expect(props(name).hidden).toBe(true);
+    for (const name of ['status', 'period_from', 'related_document']) expect(props(name).hidden).toBe(true);
+    expect(props('technical_regulations')).toMatchObject({ hidden: false, required: false });
+    expect(items.find((item) => item.uid === 'technical_regulations').subModels.field.props.disabled).toBe(false);
     expect(form.getFieldValue('rental_until')).toBe('2027-01-01');
     await act(async () => {
       form.setFieldValue('category', 'voluntary');

@@ -18,6 +18,7 @@ interface DepartmentMembersModalProps {
   permissions: OrganizationPermissions;
   onClose: () => void;
   onOpenEmployee: (employee: OrganizationEmployee) => void;
+  onEditEmployeeRoles: (employee: OrganizationEmployee) => void;
   onMoveEmployee: (employee: OrganizationEmployee) => void;
   onRemoveEmployee: (employee: OrganizationEmployee) => void;
   onTerminateEmployee: (employee: OrganizationEmployee) => void;
@@ -42,6 +43,11 @@ export function DepartmentMembersModal(props: DepartmentMembersModalProps) {
               key={employee.id}
               employee={employee}
               onOpen={() => props.onOpenEmployee(employee)}
+              onEditRoles={
+                props.permissions.canEditEmployeeRoles(employee.id)
+                  ? () => props.onEditEmployeeRoles(employee)
+                  : undefined
+              }
               onMove={props.permissions.canMoveEmployee(employee.id) ? () => props.onMoveEmployee(employee) : undefined}
               onRemove={
                 props.permissions.canRemoveEmployee(employee.id) ? () => props.onRemoveEmployee(employee) : undefined

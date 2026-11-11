@@ -25,6 +25,7 @@ import { PermitDocumentValidationHooks } from '../interfaces/hooks/PermitDocumen
 import { AssignPermitDocumentNumber } from '../application/AssignPermitDocumentNumber';
 import { NocoBasePermitDocumentNumberingRepository } from '../infrastructure/nocobase/NocoBasePermitDocumentNumberingRepository';
 import { PermitDocumentNumberingHooks } from '../interfaces/hooks/PermitDocumentNumberingHooks';
+import { PermitDocumentManagedFieldsGuard } from '../interfaces/http/PermitDocumentManagedFieldsGuard';
 
 describe('permit documents persistence', () => {
   let database: Database;
@@ -70,8 +71,9 @@ describe('permit documents persistence', () => {
     } as unknown as PermitDocumentRepository;
     new PermitDocumentValidationHooks({ db: database } as unknown as Plugin, repository).register();
     resourcer = new ResourceManager();
-    resourcer.define({ name: 'permit_documents', actions: { create: actions.create } });
+    resourcer.define({ name: 'permit_documents', actions: { create: actions.create, update: actions.update } });
     const plugin = { db: database, app: { resourcer } } as unknown as Plugin;
+    new PermitDocumentManagedFieldsGuard(plugin).register();
     const numbering = new NocoBasePermitDocumentNumberingRepository(plugin);
     new PermitDocumentNumberingHooks(
       plugin,
@@ -162,6 +164,52 @@ describe('permit documents persistence', () => {
     await repository.update({ filterByTk, values: { marking: null } });
     expect((await repository.findOne({ filterByTk })).get('marking')).toBeNull();
   });
+
+  it.each(['ordinary', 'rented'])(
+    'edits %s regulations through Submit and preserves the dictionary',
+    async (category) => {
+      const regulations = database.getRepository('technical_regulations');
+      await regulations.create({ values: { id: '3001', doc_num: 'ТР ТС 008/2011' } });
+      await database.getRepository('permit_documents').create({
+        values: {
+          id: '2001',
+          title: 'ДС-1',
+          document_type: 'declaration_of_conformity',
+          category,
+          ...(category === 'rented' ? { rental_from: '2026-01-01', rental_until: '2099-01-01' } : {}),
+        },
+      });
+      async function submit(values: Record<string, unknown>) {
+        const context = {
+          db: database,
+          request: {
+            path: '/api/permit_documents:update',
+            method: 'POST',
+            querystring: 'filterByTk=2001&updateAssociationValues[]=technical_regulations',
+            body: values,
+          },
+          body: undefined as unknown,
+          throw: (status: number, message: string) => {
+            throw Object.assign(new Error(message), { status });
+          },
+        };
+        await resourcer.middleware({ prefix: '/api' })(context, async () => {});
+      }
+      const selections = { technical_regulations: [{ id: '3001', doc_num: 'Injected' }] };
+      await submit(structuredClone(selections));
+      await submit(structuredClone(selections));
+      expect((await regulations.findOne({ filterByTk: '3001' })).get('doc_num')).toBe('ТР ТС 008/2011');
+      const links = database.getRepository('document_technical_regulations');
+      expect(await links.count({ filter: { document_id: '2001', technical_regulation_id: '3001' } })).toBe(1);
+      await expect(submit({ technical_regulations: ['9999'] })).rejects.toMatchObject({ status: 422 });
+      expect(await links.count()).toBe(1);
+      const document = await database.getRepository('permit_documents').findOne({ filterByTk: '2001' });
+      expect(document.get('title')).toBe('ДС-1');
+      expect(document.get('sync_status')).toBe('PENDING');
+      await submit({ technical_regulations: [] });
+      expect(await links.count()).toBe(0);
+    },
+  );
 
   async function manualValues() {
     await database.getRepository('our_companies').create({ values: { id: '1001', name: 'Компания' } });

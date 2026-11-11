@@ -20,11 +20,16 @@ import type {
   PaginatedResult,
   RoleReference,
 } from '../model/types';
-import { asRecordArray, responseData, responseMeta, stringValue } from './apiResponse';
+import { asRecord, asRecordArray, responseData, responseMeta, stringValue } from './apiResponse';
 import { generateInitialPassword } from '../lib/generateInitialPassword';
 
 const DEFAULT_EMPLOYEE_PAGE_SIZE = 30;
 const PASSWORD_AUTHENTICATOR = 'basic';
+const BUILT_IN_ROLE_TITLES = new Map([
+  ['{{t("Root")}}', 'Суперадминистратор'],
+  ['{{t("Admin")}}', 'Администратор'],
+  ['{{t("Member")}}', 'Участник'],
+]);
 
 function numberValue(value: unknown, fallback = 0): number {
   const result = Number(value);
@@ -40,10 +45,17 @@ function normalizeDepartmentReference(value: Record<string, unknown>): Departmen
 
 function normalizeRoleReference(value: Record<string, unknown>): RoleReference {
   const name = stringValue(value.name);
+  const title = stringValue(value.title, name);
   return {
     name,
-    title: stringValue(value.title, name),
+    title: BUILT_IN_ROLE_TITLES.get(title) ?? title,
   };
+}
+
+function normalizeRoles(value: unknown): RoleReference[] {
+  return asRecordArray(value)
+    .map(normalizeRoleReference)
+    .filter((role) => role.name);
 }
 
 export function normalizeEmployee(value: Record<string, unknown>): OrganizationEmployee {
@@ -60,9 +72,7 @@ export function normalizeEmployee(value: Record<string, unknown>): OrganizationE
     avatarUrl: stringValue(value.avatar) || stringValue(value.avatarUrl) || undefined,
     isActive: typeof value.isActive === 'boolean' ? value.isActive : undefined,
     mainDepartmentId: stringValue(value.mainDepartmentId) || null,
-    roles: asRecordArray(value.roles)
-      .map(normalizeRoleReference)
-      .filter((item) => item.name),
+    roles: normalizeRoles(value.roles),
     departments,
   };
 }
@@ -146,6 +156,41 @@ export class OrganizationStructureService {
   async searchEmployees(search: string): Promise<OrganizationEmployee[]> {
     const result = await this.getEmployees({ search, filter: 'all', page: 1, pageSize: DEFAULT_EMPLOYEE_PAGE_SIZE });
     return result.items;
+  }
+
+  async getEmployeeRoles(employeeId: Identifier): Promise<RoleReference[]> {
+    const response: unknown = await this.api.resource('users').get({
+      filterByTk: employeeId,
+      fields: ['id'],
+      appends: ['roles'],
+    });
+    const user = asRecord(responseData(response));
+    if (stringValue(user.id) !== employeeId || !Array.isArray(user.roles)) {
+      throw new Error('Не удалось прочитать назначенные роли сотрудника.');
+    }
+    return normalizeRoles(user.roles);
+  }
+
+  async getAssignableRoles(): Promise<RoleReference[]> {
+    const response: unknown = await this.api.resource('roles').list({
+      paginate: false,
+      fields: ['name', 'title', 'hidden'],
+      sort: ['title', 'name'],
+    });
+    const roles = asRecordArray(responseData(response)).filter(
+      (role) => role.hidden !== true && role.name !== 'root' && role.name !== 'anonymous',
+    );
+    return normalizeRoles(roles);
+  }
+
+  async updateEmployeeRoles(employeeId: Identifier, roleNames: string[]): Promise<void> {
+    const response: unknown = await this.api.resource('users').update({
+      filterByTk: employeeId,
+      values: { roles: roleNames },
+    });
+    if (!asRecordArray(responseData(response)).some((user) => stringValue(user.id) === employeeId)) {
+      throw new Error('Сотрудник не найден или его роли недоступны для изменения.');
+    }
   }
 
   async createEmployee(input: CreateEmployeeInput, applicationBaseUrl: string): Promise<CreateEmployeeResult> {

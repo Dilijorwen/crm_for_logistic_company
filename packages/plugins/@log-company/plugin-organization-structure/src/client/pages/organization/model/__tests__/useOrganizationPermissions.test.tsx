@@ -139,6 +139,33 @@ describe('useOrganizationPermissions', () => {
     expect(result.current.canAssignEmployee('user-1')).toBe(true);
     expect(result.current.canTerminateEmployee('user-1')).toBe(true);
     expect(result.current.canTerminateEmployee('1')).toBe(false);
+    expect(result.current.canEditEmployeeRoles('user-1')).toBe(true);
     expect(result.current.canAssignManager('department-1')).toBe(true);
+  });
+
+  it('requires access to the role catalog and a scoped roles field update', () => {
+    aclMocks.parseAction.mockImplementation((actionPath: string, { recordPkValue }) => {
+      if (actionPath === 'roles:list') return {};
+      if (actionPath === 'users:get') return { whitelist: ['roles'] };
+      if (actionPath === 'users:update' && recordPkValue === 'editable') return { whitelist: ['roles'] };
+      if (actionPath === 'users:update' && recordPkValue === 'restricted-fields') return { whitelist: ['nickname'] };
+      return null;
+    });
+    const { result } = renderHook(() => useOrganizationPermissions());
+
+    expect(result.current.canEditEmployeeRoles('editable')).toBe(true);
+    expect(result.current.canEditEmployeeRoles('outside-scope')).toBe(false);
+    expect(result.current.canEditEmployeeRoles('restricted-fields')).toBe(false);
+    expect(aclMocks.parseAction).toHaveBeenCalledWith('users:update', {
+      ignoreScope: false,
+      recordPkValue: 'editable',
+    });
+  });
+
+  it('allows the standard user management grant with access to the role catalog', () => {
+    aclMocks.hasAclSnippet.mockImplementation((snippet: string) => ['pm.users', 'pm.departments'].includes(snippet));
+    const { result } = renderHook(() => useOrganizationPermissions());
+
+    expect(result.current.canEditEmployeeRoles('user-1')).toBe(true);
   });
 });

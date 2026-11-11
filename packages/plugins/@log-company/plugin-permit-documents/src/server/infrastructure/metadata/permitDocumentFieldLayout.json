@@ -1,0 +1,956 @@
+{
+  "capturedAt": "2026-11-11",
+  "dataSourceKey": "main",
+  "blocks": [
+    {
+      "uid": "1ac5833acfa",
+      "use": "TableBlockModel",
+      "grid": null,
+      "fields": [
+        {
+          "uid": "593cb48afc7",
+          "sort": 3,
+          "fieldPath": "internal_number",
+          "columnSettings": {
+            "model": {
+              "use": "DisplayNumberFieldModel"
+            },
+            "width": {
+              "width": 50
+            },
+            "sorter": {
+              "sorter": true
+            }
+          }
+        },
+        {
+          "uid": "97c55675ae2",
+          "sort": 4,
+          "fieldPath": "last_checked_at",
+          "columnSettings": {
+            "model": {
+              "use": "DisplayDateTimeFieldModel"
+            },
+            "width": {
+              "width": 200
+            }
+          }
+        },
+        {
+          "uid": "d4f33a97786",
+          "sort": 11,
+          "fieldPath": "name",
+          "columnSettings": {
+            "model": {
+              "use": "DisplayTextFieldModel"
+            },
+            "width": {
+              "width": 300
+            }
+          }
+        },
+        {
+          "uid": "e3bb58b0d13",
+          "sort": 12,
+          "fieldPath": "related_document",
+          "columnSettings": {
+            "model": {
+              "use": "DisplayTextFieldModel"
+            },
+            "width": {
+              "width": 300
+            }
+          }
+        },
+        {
+          "uid": "2e0a5d8ea3f",
+          "sort": 13,
+          "fieldPath": "document_type",
+          "columnSettings": {
+            "model": {
+              "use": "DisplayEnumFieldModel"
+            },
+            "width": {
+              "width": 70
+            }
+          }
+        },
+        {
+          "uid": "01b9fb0e659",
+          "sort": 15,
+          "fieldPath": "status",
+          "columnSettings": {
+            "model": {
+              "use": "DisplayEnumFieldModel"
+            }
+          }
+        },
+        {
+          "uid": "a4502623156",
+          "sort": 26,
+          "fieldPath": "product_information",
+          "columnSettings": {
+            "model": {
+              "use": "DisplayTextFieldModel"
+            }
+          }
+        },
+        {
+          "uid": "a09418db514",
+          "sort": 28,
+          "fieldPath": "technical_regulations",
+          "columnSettings": {
+            "model": {
+              "use": "DisplayTextFieldModel"
+            }
+          }
+        }
+      ],
+      "collectionName": "permit_documents"
+    },
+    {
+      "uid": "4d77f8330b3",
+      "use": "CreateFormModel",
+      "grid": {
+        "uid": "73d5426da1f",
+        "settings": {
+          "layout": {
+            "rows": [
+              {
+                "id": "m56oi530nht",
+                "cells": [
+                  {
+                    "id": "m56oi530nht:cell:0",
+                    "items": ["939beff1c0e"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "759wa00v1w7",
+                "cells": [
+                  {
+                    "id": "759wa00v1w7:cell:0",
+                    "items": ["98b93afa8f9"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "cktleta6aaw",
+                "cells": [
+                  {
+                    "id": "cktleta6aaw:cell:0",
+                    "items": ["025b1fd1407"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "dwzldgv1go1",
+                "cells": [
+                  {
+                    "id": "dwzldgv1go1:cell:0",
+                    "items": ["8f3472f26e7"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "a55d7gdhpw6",
+                "cells": [
+                  {
+                    "id": "a55d7gdhpw6:cell:0",
+                    "items": ["8a13c0e7bbd"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "dvx4nabu9zo",
+                "cells": [
+                  {
+                    "id": "dvx4nabu9zo:cell:0",
+                    "items": ["60745cf015a", "759b169813b"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "j12np0o25cv",
+                "cells": [
+                  {
+                    "id": "j12np0o25cv:cell:0",
+                    "items": ["46deea20d1f"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "af9o64x93a1",
+                "cells": [
+                  {
+                    "id": "af9o64x93a1:cell:0",
+                    "items": ["0040fb5e306"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "p038ie0kk5w",
+                "cells": [
+                  {
+                    "id": "p038ie0kk5w:cell:0",
+                    "items": ["eff7cabe3e1"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "c1g6toiphpu",
+                "cells": [
+                  {
+                    "id": "c1g6toiphpu:cell:0",
+                    "items": ["b0e808f528e"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "ignslkl9vi9",
+                "cells": [
+                  {
+                    "id": "ignslkl9vi9:cell:0",
+                    "items": ["pde4d77f8330b3marking"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "zcscvwh4z38",
+                "cells": [
+                  {
+                    "id": "zcscvwh4z38:cell:0",
+                    "items": ["86fa4d2277d"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "f60a1fhcd1z",
+                "cells": [
+                  {
+                    "id": "f60a1fhcd1z:cell:0",
+                    "items": ["504f6154634"]
+                  }
+                ],
+                "sizes": [24]
+              }
+            ],
+            "version": 2
+          }
+        }
+      },
+      "fields": [
+        {
+          "uid": "939beff1c0e",
+          "sort": 1,
+          "fieldPath": "category",
+          "columnSettings": null
+        },
+        {
+          "uid": "98b93afa8f9",
+          "sort": 2,
+          "fieldPath": "title",
+          "columnSettings": null
+        },
+        {
+          "uid": "025b1fd1407",
+          "sort": 3,
+          "fieldPath": "document_type",
+          "columnSettings": null
+        },
+        {
+          "uid": "8f3472f26e7",
+          "sort": 4,
+          "fieldPath": "company",
+          "columnSettings": null
+        },
+        {
+          "uid": "8a13c0e7bbd",
+          "sort": 5,
+          "fieldPath": "valid_from",
+          "columnSettings": null
+        },
+        {
+          "uid": "60745cf015a",
+          "sort": 6,
+          "fieldPath": "valid_until",
+          "columnSettings": null
+        },
+        {
+          "uid": "0040fb5e306",
+          "sort": 7,
+          "fieldPath": "product_information",
+          "columnSettings": null
+        },
+        {
+          "uid": "eff7cabe3e1",
+          "sort": 8,
+          "fieldPath": "manufacturer_name",
+          "columnSettings": null
+        },
+        {
+          "uid": "b0e808f528e",
+          "sort": 9,
+          "fieldPath": "manufacturer_address",
+          "columnSettings": null
+        },
+        {
+          "uid": "86fa4d2277d",
+          "sort": 10,
+          "fieldPath": "technical_regulations",
+          "columnSettings": null
+        },
+        {
+          "uid": "504f6154634",
+          "sort": 11,
+          "fieldPath": "documents",
+          "columnSettings": null
+        },
+        {
+          "uid": "759b169813b",
+          "sort": 12,
+          "fieldPath": "rental_from",
+          "columnSettings": null
+        },
+        {
+          "uid": "46deea20d1f",
+          "sort": 13,
+          "fieldPath": "rental_until",
+          "columnSettings": null
+        },
+        {
+          "uid": "pde4d77f8330b3marking",
+          "sort": 14,
+          "fieldPath": "marking",
+          "columnSettings": null
+        }
+      ],
+      "collectionName": "permit_documents"
+    },
+    {
+      "uid": "4eaf049c52d",
+      "use": "CreateFormModel",
+      "grid": {
+        "uid": "046a40d71bf",
+        "settings": {
+          "layout": {
+            "rows": [
+              {
+                "id": "vnx0mjmdxag",
+                "cells": [
+                  {
+                    "id": "vnx0mjmdxag:cell:0",
+                    "items": ["bf942c236e5"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "bjqw1z9xlnh",
+                "cells": [
+                  {
+                    "id": "bjqw1z9xlnh:cell:0",
+                    "items": ["ef6388bc247"]
+                  }
+                ],
+                "sizes": [24]
+              }
+            ],
+            "version": 2
+          }
+        }
+      },
+      "fields": [
+        {
+          "uid": "bf942c236e5",
+          "sort": 1,
+          "fieldPath": "doc_num",
+          "columnSettings": null
+        },
+        {
+          "uid": "ef6388bc247",
+          "sort": 2,
+          "fieldPath": "name",
+          "columnSettings": null
+        }
+      ],
+      "collectionName": "technical_regulations"
+    },
+    {
+      "uid": "67cff7005b5",
+      "use": "DetailsBlockModel",
+      "grid": {
+        "uid": "254e7268010",
+        "settings": {
+          "layout": {
+            "rows": [
+              {
+                "id": "5unj74r246c",
+                "cells": [
+                  {
+                    "id": "5unj74r246c:cell:0",
+                    "items": ["ef9d9689eb3"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "hbgkhg4e6e3",
+                "cells": [
+                  {
+                    "id": "hbgkhg4e6e3:cell:0",
+                    "items": ["e77974cf019"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "mzb0cob0kxy",
+                "cells": [
+                  {
+                    "id": "mzb0cob0kxy:cell:0",
+                    "items": ["fa9c254fd33"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "jv9lgy7p3hk",
+                "cells": [
+                  {
+                    "id": "jv9lgy7p3hk:cell:0",
+                    "items": ["17964547f3e"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "a3tcgi9mawr",
+                "cells": [
+                  {
+                    "id": "a3tcgi9mawr:cell:0",
+                    "items": ["638af8ad193"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "hlo7ojvxied",
+                "cells": [
+                  {
+                    "id": "hlo7ojvxied:cell:0",
+                    "items": ["bea27de670a"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "47w6cy0oull",
+                "cells": [
+                  {
+                    "id": "47w6cy0oull:cell:0",
+                    "items": [
+                      "4441c1d95a1",
+                      "29c64156ff2",
+                      "59cd85cbdae",
+                      "abac24d1f7a",
+                      "b5149e47ef2",
+                      "pde67cff7005b5marking",
+                      "a364fbb2b57"
+                    ]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "ex7me1hvtre",
+                "cells": [
+                  {
+                    "id": "ex7me1hvtre:cell:0",
+                    "items": ["fd6fb1ad105"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "omjogdop9zv",
+                "cells": [
+                  {
+                    "id": "omjogdop9zv:cell:0",
+                    "items": ["3a6d5ead06c"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "wiuonvmcyli",
+                "cells": [
+                  {
+                    "id": "wiuonvmcyli:cell:0",
+                    "items": ["361de48bd5a"]
+                  }
+                ],
+                "sizes": [24]
+              }
+            ],
+            "version": 2
+          }
+        }
+      },
+      "fields": [
+        {
+          "uid": "ef9d9689eb3",
+          "sort": 1,
+          "fieldPath": "title",
+          "columnSettings": null
+        },
+        {
+          "uid": "e77974cf019",
+          "sort": 2,
+          "fieldPath": "category",
+          "columnSettings": null
+        },
+        {
+          "uid": "fa9c254fd33",
+          "sort": 3,
+          "fieldPath": "document_type",
+          "columnSettings": null
+        },
+        {
+          "uid": "17964547f3e",
+          "sort": 4,
+          "fieldPath": "status",
+          "columnSettings": null
+        },
+        {
+          "uid": "638af8ad193",
+          "sort": 5,
+          "fieldPath": "company",
+          "columnSettings": null
+        },
+        {
+          "uid": "bea27de670a",
+          "sort": 6,
+          "fieldPath": "related_document",
+          "columnSettings": null
+        },
+        {
+          "uid": "59cd85cbdae",
+          "sort": 7,
+          "fieldPath": "product_information",
+          "columnSettings": null
+        },
+        {
+          "uid": "4441c1d95a1",
+          "sort": 8,
+          "fieldPath": "period_from",
+          "columnSettings": null
+        },
+        {
+          "uid": "29c64156ff2",
+          "sort": 9,
+          "fieldPath": "period_until",
+          "columnSettings": null
+        },
+        {
+          "uid": "abac24d1f7a",
+          "sort": 10,
+          "fieldPath": "manufacturer_name",
+          "columnSettings": null
+        },
+        {
+          "uid": "b5149e47ef2",
+          "sort": 11,
+          "fieldPath": "manufacturer_address",
+          "columnSettings": null
+        },
+        {
+          "uid": "a364fbb2b57",
+          "sort": 12,
+          "fieldPath": "technical_regulations",
+          "columnSettings": null
+        },
+        {
+          "uid": "fd6fb1ad105",
+          "sort": 13,
+          "fieldPath": "sync_status",
+          "columnSettings": null
+        },
+        {
+          "uid": "3a6d5ead06c",
+          "sort": 14,
+          "fieldPath": "last_sync_error",
+          "columnSettings": null
+        },
+        {
+          "uid": "361de48bd5a",
+          "sort": 15,
+          "fieldPath": "documents",
+          "columnSettings": null
+        },
+        {
+          "uid": "pde67cff7005b5marking",
+          "sort": 16,
+          "fieldPath": "marking",
+          "columnSettings": null
+        }
+      ],
+      "collectionName": "permit_documents"
+    },
+    {
+      "uid": "884d4cebcc2",
+      "use": "EditFormModel",
+      "grid": {
+        "uid": "f135fc9afd2",
+        "settings": {
+          "layout": {
+            "rows": [
+              {
+                "id": "h6jxjba5nmf",
+                "cells": [
+                  {
+                    "id": "h6jxjba5nmf:cell:0",
+                    "items": ["256641d10d6"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "cruyqoxsndq",
+                "cells": [
+                  {
+                    "id": "cruyqoxsndq:cell:0",
+                    "items": ["79ec44a6155"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "k6abi5aiglm",
+                "cells": [
+                  {
+                    "id": "k6abi5aiglm:cell:0",
+                    "items": ["b1a10172e28"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "w6kk3qc428y",
+                "cells": [
+                  {
+                    "id": "w6kk3qc428y:cell:0",
+                    "items": ["1586250eacb"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "hdhmt9t5g4d",
+                "cells": [
+                  {
+                    "id": "hdhmt9t5g4d:cell:0",
+                    "items": ["cc8bfdc4c0c"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "cl030rvncuf",
+                "cells": [
+                  {
+                    "id": "cl030rvncuf:cell:0",
+                    "items": ["0109164c958"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "cgnc2ml8dp7",
+                "cells": [
+                  {
+                    "id": "cgnc2ml8dp7:cell:0",
+                    "items": ["98b614aa1bc"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "xcwgqmh45t8",
+                "cells": [
+                  {
+                    "id": "xcwgqmh45t8:cell:0",
+                    "items": ["315afdf935b", "pde884d4cebcc2rental_from"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "eel5n59wzxe",
+                "cells": [
+                  {
+                    "id": "eel5n59wzxe:cell:0",
+                    "items": ["pde884d4cebcc2rental_until", "pde884d4cebcc2valid_from", "pde884d4cebcc2valid_until"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "a79pea575y4",
+                "cells": [
+                  {
+                    "id": "a79pea575y4:cell:0",
+                    "items": ["pde884d4cebcc2product_information"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "1xk9c96ok95",
+                "cells": [
+                  {
+                    "id": "1xk9c96ok95:cell:0",
+                    "items": ["pde884d4cebcc2manufacturer_name"]
+                  }
+                ],
+                "sizes": [24]
+              },
+              {
+                "id": "z8roa5z4j5w",
+                "cells": [
+                  {
+                    "id": "z8roa5z4j5w:cell:0",
+                    "rows": [
+                      {
+                        "id": "n228a4j13fx",
+                        "cells": [
+                          {
+                            "id": "n228a4j13fx:cell:0",
+                            "items": ["pde884d4cebcc2manufacturer_address"]
+                          }
+                        ],
+                        "sizes": [24]
+                      },
+                      {
+                        "id": "w6jzawc147b",
+                        "cells": [
+                          {
+                            "id": "w6jzawc147b:cell:0",
+                            "items": ["pde884d4cebcc2marking"]
+                          }
+                        ],
+                        "sizes": [24]
+                      },
+                      {
+                        "id": "79hog1a1bl4",
+                        "cells": [
+                          {
+                            "id": "vhuzjsam421",
+                            "items": ["462bd2e7aa9", "e88c85d3ba0"]
+                          }
+                        ],
+                        "sizes": [24]
+                      }
+                    ]
+                  }
+                ],
+                "sizes": [24]
+              }
+            ],
+            "version": 2
+          }
+        }
+      },
+      "fields": [
+        {
+          "uid": "256641d10d6",
+          "sort": 1,
+          "fieldPath": "title",
+          "columnSettings": null
+        },
+        {
+          "uid": "79ec44a6155",
+          "sort": 2,
+          "fieldPath": "category",
+          "columnSettings": null
+        },
+        {
+          "uid": "b1a10172e28",
+          "sort": 3,
+          "fieldPath": "document_type",
+          "columnSettings": null
+        },
+        {
+          "uid": "1586250eacb",
+          "sort": 4,
+          "fieldPath": "status",
+          "columnSettings": null
+        },
+        {
+          "uid": "cc8bfdc4c0c",
+          "sort": 5,
+          "fieldPath": "company",
+          "columnSettings": null
+        },
+        {
+          "uid": "0109164c958",
+          "sort": 6,
+          "fieldPath": "related_document",
+          "columnSettings": null
+        },
+        {
+          "uid": "98b614aa1bc",
+          "sort": 7,
+          "fieldPath": "period_from",
+          "columnSettings": null
+        },
+        {
+          "uid": "315afdf935b",
+          "sort": 8,
+          "fieldPath": "period_until",
+          "columnSettings": null
+        },
+        {
+          "uid": "462bd2e7aa9",
+          "sort": 9,
+          "fieldPath": "technical_regulations",
+          "columnSettings": null
+        },
+        {
+          "uid": "e88c85d3ba0",
+          "sort": 10,
+          "fieldPath": "documents",
+          "columnSettings": null
+        },
+        {
+          "uid": "pde884d4cebcc2rental_from",
+          "sort": 11,
+          "fieldPath": "rental_from",
+          "columnSettings": null
+        },
+        {
+          "uid": "pde884d4cebcc2rental_until",
+          "sort": 12,
+          "fieldPath": "rental_until",
+          "columnSettings": null
+        },
+        {
+          "uid": "pde884d4cebcc2valid_from",
+          "sort": 13,
+          "fieldPath": "valid_from",
+          "columnSettings": null
+        },
+        {
+          "uid": "pde884d4cebcc2valid_until",
+          "sort": 14,
+          "fieldPath": "valid_until",
+          "columnSettings": null
+        },
+        {
+          "uid": "pde884d4cebcc2product_information",
+          "sort": 15,
+          "fieldPath": "product_information",
+          "columnSettings": null
+        },
+        {
+          "uid": "pde884d4cebcc2manufacturer_name",
+          "sort": 16,
+          "fieldPath": "manufacturer_name",
+          "columnSettings": null
+        },
+        {
+          "uid": "pde884d4cebcc2manufacturer_address",
+          "sort": 17,
+          "fieldPath": "manufacturer_address",
+          "columnSettings": null
+        },
+        {
+          "uid": "pde884d4cebcc2marking",
+          "sort": 18,
+          "fieldPath": "marking",
+          "columnSettings": null
+        }
+      ],
+      "collectionName": "permit_documents"
+    },
+    {
+      "uid": "e5f8fec4d50",
+      "use": "TableBlockModel",
+      "grid": null,
+      "fields": [
+        {
+          "uid": "c0eeebc3da0",
+          "sort": 3,
+          "fieldPath": "doc_num",
+          "columnSettings": {
+            "model": {
+              "use": "DisplayTextFieldModel"
+            }
+          }
+        },
+        {
+          "uid": "3c1e38204d9",
+          "sort": 4,
+          "fieldPath": "name",
+          "columnSettings": {
+            "model": {
+              "use": "DisplayTextFieldModel"
+            },
+            "width": {
+              "width": 500
+            }
+          }
+        },
+        {
+          "uid": "bb6fc90c916",
+          "sort": 5,
+          "fieldPath": "permit_documents",
+          "columnSettings": {
+            "model": {
+              "use": "DisplayTextFieldModel"
+            },
+            "width": {
+              "width": 500
+            }
+          }
+        }
+      ],
+      "collectionName": "technical_regulations"
+    },
+    {
+      "uid": "f91ce02c11a",
+      "use": "DetailsBlockModel",
+      "grid": {
+        "uid": "ce5406ba325",
+        "settings": null
+      },
+      "fields": [
+        {
+          "uid": "8d57ad6e904",
+          "sort": 1,
+          "fieldPath": "doc_num",
+          "columnSettings": null
+        },
+        {
+          "uid": "52db0910b14",
+          "sort": 2,
+          "fieldPath": "name",
+          "columnSettings": null
+        }
+      ],
+      "collectionName": "technical_regulations"
+    }
+  ]
+}

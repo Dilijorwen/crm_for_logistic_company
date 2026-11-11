@@ -260,7 +260,7 @@ export const permitDocumentFields: FieldOptions[] = [
       type: 'array',
       title: translate('field.technicalRegulations'),
       'x-component': 'AssociationField',
-      'x-component-props': { multiple: true, disabled: true, fieldNames: { label: 'doc_num', value: 'id' } },
+      'x-component-props': { multiple: true, fieldNames: { label: 'doc_num', value: 'id' } },
     },
   },
   {

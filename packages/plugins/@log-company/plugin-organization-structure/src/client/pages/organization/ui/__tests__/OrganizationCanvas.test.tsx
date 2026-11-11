@@ -40,6 +40,7 @@ const permissions: OrganizationPermissions = {
   canMoveEmployee: () => false,
   canRemoveEmployee: () => false,
   canTerminateEmployee: () => false,
+  canEditEmployeeRoles: () => false,
   canAddMembers: () => false,
   canAssignManager: () => false,
 };
@@ -103,6 +104,7 @@ describe('OrganizationCanvas', () => {
         onMoveEmployee={vi.fn()}
         onRemoveEmployee={vi.fn()}
         onTerminateEmployee={vi.fn()}
+        onEditEmployeeRoles={vi.fn()}
         onMakeManager={vi.fn()}
       />,
     );
@@ -137,6 +139,7 @@ describe('OrganizationCanvas', () => {
         onMoveEmployee={vi.fn()}
         onRemoveEmployee={vi.fn()}
         onTerminateEmployee={vi.fn()}
+        onEditEmployeeRoles={vi.fn()}
         onMakeManager={vi.fn()}
       />,
     );

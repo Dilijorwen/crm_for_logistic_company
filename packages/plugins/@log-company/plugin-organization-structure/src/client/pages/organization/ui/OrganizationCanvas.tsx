@@ -43,6 +43,7 @@ interface OrganizationCanvasProps {
   onAddEmployees: (department: OrganizationDepartment) => void;
   onShowMembers: (department: OrganizationDepartment) => void;
   onOpenEmployee: (employee: OrganizationEmployee) => void;
+  onEditEmployeeRoles: (employee: OrganizationEmployee) => void;
   onMoveEmployee: (employee: OrganizationEmployee) => void;
   onRemoveEmployee: (employee: OrganizationEmployee, department: OrganizationDepartment) => void;
   onTerminateEmployee: (employee: OrganizationEmployee) => void;
@@ -143,6 +144,7 @@ export function OrganizationCanvas(props: OrganizationCanvasProps) {
           onAddEmployees={() => props.onAddEmployees(node)}
           onShowMembers={() => props.onShowMembers(node)}
           onOpenEmployee={props.onOpenEmployee}
+          onEditEmployeeRoles={props.onEditEmployeeRoles}
           onMoveEmployee={props.onMoveEmployee}
           onRemoveEmployee={(employee) => props.onRemoveEmployee(employee, node)}
           onTerminateEmployee={props.onTerminateEmployee}

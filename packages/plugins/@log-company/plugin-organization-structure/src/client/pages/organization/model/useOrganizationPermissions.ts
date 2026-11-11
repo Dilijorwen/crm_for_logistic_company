@@ -13,6 +13,7 @@ import type { Identifier, OrganizationPermissions } from './types';
 
 const DEPARTMENTS_ACL_SNIPPET = 'pm.departments';
 const USERS_ACL_SNIPPET = 'pm.users';
+const ROLES_ACL_SNIPPET = 'pm.acl.roles';
 
 function actionFields(actionParameters: unknown): unknown[] | null {
   if (actionParameters === null || typeof actionParameters !== 'object' || Array.isArray(actionParameters)) {
@@ -27,6 +28,7 @@ export function useOrganizationPermissions(): OrganizationPermissions {
   const { allow: hasAclSnippet } = useAclSnippets();
   const hasDepartmentsSettingsAccess = hasAclSnippet(DEPARTMENTS_ACL_SNIPPET);
   const hasUsersSettingsAccess = hasAclSnippet(USERS_ACL_SNIPPET);
+  const hasRolesSettingsAccess = hasAclSnippet(ROLES_ACL_SNIPPET);
   const hasAction = useCallback(
     (actionPath: string, recordId?: Identifier): boolean =>
       Boolean(allowAll || parseAction(actionPath, { ignoreScope: !recordId, recordPkValue: recordId })),
@@ -74,6 +76,10 @@ export function useOrganizationPermissions(): OrganizationPermissions {
       hasDepartmentsSettingsAccess || hasFieldAction('users:update', 'departments', employeeId),
     canTerminateEmployee: (employeeId) =>
       employeeId !== '1' && (hasUsersSettingsAccess || hasAction('users:destroy', employeeId)),
+    canEditEmployeeRoles: (employeeId) =>
+      (hasDepartmentsSettingsAccess || hasRolesSettingsAccess || hasAction('roles:list')) &&
+      (hasUsersSettingsAccess ||
+        (hasFieldAction('users:get', 'roles', employeeId) && hasFieldAction('users:update', 'roles', employeeId))),
     canAddMembers: (departmentId) =>
       hasDepartmentsSettingsAccess || hasFieldAction('departments:update', 'members', departmentId),
     canAssignManager: (departmentId) =>

@@ -30,6 +30,7 @@ interface EmployeeSidebarProps {
   onLocate: (departmentId: Identifier, employeeId: Identifier) => void;
   onAssign: (employee: OrganizationEmployee) => void;
   onOpen: (employee: OrganizationEmployee) => void;
+  onEditRoles: (employee: OrganizationEmployee) => void;
   onTerminate: (employee: OrganizationEmployee) => void;
   onCreate: () => void;
 }
@@ -100,6 +101,9 @@ export function EmployeeSidebar(props: EmployeeSidebarProps) {
                 employee={employee}
                 onSelect={departmentId ? () => props.onLocate(departmentId, employee.id) : undefined}
                 onOpen={() => props.onOpen(employee)}
+                onEditRoles={
+                  props.permissions.canEditEmployeeRoles(employee.id) ? () => props.onEditRoles(employee) : undefined
+                }
                 onAssign={
                   !departmentId && props.permissions.canAssignEmployee(employee.id)
                     ? () => props.onAssign(employee)
