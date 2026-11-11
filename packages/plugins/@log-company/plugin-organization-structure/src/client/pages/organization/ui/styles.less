@@ -135,34 +135,52 @@
   margin-top: 42px;
 }
 
-.lc-org-tree__children::before {
-  position: absolute;
-  top: -21px;
-  right: 140px;
-  left: 140px;
-  height: 1px;
-  background: var(--colorBorder, #d9d9d9);
-  content: '';
-}
-
 .lc-org-tree__children::after {
   position: absolute;
   top: -42px;
   left: 50%;
-  width: 1px;
+  width: 0;
   height: 21px;
-  background: var(--colorBorder, #d9d9d9);
+  border-left: 1px solid var(--colorBorder, #d9d9d9);
   content: '';
+  pointer-events: none;
+}
+
+// Borders remain visible under fractional CSS zoom in WebKit.
+.lc-org-tree__children > .lc-org-tree__group::before,
+.lc-org-tree__children > .lc-org-tree__group::after {
+  position: absolute;
+  box-sizing: border-box;
+  top: -21px;
+  width: ~'calc(50% + 20px)';
+  height: 21px;
+  border-top: 1px solid var(--colorBorder, #d9d9d9);
+  content: '';
+  pointer-events: none;
 }
 
 .lc-org-tree__children > .lc-org-tree__group::before {
-  position: absolute;
-  top: -21px;
+  right: 50%;
+}
+
+.lc-org-tree__children > .lc-org-tree__group::after {
   left: 50%;
-  width: 1px;
-  height: 21px;
-  background: var(--colorBorder, #d9d9d9);
-  content: '';
+  border-left: 1px solid var(--colorBorder, #d9d9d9);
+}
+
+.lc-org-tree__children > .lc-org-tree__group:last-child::before {
+  border-right: 1px solid var(--colorBorder, #d9d9d9);
+}
+
+.lc-org-tree__children > .lc-org-tree__group:first-child::before,
+.lc-org-tree__children > .lc-org-tree__group:last-child::after {
+  display: none;
+}
+
+.lc-org-tree__children > .lc-org-tree__group:only-child::after {
+  display: block;
+  width: 0;
+  border-top: 0;
 }
 
 .lc-org-node {
@@ -218,9 +236,9 @@
   position: absolute;
   bottom: 100%;
   left: 50%;
-  width: 1px;
+  width: 0;
   height: 9px;
-  background: var(--colorBorder, #d9d9d9);
+  border-left: 1px solid var(--colorBorder, #d9d9d9);
   content: '';
 }
 
