@@ -148,6 +148,13 @@ fi
 
 cd "${project_root}"
 
+plugin_prefixes="${PLUGIN_PACKAGE_PREFIX:-@nocobase/plugin-,@nocobase/preset-,@nocobase/plugin-pro-}"
+case ",${plugin_prefixes}," in
+  *',@log-company/plugin-,'*) ;;
+  *) plugin_prefixes="${plugin_prefixes},@log-company/plugin-" ;;
+esac
+export PLUGIN_PACKAGE_PREFIX="${plugin_prefixes}"
+
 echo 'Installing locked workspace dependencies...'
 corepack yarn install --frozen-lockfile --non-interactive
 
