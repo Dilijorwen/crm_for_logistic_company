@@ -20,6 +20,12 @@ vi.mock('@nocobase/client', () => {
   return { BlockModel };
 });
 
+vi.mock(
+  '@log-company/plugin-process-governance/client',
+  async () =>
+    import('../../../../../../../plugin-process-governance/src/client/shared/lib/process-context/blockModelContext'),
+);
+
 vi.mock('../../ui/ProcessDiscussionBlock', () => ({
   ProcessDiscussionBlock: () => null,
 }));

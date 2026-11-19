@@ -9,35 +9,12 @@
 
 import { BlockModel } from '@nocobase/client';
 import React from 'react';
+import { getProcessBlockModelContext } from '@log-company/plugin-process-governance/client';
 import { ProcessDiscussionBlock } from '../ui/ProcessDiscussionBlock';
 
 export class ProcessDiscussionBlockModel extends BlockModel {
   renderComponent() {
-    const context = this.context as unknown as {
-      collection?: unknown;
-      record?: Record<string, unknown> | null;
-      filterByTk?: unknown;
-      params?: Record<string, unknown>;
-      view?: {
-        inputArgs?: {
-          collectionName?: string;
-          filterByTk?: unknown;
-        };
-      };
-    };
-    const viewInputArgs = context.view?.inputArgs;
-
-    return (
-      <ProcessDiscussionBlock
-        modelContext={{
-          collection: viewInputArgs?.collectionName ?? context.collection,
-          record: context.record,
-          filterByTk: viewInputArgs?.filterByTk ?? context.filterByTk,
-          params: context.params,
-          model: this,
-        }}
-      />
-    );
+    return <ProcessDiscussionBlock modelContext={getProcessBlockModelContext(this, this.context)} />;
   }
 }
 
