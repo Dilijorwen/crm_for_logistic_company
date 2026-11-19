@@ -80,5 +80,6 @@ describe('DepartmentCard', () => {
     fireEvent.click(editItem);
 
     expect(onEdit).toHaveBeenCalledOnce();
+    expect(onEdit).toHaveBeenCalledWith();
   });
 });

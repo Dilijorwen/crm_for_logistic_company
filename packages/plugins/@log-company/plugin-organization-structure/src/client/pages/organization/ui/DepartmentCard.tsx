@@ -15,6 +15,7 @@ import { useOrganizationTranslation } from '../../../shared/lib';
 import { buildDepartmentMemberPreview } from '../lib/departmentMembers';
 import type { Identifier, OrganizationDepartment, OrganizationEmployee, OrganizationPermissions } from '../model/types';
 import { EmployeeListItem } from './EmployeeListItem';
+import { bindEmployeeActions } from '../model/employeeActions';
 
 interface DepartmentCardProps {
   department: OrganizationDepartment;
@@ -52,31 +53,21 @@ export function DepartmentCard(props: DepartmentCardProps) {
   const canMove = props.permissions.canMoveDepartment(props.department.id);
   const canDelete = props.permissions.canDeleteDepartment(props.department.id);
   const menuItems: MenuProps['items'] = [
-    canUpdate ? { key: 'edit', label: t('departments.edit') } : null,
+    canUpdate ? { key: 'edit', onClick: () => props.onEdit(), label: t('departments.edit') } : null,
     props.permissions.canCreateDepartment(props.department.id)
-      ? { key: 'child', label: t('departments.createChild') }
+      ? { key: 'child', onClick: () => props.onCreateChild(), label: t('departments.createChild') }
       : null,
     props.permissions.canAssignManager(props.department.id)
-      ? { key: 'manager', label: t('departments.assignManager') }
+      ? { key: 'manager', onClick: () => props.onAssignManager(), label: t('departments.assignManager') }
       : null,
-    props.permissions.canAddMembers(props.department.id) ? { key: 'employees', label: t('employees.add') } : null,
-    canMove ? { key: 'move', label: t('departments.move') } : null,
-    { key: 'members', label: t('employees.showAll') },
+    props.permissions.canAddMembers(props.department.id)
+      ? { key: 'employees', onClick: () => props.onAddEmployees(), label: t('employees.add') }
+      : null,
+    canMove ? { key: 'move', onClick: () => props.onMove(), label: t('departments.move') } : null,
+    { key: 'members', onClick: () => props.onShowMembers(), label: t('employees.showAll') },
     canDelete ? { type: 'divider' as const } : null,
-    canDelete ? { key: 'delete', danger: true, label: t('departments.delete') } : null,
+    canDelete ? { key: 'delete', onClick: () => props.onDelete(), danger: true, label: t('departments.delete') } : null,
   ].filter((item) => item !== null);
-  const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
-    const actions: Record<string, () => void> = {
-      child: props.onCreateChild,
-      delete: props.onDelete,
-      edit: props.onEdit,
-      employees: props.onAddEmployees,
-      manager: props.onAssignManager,
-      members: props.onShowMembers,
-      move: props.onMove,
-    };
-    actions[key]?.();
-  };
 
   return (
     <div className="lc-org-node" data-department-id={props.department.id}>
@@ -103,7 +94,7 @@ export function DepartmentCard(props: DepartmentCardProps) {
           </Tooltip>
           {menuItems.length > 0 ? (
             <Dropdown
-              menu={{ items: menuItems, onClick: handleMenuClick }}
+              menu={{ items: menuItems }}
               trigger={['click']}
               dropdownRender={(menu) => (
                 <div data-interactive="true" onPointerDown={(event) => event.stopPropagation()}>
@@ -133,17 +124,18 @@ export function DepartmentCard(props: DepartmentCardProps) {
                 employee={owner}
                 compact
                 highlighted={props.highlightedEmployeeId === owner.id}
-                onOpen={() => props.onOpenEmployee(owner)}
-                onEditRoles={
-                  props.permissions.canEditEmployeeRoles(owner.id) ? () => props.onEditEmployeeRoles(owner) : undefined
-                }
-                onMove={props.permissions.canMoveEmployee(owner.id) ? () => props.onMoveEmployee(owner) : undefined}
-                onRemove={
-                  props.permissions.canRemoveEmployee(owner.id) ? () => props.onRemoveEmployee(owner) : undefined
-                }
-                onTerminate={
-                  props.permissions.canTerminateEmployee(owner.id) ? () => props.onTerminateEmployee(owner) : undefined
-                }
+                {...bindEmployeeActions(
+                  owner,
+                  props.permissions,
+                  {
+                    onOpen: props.onOpenEmployee,
+                    onEditRoles: props.onEditEmployeeRoles,
+                    onMove: props.onMoveEmployee,
+                    onRemove: props.onRemoveEmployee,
+                    onTerminate: props.onTerminateEmployee,
+                  },
+                  props.department.id,
+                )}
               />
             ))
           ) : (
@@ -164,26 +156,19 @@ export function DepartmentCard(props: DepartmentCardProps) {
                 employee={member}
                 compact
                 highlighted={props.highlightedEmployeeId === member.id}
-                onOpen={() => props.onOpenEmployee(member)}
-                onEditRoles={
-                  props.permissions.canEditEmployeeRoles(member.id)
-                    ? () => props.onEditEmployeeRoles(member)
-                    : undefined
-                }
-                onMove={props.permissions.canMoveEmployee(member.id) ? () => props.onMoveEmployee(member) : undefined}
-                onRemove={
-                  props.permissions.canRemoveEmployee(member.id) ? () => props.onRemoveEmployee(member) : undefined
-                }
-                onTerminate={
-                  props.permissions.canTerminateEmployee(member.id)
-                    ? () => props.onTerminateEmployee(member)
-                    : undefined
-                }
-                onMakeManager={
-                  props.permissions.canAssignManager(props.department.id)
-                    ? () => props.onMakeManager(member)
-                    : undefined
-                }
+                {...bindEmployeeActions(
+                  member,
+                  props.permissions,
+                  {
+                    onOpen: props.onOpenEmployee,
+                    onEditRoles: props.onEditEmployeeRoles,
+                    onMove: props.onMoveEmployee,
+                    onRemove: props.onRemoveEmployee,
+                    onTerminate: props.onTerminateEmployee,
+                    onMakeManager: props.onMakeManager,
+                  },
+                  props.department.id,
+                )}
               />
             ))
           ) : (

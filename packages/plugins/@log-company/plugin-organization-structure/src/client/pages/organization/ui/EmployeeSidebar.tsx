@@ -13,6 +13,7 @@ import React from 'react';
 import { useOrganizationTranslation } from '../../../shared/lib';
 import type { EmployeeFilter, Identifier, OrganizationEmployee, OrganizationPermissions } from '../model/types';
 import { EmployeeListItem } from './EmployeeListItem';
+import { bindEmployeeActions } from '../model/employeeActions';
 
 interface EmployeeSidebarProps {
   collapsed: boolean;
@@ -100,23 +101,13 @@ export function EmployeeSidebar(props: EmployeeSidebarProps) {
                 key={employee.id}
                 employee={employee}
                 onSelect={departmentId ? () => props.onLocate(departmentId, employee.id) : undefined}
-                onOpen={() => props.onOpen(employee)}
-                onEditRoles={
-                  props.permissions.canEditEmployeeRoles(employee.id) ? () => props.onEditRoles(employee) : undefined
-                }
-                onAssign={
-                  !departmentId && props.permissions.canAssignEmployee(employee.id)
-                    ? () => props.onAssign(employee)
-                    : undefined
-                }
-                onMove={
-                  departmentId && props.permissions.canMoveEmployee(employee.id)
-                    ? () => props.onAssign(employee)
-                    : undefined
-                }
-                onTerminate={
-                  props.permissions.canTerminateEmployee(employee.id) ? () => props.onTerminate(employee) : undefined
-                }
+                {...bindEmployeeActions(employee, props.permissions, {
+                  onOpen: props.onOpen,
+                  onEditRoles: props.onEditRoles,
+                  onAssign: !departmentId ? props.onAssign : undefined,
+                  onMove: departmentId ? props.onAssign : undefined,
+                  onTerminate: props.onTerminate,
+                })}
               />
             );
           })}

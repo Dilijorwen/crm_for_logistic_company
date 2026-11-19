@@ -49,6 +49,7 @@ describe('employee actions and details', () => {
     fireEvent.click(await screen.findByText('employees.terminate'));
 
     expect(onTerminate).toHaveBeenCalledOnce();
+    expect(onTerminate).toHaveBeenCalledWith();
   });
 
   it('opens the role editor through the employee menu when the action is provided', async () => {
@@ -60,6 +61,7 @@ describe('employee actions and details', () => {
     rerender(<EmployeeListItem employee={employee} onOpen={vi.fn()} onEditRoles={onEditRoles} />);
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Изменить роли' }));
     expect(onEditRoles).toHaveBeenCalledOnce();
+    expect(onEditRoles).toHaveBeenCalledWith();
   });
 
   it('preserves unavailable assignments and prevents duplicate saves', async () => {

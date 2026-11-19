@@ -53,30 +53,20 @@ export function EmployeeListItem({
   const { t } = useOrganizationTranslation();
   const { token } = theme.useToken();
   const primaryActions: MenuProps['items'] = [
-    onOpen ? { key: 'open', label: t('employees.open') } : null,
-    onEditRoles ? { key: 'editRoles', label: 'Изменить роли' } : null,
-    onAssign ? { key: 'assign', label: t('employees.assign') } : null,
-    onMove ? { key: 'move', label: t('employees.move') } : null,
-    onMakeManager ? { key: 'manager', label: t('employees.makeManager') } : null,
-    onRemove ? { key: 'remove', danger: true, label: t('employees.remove') } : null,
+    onOpen ? { key: 'open', onClick: () => onOpen(), label: t('employees.open') } : null,
+    onEditRoles ? { key: 'editRoles', onClick: () => onEditRoles(), label: 'Изменить роли' } : null,
+    onAssign ? { key: 'assign', onClick: () => onAssign(), label: t('employees.assign') } : null,
+    onMove ? { key: 'move', onClick: () => onMove(), label: t('employees.move') } : null,
+    onMakeManager ? { key: 'manager', onClick: () => onMakeManager(), label: t('employees.makeManager') } : null,
+    onRemove ? { key: 'remove', onClick: () => onRemove(), danger: true, label: t('employees.remove') } : null,
   ].filter((item) => item !== null);
   const actions: MenuProps['items'] = [
     ...primaryActions,
     onTerminate && primaryActions.length > 0 ? { type: 'divider' as const } : null,
-    onTerminate ? { key: 'terminate', danger: true, label: t('employees.terminate') } : null,
+    onTerminate
+      ? { key: 'terminate', onClick: () => onTerminate(), danger: true, label: t('employees.terminate') }
+      : null,
   ].filter((item) => item !== null);
-  const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
-    const handlers: Record<string, (() => void) | undefined> = {
-      assign: onAssign,
-      editRoles: onEditRoles,
-      manager: onMakeManager,
-      move: onMove,
-      open: onOpen,
-      remove: onRemove,
-      terminate: onTerminate,
-    };
-    handlers[key]?.();
-  };
   const content = (
     <Flex
       align="center"
@@ -141,7 +131,7 @@ export function EmployeeListItem({
     >
       {content}
       {actions.length > 0 ? (
-        <Dropdown menu={{ items: actions, onClick: handleMenuClick }} trigger={['click']}>
+        <Dropdown menu={{ items: actions }} trigger={['click']}>
           <Button
             type="text"
             size="small"

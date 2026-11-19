@@ -12,6 +12,7 @@ import React from 'react';
 import { useOrganizationTranslation } from '../../../shared/lib';
 import type { OrganizationDepartment, OrganizationEmployee, OrganizationPermissions } from '../model/types';
 import { EmployeeListItem } from './EmployeeListItem';
+import { bindEmployeeActions } from '../model/employeeActions';
 
 interface DepartmentMembersModalProps {
   department: OrganizationDepartment | null;
@@ -42,26 +43,19 @@ export function DepartmentMembersModal(props: DepartmentMembersModalProps) {
             <EmployeeListItem
               key={employee.id}
               employee={employee}
-              onOpen={() => props.onOpenEmployee(employee)}
-              onEditRoles={
-                props.permissions.canEditEmployeeRoles(employee.id)
-                  ? () => props.onEditEmployeeRoles(employee)
-                  : undefined
-              }
-              onMove={props.permissions.canMoveEmployee(employee.id) ? () => props.onMoveEmployee(employee) : undefined}
-              onRemove={
-                props.permissions.canRemoveEmployee(employee.id) ? () => props.onRemoveEmployee(employee) : undefined
-              }
-              onTerminate={
-                props.permissions.canTerminateEmployee(employee.id)
-                  ? () => props.onTerminateEmployee(employee)
-                  : undefined
-              }
-              onMakeManager={
-                props.permissions.canAssignManager(props.department?.id)
-                  ? () => props.onMakeManager(employee)
-                  : undefined
-              }
+              {...bindEmployeeActions(
+                employee,
+                props.permissions,
+                {
+                  onOpen: props.onOpenEmployee,
+                  onEditRoles: props.onEditEmployeeRoles,
+                  onMove: props.onMoveEmployee,
+                  onRemove: props.onRemoveEmployee,
+                  onTerminate: props.onTerminateEmployee,
+                  onMakeManager: props.onMakeManager,
+                },
+                props.department?.id,
+              )}
             />
           ))
         ) : (
