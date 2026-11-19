@@ -12,13 +12,14 @@ import { AttachDraftDocumentsToProcess } from '../../application/AttachDraftDocu
 import { DeleteProcessDocumentsForProcess } from '../../application/DeleteProcessDocumentsForProcess';
 import { ValidateDocumentFolderPlacement } from '../../application/ValidateDocumentFolderPlacement';
 import { ValidateProcessDocumentPlacement } from '../../application/ValidateProcessDocumentPlacement';
-import type { ApplicationLogger, DocumentStorage } from '../../application/ports/DocumentStorage';
+import type { DocumentStorage } from '../../application/ports/DocumentStorage';
 import type {
   ProcessDocumentsRepository,
   TransactionContext,
 } from '../../application/ports/ProcessDocumentsRepository';
 import { ProcessDocumentsError } from '../../domain/documents/DocumentErrors';
-import { parseDraftToken, parseIdentifier, type DocumentScope } from '../../domain/documents/DocumentScope';
+import type { DocumentScope } from '../../domain/documents/DocumentScope';
+import { parseDraftToken, parseIdentifier } from '../../domain/documents/DocumentScope';
 
 const SHIPMENTS_COLLECTION = 'shipments';
 const FOLDERS_COLLECTION = 'process_document_folders';
@@ -35,6 +36,7 @@ interface HookOptions {
   context?: {
     state?: {
       currentRoles?: unknown[];
+      currentRole?: unknown;
       currentUser?: { id?: unknown };
       currentUserId?: unknown;
       user?: { id?: unknown };
@@ -53,18 +55,23 @@ export class ProcessDocumentsHooks {
     private readonly deleteProcessDocuments: DeleteProcessDocumentsForProcess,
     private readonly validateFolderPlacement: ValidateDocumentFolderPlacement,
     private readonly validateDocumentPlacement: ValidateProcessDocumentPlacement,
-    private readonly logger: ApplicationLogger,
   ) {}
 
   register(): void {
     this.plugin.db.on(
       `${SHIPMENTS_COLLECTION}.afterCreateWithAssociations`,
       async (model: NocoBaseModel, options: HookOptions) => {
+        const state = options.context?.state;
         await this.attachDraftDocuments.execute({
           draftToken: this.draftTokenFromOptions(options),
           shipmentId: parseIdentifier(model.get('id')),
           actorId: this.actorIdFromOptions(options),
           isRoot: this.isRootFromOptions(options),
+          companyId: parseIdentifier(model.get('company_id')),
+          roles:
+            state?.currentRole && state.currentRole !== 'union'
+              ? [String(state.currentRole)]
+              : (state?.currentRoles || []).map(String),
           transaction: options.transaction,
         });
       },
@@ -107,21 +114,7 @@ export class ProcessDocumentsHooks {
       if (!storageKey) {
         return;
       }
-      const removeStorageObject = async () => {
-        try {
-          const deleted = await this.storage.delete(storageKey);
-          if (!deleted) {
-            this.logger.warn('Объект удалённого документа уже отсутствовал в хранилище', { storageKey });
-          }
-        } catch (error) {
-          this.logger.error('После удаления документа остался объект в хранилище', error, { storageKey });
-        }
-      };
-      if (options.transaction?.afterCommit) {
-        options.transaction.afterCommit(removeStorageObject);
-        return;
-      }
-      await removeStorageObject();
+      await this.storage.enqueueDeletion([storageKey], options.transaction);
     });
   }
 
@@ -143,6 +136,12 @@ export class ProcessDocumentsHooks {
     const shipmentId = parseIdentifier(model.get('shipment_id') ?? model.get('shipment')) ?? previousShipmentId;
     if (shipmentId) {
       return { mode: 'shipment', shipmentId };
+    }
+    const companyId = parseIdentifier(model.get('company_id'));
+    const runId = parseIdentifier(model.get('transport_run_id'));
+    if (runId) return { mode: 'run', runId };
+    if (companyId) {
+      return { mode: 'company', companyId, ...(model.get('company_area') === 'company' && { companyArea: 'company' }) };
     }
     const draftToken = parseDraftToken(model.get('draft_token')) ?? previousDraftToken;
     if (!draftToken) {
@@ -180,7 +179,10 @@ export class ProcessDocumentsHooks {
   }
 
   private isRootFromOptions(options: HookOptions): boolean {
-    return (options.context?.state?.currentRoles || []).map(String).includes('root');
+    return (
+      options.context?.state?.currentRole === 'root' ||
+      (options.context?.state?.currentRoles || []).map(String).includes('root')
+    );
   }
 
   private asRecord(value: unknown): Record<string, unknown> {

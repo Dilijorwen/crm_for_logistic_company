@@ -7,7 +7,12 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { createUniqueDocumentName, splitRelativeDocumentName } from '../domain/documents/DocumentName';
+import { documentStorageOwnerPath } from './documentStorageOwnerPath';
+import {
+  assertSafeUploadName,
+  createUniqueDocumentName,
+  splitRelativeDocumentName,
+} from '../domain/documents/DocumentName';
 import { ProcessDocumentsError } from '../domain/documents/DocumentErrors';
 import { DocumentFolderService } from './DocumentFolderService';
 import { DocumentScopeService } from './DocumentScopeService';
@@ -31,7 +36,9 @@ export interface UploadedDocumentFile {
   size: number;
 }
 
-export interface UploadProcessDocumentsInput {
+import type { CompanyDocumentTarget } from '../domain/documents/DocumentScope';
+
+export interface UploadProcessDocumentsInput extends CompanyDocumentTarget {
   shipmentId: string | null;
   draftToken: string | null;
   folderId: string | null;
@@ -60,12 +67,18 @@ export class UploadProcessDocuments {
       throw new ProcessDocumentsError('FILES_REQUIRED', 'Файлы не выбраны.');
     }
 
+    for (const file of input.files) assertSafeUploadName(file.originalName);
+
     const scope = await this.scopeService.resolve({ ...input, operation: 'write' });
     await this.scopeService.requireFolder(input.folderId, scope);
+    await this.scopeService.assertFolderAccess(input.folderId, scope, 'write', input.actor);
     const storedKeys: string[] = [];
 
     try {
       return await this.repository.withTransaction(async (transaction) => {
+        if (scope.mode === 'shipment' && !(await this.repository.shipmentExists(scope.shipmentId, transaction))) {
+          throw new ProcessDocumentsError('SHIPMENT_NOT_FOUND', 'Поставка не найдена.');
+        }
         const createdFolders: DocumentFolderRecord[] = [];
         const createdFiles: ProcessDocumentRecord[] = [];
         const folderCache = new Map<string, string>();
@@ -84,8 +97,7 @@ export class UploadProcessDocuments {
 
           const existingTitles = await this.repository.listDocumentTitles(scope, uploadFolder.folderId, transaction);
           const title = createUniqueDocumentName(filename, existingTitles, true);
-          const ownerPath =
-            scope.mode === 'shipment' ? `shipments/${scope.shipmentId}` : `shipments/drafts/${scope.draftToken}`;
+          const ownerPath = documentStorageOwnerPath(scope);
           const storageKey = this.storageKeyGenerator.generate(ownerPath, filename);
 
           try {

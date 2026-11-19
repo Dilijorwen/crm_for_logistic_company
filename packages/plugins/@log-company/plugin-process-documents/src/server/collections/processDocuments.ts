@@ -23,6 +23,9 @@ export default defineCollection({
   filterTargetKey: ['id'],
   migrationRules: ['overwrite', 'schema-only'],
   fields: [
+    { type: 'string', name: 'company_area', hidden: true },
+    { type: 'bigInt', name: 'company_id', hidden: true },
+    { type: 'bigInt', name: 'transport_run_id', hidden: true },
     {
       type: 'snowflakeId',
       name: 'id',

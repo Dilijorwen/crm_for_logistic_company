@@ -9,39 +9,47 @@
 
 import { BlockModel } from '@nocobase/client';
 import React from 'react';
+import {
+  getCollectionName,
+  getFlowModelPopupCollectionMode,
+  getProcessBlockModelContext,
+} from '@log-company/plugin-process-governance/client';
 import { ProcessDocumentsBlock } from '../ui/ProcessDocumentsBlock';
 
 export class ProcessDocumentsBlockModel extends BlockModel {
   renderComponent() {
-    const context = this.context as unknown as {
-      collection?: unknown;
-      record?: Record<string, unknown> | null;
-      filterByTk?: unknown;
-      params?: Record<string, unknown>;
-      view?: {
-        inputArgs?: {
-          collectionName?: string;
-          filterByTk?: unknown;
-        };
-      };
-    };
-    const viewInputArgs = context.view?.inputArgs;
-
+    const context = getProcessBlockModelContext(this, this.context);
+    const inputArgs = this.context.view?.inputArgs;
+    const collectionName = getCollectionName(context.collection);
+    const dataSourceKey = inputArgs?.dataSourceKey ?? this.context.collection?.dataSourceKey ?? 'main';
+    const isNew =
+      typeof collectionName === 'string' &&
+      collectionName !== 'shipments' &&
+      getFlowModelPopupCollectionMode(this, collectionName) === 'create';
     return (
       <ProcessDocumentsBlock
-        modelContext={{
-          collection: viewInputArgs?.collectionName ?? context.collection,
-          record: context.record,
-          filterByTk: viewInputArgs?.filterByTk ?? context.filterByTk,
-          params: context.params,
-          model: this,
-        }}
+        modelContext={isNew ? { ...context, record: null, filterByTk: undefined } : context}
+        dataSourceKey={dataSourceKey}
+        getCollection={this.getCollection}
+        canUpdateField={this.canUpdateField}
       />
     );
   }
+
+  private getCollection = (name: string, dataSourceKey: string) =>
+    this.context.dataSourceManager?.getCollection(dataSourceKey, name);
+
+  private canUpdateField = (collection: string, field: string, dataSourceKey: string) =>
+    this.context.aclCheck({
+      dataSourceKey,
+      resourceName: collection,
+      actionName: 'update',
+      fields: [field],
+      allowedActions: null,
+    });
 }
 
 ProcessDocumentsBlockModel.define({
-  label: 'Документы поставки',
+  label: 'Документы',
   sort: 547,
 });

@@ -8,6 +8,10 @@
  */
 
 import type { Plugin } from '@nocobase/server';
+import PluginFileManager from '@nocobase/plugin-file-manager/server';
+import type PluginFileStorage from '@log-company/plugin-file-storage';
+import { DeleteRecordAttachment } from '../application/DeleteRecordAttachment';
+import { ProcessDocumentsError } from '../domain/documents/DocumentErrors';
 import { AttachDraftDocumentsToProcess } from '../application/AttachDraftDocumentsToProcess';
 import { CreateProcessDocumentFolder } from '../application/CreateProcessDocumentFolder';
 import { DeleteProcessDocument } from '../application/DeleteProcessDocument';
@@ -16,7 +20,9 @@ import { DeleteProcessDocumentsForProcess } from '../application/DeleteProcessDo
 import { DocumentFolderService } from '../application/DocumentFolderService';
 import { DocumentScopeService } from '../application/DocumentScopeService';
 import { DownloadProcessDocument } from '../application/DownloadProcessDocument';
+import { DocumentSectionAccess } from '../application/DocumentSectionAccess';
 import { GetProcessDocumentFolderDeleteSummary } from '../application/GetProcessDocumentFolderDeleteSummary';
+import { SetDocumentFolderAccess } from '../application/SetDocumentFolderAccess';
 import { ListProcessDocuments } from '../application/ListProcessDocuments';
 import { UploadProcessDocuments } from '../application/UploadProcessDocuments';
 import { ValidateDocumentFolderPlacement } from '../application/ValidateDocumentFolderPlacement';
@@ -24,9 +30,11 @@ import { ValidateProcessDocumentPlacement } from '../application/ValidateProcess
 import { NocoBaseApplicationLogger } from '../infrastructure/nocobase/NocoBaseApplicationLogger';
 import { NocoBaseIdentifierGenerator } from '../infrastructure/nocobase/NocoBaseIdentifierGenerator';
 import { NocoBaseProcessDocumentAccess } from '../infrastructure/nocobase/NocoBaseProcessDocumentAccess';
+import { NocoBaseDocumentSectionRules } from '../infrastructure/nocobase/NocoBaseDocumentSectionRules';
+import { NocoBaseRecordAttachmentRepository } from '../infrastructure/nocobase/NocoBaseRecordAttachmentRepository';
 import { NocoBaseProcessDocumentsRepository } from '../infrastructure/persistence/nocobase/NocoBaseProcessDocumentsRepository';
 import { CryptoStorageKeyGenerator } from '../infrastructure/storage/CryptoStorageKeyGenerator';
-import { MinioDocumentStorage, readMinioConfig } from '../infrastructure/storage/minio/MinioDocumentStorage';
+import { MinioDocumentStorage } from '../infrastructure/storage/minio/MinioDocumentStorage';
 import { ProcessDocumentsHooks } from '../interfaces/hooks/ProcessDocumentsHooks';
 import { ProcessDocumentsController } from '../interfaces/http/ProcessDocumentsController';
 
@@ -35,16 +43,20 @@ export class ProcessDocumentsModule {
 
   async initialize(): Promise<void> {
     const repository = new NocoBaseProcessDocumentsRepository(this.plugin);
-    const storage = new MinioDocumentStorage(readMinioConfig(process.env, this.plugin.app.name));
+    const fileStorage = this.plugin.app.pm.get<PluginFileStorage>('@log-company/plugin-file-storage');
+    const fileManager = this.plugin.app.pm.get(PluginFileManager);
+    const storage = new MinioDocumentStorage(fileStorage);
     const logger = new NocoBaseApplicationLogger(this.plugin);
     const identifierGenerator = new NocoBaseIdentifierGenerator(this.plugin);
-    const access = new NocoBaseProcessDocumentAccess(this.plugin);
+    const sectionAccess = new DocumentSectionAccess(new NocoBaseDocumentSectionRules(this.plugin));
+    const access = new NocoBaseProcessDocumentAccess(this.plugin, sectionAccess);
     const scopeService = new DocumentScopeService(repository, access);
     const folderService = new DocumentFolderService(repository, scopeService, identifierGenerator);
     const deleteProcessDocuments = new DeleteProcessDocumentsForProcess(repository, storage, logger);
 
     const actions = {
       list: new ListProcessDocuments(repository, scopeService),
+      setFolderAccess: new SetDocumentFolderAccess(repository, scopeService),
       createFolder: new CreateProcessDocumentFolder(repository, scopeService, folderService),
       uploadFiles: new UploadProcessDocuments(
         repository,
@@ -56,14 +68,48 @@ export class ProcessDocumentsModule {
         logger,
       ),
       download: new DownloadProcessDocument(scopeService, storage),
-      deleteFile: new DeleteProcessDocument(repository, scopeService, storage, logger),
+      deleteFile: new DeleteProcessDocument(repository, scopeService, storage),
+      deleteAttachment: new DeleteRecordAttachment(
+        new NocoBaseRecordAttachmentRepository(
+          this.plugin.db,
+          (record) => {
+            const config = [...fileManager.storagesCache].find(([id]) => String(id) === String(record.storageId))?.[1];
+            const Storage = config && fileManager.storageTypes.get(config.type);
+            if (config && Storage) {
+              const store = new Storage(config);
+              if (config.type === 'log-company-private-minio') {
+                return { backend: 'minio', key: store.getFileKey(record) };
+              }
+              if (config.type === 'local' && !config.paranoid) {
+                return {
+                  backend: 'local',
+                  remove: async () => {
+                    const [removed] = await store.delete([record]);
+                    if (removed !== 1) {
+                      this.plugin.log.error('Не удалось удалить объект из локального хранилища.');
+                      throw new ProcessDocumentsError(
+                        'ATTACHMENT_STORAGE_FAILED',
+                        'Вложение удалено из карточки, но файл не удалось удалить из локального хранилища.',
+                      );
+                    }
+                  },
+                };
+              }
+            }
+            throw new ProcessDocumentsError(
+              'ATTACHMENT_STORAGE_UNSUPPORTED',
+              'Хранилище не поддерживает удаление из этого блока.',
+            );
+          },
+          fileStorage.deletionQueue.enqueue.bind(fileStorage.deletionQueue),
+        ),
+      ),
       folderDeleteSummary: new GetProcessDocumentFolderDeleteSummary(repository, scopeService),
-      deleteFolder: new DeleteProcessDocumentFolder(repository, scopeService, storage, logger),
-      attachDraftDocuments: new AttachDraftDocumentsToProcess(repository),
+      deleteFolder: new DeleteProcessDocumentFolder(repository, scopeService, storage),
+      attachDraftDocuments: new AttachDraftDocumentsToProcess(repository, sectionAccess),
     };
 
-    await storage.ensureReady();
-    new ProcessDocumentsController(this.plugin, actions, logger).register();
+    new ProcessDocumentsController(this.plugin, actions, logger, access, sectionAccess).register();
     new ProcessDocumentsHooks(
       this.plugin,
       repository,
@@ -72,7 +118,6 @@ export class ProcessDocumentsModule {
       deleteProcessDocuments,
       new ValidateDocumentFolderPlacement(repository, scopeService),
       new ValidateProcessDocumentPlacement(scopeService),
-      logger,
     ).register();
   }
 }

@@ -7,6 +7,8 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import type { TransactionContext } from './ProcessDocumentsRepository';
+
 export interface StoreDocumentInput {
   key: string;
   filePath: string;
@@ -15,11 +17,11 @@ export interface StoreDocumentInput {
 }
 
 export interface DocumentStorage {
-  ensureReady(): Promise<void>;
   store(input: StoreDocumentInput): Promise<void>;
   open(key: string): Promise<unknown>;
   listKeys(prefix: string): Promise<string[]>;
   delete(key: string): Promise<boolean>;
+  enqueueDeletion(keys: readonly string[], transaction?: TransactionContext): Promise<void>;
 }
 
 export interface StorageKeyGenerator {

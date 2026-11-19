@@ -15,6 +15,7 @@ import {
   FolderOpenOutlined,
   FolderOutlined,
   LoadingOutlined,
+  LockOutlined,
 } from '@ant-design/icons';
 import { Button, Empty, Spin, Tooltip } from 'antd';
 import dayjs from 'dayjs';
@@ -49,10 +50,12 @@ interface DocumentsListProps {
   folderId: string | number | null;
   breadcrumbs: DocumentsListResponse['breadcrumbs'];
   canDelete: boolean;
+  editAccess?: (folder: FolderItem) => void;
   setFolderId: (id: string | number | null) => void;
   deleteFolder: (folder: FolderItem) => Promise<void>;
   deleteFile: (file: FileItem) => void;
   downloadFile: (file: FileItem) => void;
+  previewFile: (file: FileItem) => void;
 }
 
 export function DocumentsList({
@@ -62,10 +65,12 @@ export function DocumentsList({
   folderId,
   breadcrumbs,
   canDelete,
+  editAccess,
   setFolderId,
   deleteFolder,
   deleteFile,
   downloadFile,
+  previewFile,
 }: DocumentsListProps) {
   return (
     <div className="process-documents-list">
@@ -105,6 +110,16 @@ export function DocumentsList({
           <span className="process-documents-meta">{formatDate(folder.createdAt)}</span>
           <span className="process-documents-meta">{folder.author || 'Пользователь'}</span>
           <span className="process-documents-actions">
+            {editAccess ? (
+              <Tooltip title="Настроить доступ">
+                <Button
+                  aria-label="Настроить доступ"
+                  size="small"
+                  icon={<LockOutlined />}
+                  onClick={() => editAccess(folder)}
+                />
+              </Tooltip>
+            ) : null}
             {canDelete ? (
               <Tooltip title="Удалить папку">
                 <Button size="small" danger icon={<DeleteOutlined />} onClick={() => deleteFolder(folder)} />
@@ -115,22 +130,33 @@ export function DocumentsList({
       ))}
       {files.map((file) => (
         <div key={`file-${file.id}`} className="process-documents-row">
-          <span className="process-documents-name">
+          <button type="button" className="process-documents-name" onClick={() => previewFile(file)}>
             <FileOutlined />
             <span className="process-documents-name-text" title={file.title}>
               {file.title}
             </span>
-          </span>
+          </button>
           <span className="process-documents-meta">{formatSize(file.file_size)}</span>
           <span className="process-documents-meta">{formatDate(file.createdAt)}</span>
           <span className="process-documents-meta">{file.author || 'Пользователь'}</span>
           <span className="process-documents-actions">
             <Tooltip title="Скачать">
-              <Button size="small" icon={<DownloadOutlined />} onClick={() => downloadFile(file)} />
+              <Button
+                aria-label="Скачать"
+                size="small"
+                icon={<DownloadOutlined />}
+                onClick={() => downloadFile(file)}
+              />
             </Tooltip>
             {canDelete ? (
               <Tooltip title="Удалить">
-                <Button size="small" danger icon={<DeleteOutlined />} onClick={() => deleteFile(file)} />
+                <Button
+                  aria-label="Удалить"
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => deleteFile(file)}
+                />
               </Tooltip>
             ) : null}
           </span>

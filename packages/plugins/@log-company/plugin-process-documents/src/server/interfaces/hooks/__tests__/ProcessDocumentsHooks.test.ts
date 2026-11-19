@@ -13,7 +13,7 @@ import type { AttachDraftDocumentsToProcess } from '../../../application/AttachD
 import type { DeleteProcessDocumentsForProcess } from '../../../application/DeleteProcessDocumentsForProcess';
 import type { ValidateDocumentFolderPlacement } from '../../../application/ValidateDocumentFolderPlacement';
 import type { ValidateProcessDocumentPlacement } from '../../../application/ValidateProcessDocumentPlacement';
-import type { ApplicationLogger, DocumentStorage } from '../../../application/ports/DocumentStorage';
+import type { DocumentStorage } from '../../../application/ports/DocumentStorage';
 import type {
   ProcessDocumentsRepository,
   TransactionContext,
@@ -43,7 +43,6 @@ function hookFixture() {
     { execute: deleteProcessDocumentsExecute } as unknown as DeleteProcessDocumentsForProcess,
     {} as ValidateDocumentFolderPlacement,
     {} as ValidateProcessDocumentPlacement,
-    {} as ApplicationLogger,
   );
   hooks.register();
   return { handlers, deleteProcessDocumentsExecute };

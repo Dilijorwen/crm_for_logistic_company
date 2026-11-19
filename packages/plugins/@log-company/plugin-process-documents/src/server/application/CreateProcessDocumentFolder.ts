@@ -7,12 +7,15 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import { isDocumentNameSegment } from '../domain/documents/DocumentName';
 import { ProcessDocumentsError } from '../domain/documents/DocumentErrors';
 import { DocumentFolderService } from './DocumentFolderService';
 import { DocumentScopeService } from './DocumentScopeService';
 import type { DocumentActor, ProcessDocumentsRepository } from './ports/ProcessDocumentsRepository';
 
-export interface CreateProcessDocumentFolderInput {
+import type { CompanyDocumentTarget } from '../domain/documents/DocumentScope';
+
+export interface CreateProcessDocumentFolderInput extends CompanyDocumentTarget {
   shipmentId: string | null;
   draftToken: string | null;
   parentFolderId: string | null;
@@ -29,10 +32,11 @@ export class CreateProcessDocumentFolder {
 
   async execute(input: CreateProcessDocumentFolderInput) {
     const title = input.title.trim();
-    if (!title) {
-      throw new ProcessDocumentsError('FOLDER_TITLE_REQUIRED', 'Укажите название папки.');
+    if (!isDocumentNameSegment(title)) {
+      throw new ProcessDocumentsError('FOLDER_TITLE_REQUIRED', 'Укажите допустимое название папки (до 200 символов).');
     }
     const scope = await this.scopeService.resolve({ ...input, operation: 'write' });
+    await this.scopeService.assertFolderAccess(input.parentFolderId, scope, 'write', input.actor);
     return this.repository.withTransaction((transaction) =>
       this.folderService.create(scope, title, input.parentFolderId, input.actor, transaction),
     );

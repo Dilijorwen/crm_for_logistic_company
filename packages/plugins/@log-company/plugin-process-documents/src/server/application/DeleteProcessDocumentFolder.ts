@@ -1,6 +1,15 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import { calculateFolderDepth } from '../domain/documents/FolderHierarchy';
 import { DocumentScopeService } from './DocumentScopeService';
-import type { ApplicationLogger, DocumentStorage } from './ports/DocumentStorage';
+import type { DocumentStorage } from './ports/DocumentStorage';
 import type { DocumentActor, ProcessDocumentsRepository } from './ports/ProcessDocumentsRepository';
 
 export interface DeleteProcessDocumentFolderInput {
@@ -14,14 +23,16 @@ export class DeleteProcessDocumentFolder {
     private readonly repository: ProcessDocumentsRepository,
     private readonly scopeService: DocumentScopeService,
     private readonly storage: DocumentStorage,
-    private readonly logger: ApplicationLogger,
   ) {}
 
   async execute(input: DeleteProcessDocumentFolderInput): Promise<void> {
     const folder = await this.scopeService.requireFolderById(input.folderId);
     const scope = await this.scopeService.resolveForFolder(folder, input.draftToken, 'delete', input.actor);
-    const documents = await this.repository.withTransaction(async (transaction) => {
+    await this.repository.withTransaction(async (transaction) => {
       const descendants = await this.scopeService.collectDescendants(folder.id, scope, transaction);
+      for (const descendant of descendants) {
+        await this.scopeService.assertFolderAccess(descendant.id, scope, 'delete', input.actor, transaction);
+      }
       const affectedFolders = [folder, ...descendants];
       const orderedFolders = affectedFolders.sort(
         (left, right) => calculateFolderDepth(right, affectedFolders) - calculateFolderDepth(left, affectedFolders),
@@ -37,26 +48,10 @@ export class DeleteProcessDocumentFolder {
       for (const currentFolder of orderedFolders) {
         await this.repository.deleteFolder(currentFolder.id, transaction);
       }
-      return affectedDocuments;
+      await this.storage.enqueueDeletion(
+        affectedDocuments.map((document) => document.storageKey),
+        transaction,
+      );
     });
-
-    await Promise.all(
-      documents.map(async (document) => {
-        try {
-          const deleted = await this.storage.delete(document.storageKey);
-          if (!deleted) {
-            this.logger.warn('Объект документа из удалённой папки уже отсутствовал в хранилище', {
-              documentId: document.id,
-              storageKey: document.storageKey,
-            });
-          }
-        } catch (error) {
-          this.logger.error('После удаления папки остался объект в хранилище', error, {
-            documentId: document.id,
-            storageKey: document.storageKey,
-          });
-        }
-      }),
-    );
   }
 }

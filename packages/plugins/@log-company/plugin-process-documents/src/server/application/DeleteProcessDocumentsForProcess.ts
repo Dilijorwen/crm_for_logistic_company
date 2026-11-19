@@ -7,6 +7,7 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import { documentStorageOwnerPath } from './documentStorageOwnerPath';
 import type { ApplicationLogger, DocumentStorage } from './ports/DocumentStorage';
 import type { ProcessDocumentsRepository, TransactionContext } from './ports/ProcessDocumentsRepository';
 
@@ -23,51 +24,32 @@ export class DeleteProcessDocumentsForProcess {
   ) {}
 
   async execute(input: DeleteProcessDocumentsForProcessInput): Promise<void> {
-    const documents = await this.repository.listDocumentsByShipmentId(input.shipmentId, input.transaction);
+    if (input.transaction) return this.enqueueCleanup(input.shipmentId, input.transaction);
+    await this.repository.withTransaction((transaction) => this.enqueueCleanup(input.shipmentId, transaction));
+  }
+
+  private async enqueueCleanup(shipmentId: string, transaction: TransactionContext): Promise<void> {
+    const documents = await this.repository.listDocumentsByShipmentId(shipmentId, transaction);
+    const prefix = `${documentStorageOwnerPath({ mode: 'shipment', shipmentId })}/`;
     let shipmentPrefixKeys: string[];
     try {
-      shipmentPrefixKeys = await this.storage.listKeys(`shipments/${input.shipmentId}/`);
+      shipmentPrefixKeys = await this.storage.listKeys(prefix);
     } catch (error) {
       this.logger.error('Не удалось получить список объектов удаляемой поставки в хранилище', error, {
-        shipmentId: input.shipmentId,
+        shipmentId,
       });
       throw error;
     }
-    await this.repository.deleteDocumentsByShipmentId(input.shipmentId, input.transaction);
-    await this.repository.deleteFoldersByShipmentId(input.shipmentId, input.transaction);
-
-    const storageKeys = new Map<string, string | null>(documents.map((document) => [document.storageKey, document.id]));
-    for (const storageKey of shipmentPrefixKeys) {
-      if (!storageKeys.has(storageKey)) {
-        storageKeys.set(storageKey, null);
-      }
-    }
-
-    const removeStorageObjects = async () => {
-      for (const [storageKey, documentId] of storageKeys) {
-        try {
-          const deleted = await this.storage.delete(storageKey);
-          if (!deleted) {
-            this.logger.warn('Объект документа удалённой поставки уже отсутствовал в хранилище', {
-              shipmentId: input.shipmentId,
-              documentId,
-              storageKey,
-            });
-          }
-        } catch (error) {
-          this.logger.error('После удаления поставки остался объект документа в хранилище', error, {
-            shipmentId: input.shipmentId,
-            documentId,
-            storageKey,
-          });
-        }
-      }
-    };
-
-    if (input.transaction?.afterCommit) {
-      input.transaction.afterCommit(removeStorageObjects);
-      return;
-    }
-    await removeStorageObjects();
+    await this.repository.deleteDocumentsByShipmentId(shipmentId, transaction);
+    await this.repository.deleteFoldersByShipmentId(shipmentId, transaction);
+    await this.storage.enqueueDeletion(
+      [
+        ...new Set([
+          ...documents.map((document) => document.storageKey),
+          ...shipmentPrefixKeys.filter((key) => key.startsWith(prefix)),
+        ]),
+      ],
+      transaction,
+    );
   }
 }

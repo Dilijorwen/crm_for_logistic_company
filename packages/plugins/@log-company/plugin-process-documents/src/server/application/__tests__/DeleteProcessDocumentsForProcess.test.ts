@@ -36,41 +36,43 @@ function dependencies(documents: ProcessDocumentRecord[]) {
   const deleteDocumentsByShipmentId = vi.fn().mockResolvedValue(undefined);
   const deleteFoldersByShipmentId = vi.fn().mockResolvedValue(undefined);
   const listKeys = vi.fn().mockResolvedValue([]);
-  const storageDelete = vi.fn().mockResolvedValue(true);
+  const enqueueDeletion = vi.fn().mockResolvedValue(undefined);
+  const transaction: TransactionContext = {};
   const warn = vi.fn();
   const error = vi.fn();
 
   return {
     repository: {
+      withTransaction: (work: (tx: TransactionContext) => Promise<unknown>) => work(transaction),
       listDocumentsByShipmentId,
       deleteDocumentsByShipmentId,
       deleteFoldersByShipmentId,
     } as unknown as ProcessDocumentsRepository,
-    storage: { listKeys, delete: storageDelete } as unknown as DocumentStorage,
+    storage: { listKeys, enqueueDeletion } as unknown as DocumentStorage,
     logger: { warn, error } as ApplicationLogger,
     listDocumentsByShipmentId,
     deleteDocumentsByShipmentId,
     deleteFoldersByShipmentId,
     listKeys,
-    storageDelete,
+    enqueueDeletion,
+    transaction,
     warn,
     error,
   };
 }
 
 describe('DeleteProcessDocumentsForProcess', () => {
-  it('deletes database records in the shipment transaction and MinIO objects after commit', async () => {
+  it('queues exact linked and shipment-prefixed keys in the shipment transaction', async () => {
     const firstDocument = documentRecord('document-1', 'shipments/drafts/token/document-1.pdf');
     const secondDocument = documentRecord('document-2', 'shipments/shipment-1/document-2.pdf');
     const deps = dependencies([firstDocument, secondDocument]);
     const unindexedStorageKey = 'shipments/shipment-1/unindexed-document.pdf';
-    deps.listKeys.mockResolvedValue([secondDocument.storageKey, unindexedStorageKey]);
-    let afterCommitCallback: (() => void | Promise<void>) | undefined;
-    const transaction: TransactionContext = {
-      afterCommit: vi.fn((callback) => {
-        afterCommitCallback = callback;
-      }),
-    };
+    deps.listKeys.mockResolvedValue([
+      secondDocument.storageKey,
+      unindexedStorageKey,
+      'shipments/shipment-10/other.pdf',
+    ]);
+    const transaction: TransactionContext = {};
     const useCase = new DeleteProcessDocumentsForProcess(deps.repository, deps.storage, deps.logger);
 
     await useCase.execute({ shipmentId: 'shipment-1', transaction });
@@ -79,56 +81,20 @@ describe('DeleteProcessDocumentsForProcess', () => {
     expect(deps.listKeys).toHaveBeenCalledWith('shipments/shipment-1/');
     expect(deps.deleteDocumentsByShipmentId).toHaveBeenCalledWith('shipment-1', transaction);
     expect(deps.deleteFoldersByShipmentId).toHaveBeenCalledWith('shipment-1', transaction);
-    expect(deps.storageDelete).not.toHaveBeenCalled();
-    expect(afterCommitCallback).toBeDefined();
-
-    await afterCommitCallback?.();
-
-    expect(deps.storageDelete).toHaveBeenNthCalledWith(1, firstDocument.storageKey);
-    expect(deps.storageDelete).toHaveBeenNthCalledWith(2, secondDocument.storageKey);
-    expect(deps.storageDelete).toHaveBeenNthCalledWith(3, unindexedStorageKey);
+    expect(deps.enqueueDeletion).toHaveBeenCalledWith(
+      [firstDocument.storageKey, secondDocument.storageKey, unindexedStorageKey],
+      transaction,
+    );
   });
 
-  it('deletes MinIO objects immediately when the shipment deletion has no transaction', async () => {
+  it('creates a transaction for cleanup when called without one', async () => {
     const document = documentRecord('document-1', 'shipments/shipment-1/document-1.pdf');
     const deps = dependencies([document]);
     const useCase = new DeleteProcessDocumentsForProcess(deps.repository, deps.storage, deps.logger);
 
     await useCase.execute({ shipmentId: 'shipment-1' });
 
-    expect(deps.storageDelete).toHaveBeenCalledWith(document.storageKey);
-  });
-
-  it('treats an already absent MinIO object as successfully removed', async () => {
-    const document = documentRecord('document-1', 'shipments/shipment-1/document-1.pdf');
-    const deps = dependencies([document]);
-    deps.storageDelete.mockResolvedValue(false);
-    const useCase = new DeleteProcessDocumentsForProcess(deps.repository, deps.storage, deps.logger);
-
-    await useCase.execute({ shipmentId: 'shipment-1' });
-
-    expect(deps.warn).toHaveBeenCalledWith(
-      'Объект документа удалённой поставки уже отсутствовал в хранилище',
-      expect.objectContaining({ shipmentId: 'shipment-1', documentId: document.id }),
-    );
-  });
-
-  it('logs a MinIO failure without interrupting cleanup of the remaining objects', async () => {
-    const firstDocument = documentRecord('document-1', 'shipments/shipment-1/document-1.pdf');
-    const secondDocument = documentRecord('document-2', 'shipments/shipment-1/document-2.pdf');
-    const deps = dependencies([firstDocument, secondDocument]);
-    const storageError = new Error('MinIO is unavailable');
-    deps.storageDelete.mockRejectedValueOnce(storageError).mockResolvedValueOnce(true);
-    const useCase = new DeleteProcessDocumentsForProcess(deps.repository, deps.storage, deps.logger);
-
-    await useCase.execute({ shipmentId: 'shipment-1' });
-
-    expect(deps.error).toHaveBeenCalledWith(
-      'После удаления поставки остался объект документа в хранилище',
-      storageError,
-      expect.objectContaining({ shipmentId: 'shipment-1', documentId: firstDocument.id }),
-    );
-    expect(deps.storageDelete).toHaveBeenCalledWith(secondDocument.storageKey);
+    expect(deps.enqueueDeletion).toHaveBeenCalledWith([document.storageKey], deps.transaction);
   });
 
   it('does not schedule MinIO deletion when database cleanup fails', async () => {
@@ -143,7 +109,7 @@ describe('DeleteProcessDocumentsForProcess', () => {
 
     expect(transaction.afterCommit).not.toHaveBeenCalled();
     expect(deps.deleteFoldersByShipmentId).not.toHaveBeenCalled();
-    expect(deps.storageDelete).not.toHaveBeenCalled();
+    expect(deps.enqueueDeletion).not.toHaveBeenCalled();
   });
 
   it('does not delete database records when the MinIO shipment prefix cannot be listed', async () => {

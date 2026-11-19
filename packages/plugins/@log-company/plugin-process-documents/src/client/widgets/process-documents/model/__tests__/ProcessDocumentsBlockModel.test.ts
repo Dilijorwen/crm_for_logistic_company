@@ -20,6 +20,20 @@ vi.mock('@nocobase/client', () => {
   return { BlockModel };
 });
 
+vi.mock('@log-company/plugin-process-governance/client', async () => {
+  return {
+    ...(await import(
+      '../../../../../../../plugin-process-governance/src/client/shared/lib/process-context/blockModelContext'
+    )),
+    ...(await import(
+      '../../../../../../../plugin-process-governance/src/client/shared/lib/process-context/getFlowModelPopupCollectionMode'
+    )),
+    ...(await import(
+      '../../../../../../../plugin-process-governance/src/client/shared/lib/process-context/recordContext'
+    )),
+  };
+});
+
 vi.mock('../../ui/ProcessDocumentsBlock', () => ({
   ProcessDocumentsBlock: () => null,
 }));
@@ -46,7 +60,7 @@ function renderModel(context: unknown): DocumentsElementProps {
 describe('ProcessDocumentsBlockModel', () => {
   it('registers a readable Russian label without a translation key', () => {
     expect(define).toHaveBeenCalledWith({
-      label: 'Документы поставки',
+      label: 'Документы',
       sort: 547,
     });
   });
@@ -61,6 +75,20 @@ describe('ProcessDocumentsBlockModel', () => {
     expect(props.modelContext).toMatchObject({
       collection: 'shipments',
       filterByTk: 'shipment-42',
+    });
+  });
+
+  it('ignores the outer record in a new permit form', () => {
+    const props = renderModel({
+      collection: { name: 'our_companies' },
+      record: { id: '10' },
+      filterByTk: '10',
+      view: { inputArgs: { collectionName: 'permit_documents' } },
+    });
+    expect(props.modelContext).toMatchObject({
+      collection: 'permit_documents',
+      record: null,
+      filterByTk: undefined,
     });
   });
 });

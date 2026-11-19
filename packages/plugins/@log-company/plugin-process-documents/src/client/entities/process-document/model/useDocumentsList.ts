@@ -14,7 +14,7 @@ import type {
   DocumentsListResponse,
 } from '../../../../contracts/processDocuments';
 import type { ProcessDocumentsApi } from '../api/ProcessDocumentsApi';
-import { getDocumentErrorText } from '../lib/errorText';
+import { getDocumentErrorText, isDocumentAccessDenied } from '../lib/errorText';
 
 const empty: DocumentsListResponse = {
   breadcrumbs: [],
@@ -23,17 +23,30 @@ const empty: DocumentsListResponse = {
   permissions: { canWrite: false, canDelete: false },
 };
 
-export function useDocumentsList(api: ProcessDocumentsApi, scope: DocumentRequestScope | null) {
-  const scopeKey =
-    scope?.shipmentId !== undefined ? `shipment:${scope.shipmentId}` : scope ? `draft:${scope.draftToken}` : '';
+export function useDocumentsList(
+  api: ProcessDocumentsApi,
+  scope: DocumentRequestScope | null,
+  rootFolderId: DocumentIdentifier | null = null,
+) {
+  const ownerKey =
+    scope && 'runId' in scope && scope.runId !== undefined
+      ? `run:${scope.runId}:company:${scope.companyId ?? ''}`
+      : scope && 'companyId' in scope
+        ? `company:${scope.companyId}:${'companyArea' in scope ? scope.companyArea ?? '' : ''}`
+        : scope?.shipmentId !== undefined
+          ? `shipment:${scope.shipmentId}`
+          : scope
+            ? `draft:${scope.draftToken}`
+            : '';
+  const scopeKey = JSON.stringify([ownerKey, rootFolderId]);
   const [location, setLocation] = useState<{ scopeKey: string; folderId: DocumentIdentifier | null }>({
     scopeKey: '',
     folderId: null,
   });
-  const folderId = location.scopeKey === scopeKey ? location.folderId : null;
+  const folderId = location.scopeKey === scopeKey ? location.folderId : rootFolderId;
   const requestKey = JSON.stringify([scopeKey, folderId]);
   const [result, setResult] = useState<{ key: string; data: DocumentsListResponse }>({ key: '', data: empty });
-  const [status, setStatus] = useState<{ key: string; loading: boolean; error: string | null }>({
+  const [status, setStatus] = useState<{ key: string; loading: boolean; error: string | null; forbidden?: boolean }>({
     key: '',
     loading: false,
     error: null,
@@ -41,8 +54,8 @@ export function useDocumentsList(api: ProcessDocumentsApi, scope: DocumentReques
   const generation = useRef(0);
   const activeRequestKey = useRef<string | null>(requestKey);
   const setFolderId = useCallback(
-    (value: DocumentIdentifier | null) => setLocation({ scopeKey, folderId: value }),
-    [scopeKey],
+    (value: DocumentIdentifier | null) => setLocation({ scopeKey, folderId: value ?? rootFolderId }),
+    [scopeKey, rootFolderId],
   );
 
   const load = useCallback(async () => {
@@ -52,6 +65,11 @@ export function useDocumentsList(api: ProcessDocumentsApi, scope: DocumentReques
     setStatus({ key: requestKey, loading: true, error: null });
     try {
       const data = await api.list(scope, folderId);
+      if (rootFolderId !== null) {
+        const rootIndex = data.breadcrumbs.findIndex((folder) => String(folder.id) === String(rootFolderId));
+        if (rootIndex < 0) throw new Error('Настроенная папка отсутствует или недоступна.');
+        data.breadcrumbs = data.breadcrumbs.slice(rootIndex + 1);
+      }
       if (current !== generation.current) return;
       setResult({ key: requestKey, data });
       setStatus({ key: requestKey, loading: false, error: null });
@@ -60,10 +78,11 @@ export function useDocumentsList(api: ProcessDocumentsApi, scope: DocumentReques
       setStatus({
         key: requestKey,
         loading: false,
-        error: getDocumentErrorText(error, 'Не удалось загрузить документы поставки'),
+        error: getDocumentErrorText(error, 'Не удалось загрузить документы'),
+        forbidden: isDocumentAccessDenied(error),
       });
     }
-  }, [api, scope, folderId, requestKey]);
+  }, [api, scope, folderId, requestKey, rootFolderId]);
 
   useEffect(() => {
     activeRequestKey.current = requestKey;
@@ -75,7 +94,7 @@ export function useDocumentsList(api: ProcessDocumentsApi, scope: DocumentReques
   }, [load, requestKey]);
 
   const data = result.key === requestKey ? result.data : empty;
-  const currentStatus = status.key === requestKey ? status : { loading: !!scope, error: null };
+  const currentStatus = status.key === requestKey ? status : { loading: !!scope, error: null, forbidden: false };
   return {
     ...data,
     canWrite: !currentStatus.error && data.permissions.canWrite,

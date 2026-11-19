@@ -9,6 +9,7 @@
 
 import type { Plugin } from '@nocobase/server';
 import type { Transaction } from '@nocobase/database';
+import { ProcessDocumentsError } from '../../../domain/documents/DocumentErrors';
 import type { DocumentScope } from '../../../domain/documents/DocumentScope';
 import type {
   CreateDocumentRecordInput,
@@ -19,15 +20,21 @@ import type {
   TransactionContext,
 } from '../../../application/ports/ProcessDocumentsRepository';
 
+import type { FolderAccess } from '../../../../contracts/processDocuments';
+
 const SHIPMENTS_COLLECTION = 'shipments';
 const FOLDERS_COLLECTION = 'process_document_folders';
 const DOCUMENTS_COLLECTION = 'process_documents';
 
 interface FolderRow {
+  access_grants?: FolderAccess | null;
   id: string | number | bigint;
   title: string;
   shipment_id: string | number | bigint | null;
   draft_token: string | null;
+  company_id?: string | number | null;
+  company_area?: 'company' | null;
+  transport_run_id?: string | number | null;
   parent_folder_id: string | number | bigint | null;
   createdById: string | number | bigint | null;
   createdAt?: Date | string | null;
@@ -41,6 +48,9 @@ interface DocumentRow {
   original_filename: string;
   shipment_id: string | number | bigint | null;
   draft_token: string | null;
+  company_id?: string | number | null;
+  company_area?: 'company' | null;
+  transport_run_id?: string | number | null;
   folder_id: string | number | bigint | null;
   storage_key: string;
   mime_type: string | null;
@@ -60,7 +70,7 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
 
   async shipmentExists(shipmentId: string, transaction?: TransactionContext): Promise<boolean> {
     const [rows] = (await this.plugin.db.sequelize.query(
-      `select id from ${SHIPMENTS_COLLECTION} where id = :shipmentId limit 1`,
+      `select id from ${SHIPMENTS_COLLECTION} where id = :shipmentId limit 1${transaction ? ' for key share' : ''}`,
       {
         replacements: { shipmentId },
         transaction: this.asTransaction(transaction),
@@ -230,13 +240,16 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
   async createFolder(input: CreateFolderRecordInput, transaction?: TransactionContext): Promise<DocumentFolderRecord> {
     const now = new Date();
     const shipmentId = input.scope.mode === 'shipment' ? input.scope.shipmentId : null;
+    const companyId = 'companyId' in input.scope ? input.scope.companyId : null;
+    const companyArea = input.scope.mode === 'company' ? input.scope.companyArea ?? null : null;
+    const runId = input.scope.mode === 'run' ? input.scope.runId : null;
     const draftToken = input.scope.mode === 'draft' ? input.scope.draftToken : null;
     const [rows] = (await this.plugin.db.sequelize.query(
       `
         insert into ${FOLDERS_COLLECTION}
-          (id, title, shipment_id, draft_token, parent_folder_id, "createdAt", "updatedAt", "createdById", "updatedById")
+          (id, title, shipment_id, draft_token, company_id, company_area, transport_run_id, parent_folder_id, "createdAt", "updatedAt", "createdById", "updatedById")
         values
-          (:id, :title, :shipmentId, :draftToken, :parentFolderId, :now, :now, :actorId, :actorId)
+          (:id, :title, :shipmentId, :draftToken, :companyId, :companyArea, :runId, :parentFolderId, :now, :now, :actorId, :actorId)
         returning *
       `,
       {
@@ -245,6 +258,9 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
           title: input.title,
           shipmentId,
           draftToken,
+          companyId,
+          companyArea,
+          runId,
           parentFolderId: input.parentFolderId,
           actorId: input.actorId,
           now,
@@ -261,17 +277,20 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
   ): Promise<ProcessDocumentRecord> {
     const now = new Date();
     const shipmentId = input.scope.mode === 'shipment' ? input.scope.shipmentId : null;
+    const companyId = 'companyId' in input.scope ? input.scope.companyId : null;
+    const companyArea = input.scope.mode === 'company' ? input.scope.companyArea ?? null : null;
+    const runId = input.scope.mode === 'run' ? input.scope.runId : null;
     const draftToken = input.scope.mode === 'draft' ? input.scope.draftToken : null;
     const [rows] = (await this.plugin.db.sequelize.query(
       `
         insert into ${DOCUMENTS_COLLECTION}
           (
-            id, title, original_filename, shipment_id, draft_token, folder_id, storage_key, mime_type,
+            id, title, original_filename, shipment_id, draft_token, company_id, company_area, transport_run_id, folder_id, storage_key, mime_type,
             file_size, "createdAt", "updatedAt", "createdById", "updatedById"
           )
         values
           (
-            :id, :title, :originalFilename, :shipmentId, :draftToken, :folderId, :storageKey, :mimeType,
+            :id, :title, :originalFilename, :shipmentId, :draftToken, :companyId, :companyArea, :runId, :folderId, :storageKey, :mimeType,
             :fileSize, :now, :now, :actorId, :actorId
           )
         returning *
@@ -283,6 +302,9 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
           originalFilename: input.originalFilename,
           shipmentId,
           draftToken,
+          companyId,
+          companyArea,
+          runId,
           folderId: input.folderId,
           storageKey: input.storageKey,
           mimeType: input.mimeType,
@@ -294,6 +316,16 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
       },
     )) as [DocumentRow[], unknown];
     return this.mapDocument(rows[0]);
+  }
+
+  async setFolderGrants(id: string, grants: FolderAccess | null): Promise<void> {
+    const [rows] = await this.plugin.db.sequelize.query(
+      `update ${FOLDERS_COLLECTION} set access_grants = cast(:grants as jsonb), "updatedAt" = now() where id = :id returning id`,
+      { replacements: { id, grants: grants === null ? null : JSON.stringify(grants) } },
+    );
+    if (!rows.length) {
+      throw new ProcessDocumentsError('FOLDER_NOT_FOUND', 'Папка больше не существует.');
+    }
   }
 
   async deleteFolder(id: string, transaction?: TransactionContext): Promise<void> {
@@ -349,12 +381,19 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
 
   private scopePredicate(scope: DocumentScope, alias = ''): string {
     const prefix = alias ? `${alias}.` : '';
+    if (scope.mode === 'run') return `${prefix}transport_run_id = :runId`;
+    if (scope.mode === 'company') {
+      const area = scope.companyArea ? "= 'company'" : 'is null';
+      return `${prefix}company_id = :companyId and ${prefix}transport_run_id is null and ${prefix}company_area ${area}`;
+    }
     return scope.mode === 'shipment'
       ? `${prefix}shipment_id = :shipmentId`
       : `${prefix}shipment_id is null and ${prefix}draft_token = :draftToken`;
   }
 
   private scopeReplacements(scope: DocumentScope): Record<string, string> {
+    if (scope.mode === 'run') return { runId: scope.runId };
+    if (scope.mode === 'company') return { companyId: scope.companyId };
     return scope.mode === 'shipment' ? { shipmentId: scope.shipmentId } : { draftToken: scope.draftToken };
   }
 
@@ -368,6 +407,10 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
       title: row.title,
       shipmentId: row.shipment_id == null ? null : String(row.shipment_id),
       draftToken: row.draft_token || null,
+      companyId: row.company_id == null ? null : String(row.company_id),
+      ...(row.company_area && { companyArea: row.company_area }),
+      runId: row.transport_run_id == null ? null : String(row.transport_run_id),
+      grants: row.access_grants ?? null,
       parentFolderId: row.parent_folder_id == null ? null : String(row.parent_folder_id),
       createdById: row.createdById == null ? null : String(row.createdById),
       createdAt: row.createdAt,
@@ -383,6 +426,9 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
       originalFilename: row.original_filename,
       shipmentId: row.shipment_id == null ? null : String(row.shipment_id),
       draftToken: row.draft_token || null,
+      companyId: row.company_id == null ? null : String(row.company_id),
+      ...(row.company_area && { companyArea: row.company_area }),
+      runId: row.transport_run_id == null ? null : String(row.transport_run_id),
       folderId: row.folder_id == null ? null : String(row.folder_id),
       storageKey: row.storage_key,
       mimeType: row.mime_type || 'application/octet-stream',

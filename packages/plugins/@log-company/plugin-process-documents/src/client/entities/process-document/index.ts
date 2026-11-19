@@ -21,4 +21,9 @@ export type {
   DocumentRequestScope,
 } from '../../../contracts/processDocuments';
 export { useDocumentsList } from './model/useDocumentsList';
-export { getDocumentErrorText } from './lib/errorText';
+export { getDocumentErrorText, isDocumentAccessDenied } from './lib/errorText';
+export { DocumentsCatalogApi, catalogIdentifier, catalogPageSize } from './api/DocumentsCatalogApi';
+export { runCatalogTitle } from './api/catalogFolders';
+export type { CatalogFolder, CatalogId, CatalogItem, CatalogQuery } from './api/DocumentsCatalogApi';
+export { RecordAttachmentsApi } from './api/RecordAttachmentsApi';
+export type { RecordAttachment, RecordAttachmentField } from './api/RecordAttachmentsApi';

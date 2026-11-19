@@ -7,6 +7,28 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import { ProcessDocumentsError } from './DocumentErrors';
+
+export function isDocumentNameSegment(name: string): boolean {
+  return (
+    !!name &&
+    name !== '.' &&
+    name !== '..' &&
+    name.length <= 200 &&
+    ![...name].some((character) => {
+      const code = character.charCodeAt(0);
+      return code < 32 || code === 127 || character === '/' || character === String.fromCharCode(92);
+    })
+  );
+}
+
+export function assertSafeUploadName(relativeName: string): void {
+  const parts = relativeName.split(/[\\/]/);
+  if (parts.length > 20 || parts.some((part) => !isDocumentNameSegment(part.trim()))) {
+    throw new ProcessDocumentsError('INVALID_UPLOAD', 'Слишком длинный или недопустимый путь в загружаемой папке.');
+  }
+}
+
 export function sanitizeDocumentName(value: string): string {
   return (
     String(value || 'file')

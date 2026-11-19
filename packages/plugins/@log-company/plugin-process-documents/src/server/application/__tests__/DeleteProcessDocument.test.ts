@@ -10,7 +10,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DocumentScopeService } from '../DocumentScopeService';
 import { DeleteProcessDocument } from '../DeleteProcessDocument';
-import type { ApplicationLogger, DocumentStorage } from '../ports/DocumentStorage';
+import type { DocumentStorage } from '../ports/DocumentStorage';
 import type {
   ProcessDocumentRecord,
   ProcessDocumentsRepository,
@@ -40,30 +40,25 @@ function dependencies() {
   const requireDocument = vi.fn().mockResolvedValue(document);
   const resolveForDocument = vi.fn().mockResolvedValue({ mode: 'shipment', shipmentId: '202' });
   const scopeService = { requireDocument, resolveForDocument } as unknown as DocumentScopeService;
-  const storageDelete = vi.fn().mockResolvedValue(true);
-  const storage = { delete: storageDelete } as unknown as DocumentStorage;
-  const logger: ApplicationLogger = {
-    warn: vi.fn(),
-    error: vi.fn(),
-  };
+  const enqueueDeletion = vi.fn().mockResolvedValue(undefined);
+  const storage = { enqueueDeletion } as unknown as DocumentStorage;
   return {
     repository,
     scopeService,
     storage,
-    logger,
     transaction,
     deleteDocument,
     withTransaction,
     requireDocument,
     resolveForDocument,
-    storageDelete,
+    enqueueDeletion,
   };
 }
 
 describe('DeleteProcessDocument', () => {
-  it('deletes the metadata and then the MinIO object', async () => {
+  it('records the exact object key in the metadata deletion transaction', async () => {
     const deps = dependencies();
-    const useCase = new DeleteProcessDocument(deps.repository, deps.scopeService, deps.storage, deps.logger);
+    const useCase = new DeleteProcessDocument(deps.repository, deps.scopeService, deps.storage);
 
     await useCase.execute({
       documentId: document.id,
@@ -72,44 +67,42 @@ describe('DeleteProcessDocument', () => {
     });
 
     expect(deps.deleteDocument).toHaveBeenCalledWith(document.id, deps.transaction);
-    expect(deps.storageDelete).toHaveBeenCalledWith(document.storageKey);
+    expect(deps.enqueueDeletion).toHaveBeenCalledWith([document.storageKey], deps.transaction);
     expect(deps.deleteDocument.mock.invocationCallOrder[0]).toBeLessThan(
-      deps.storageDelete.mock.invocationCallOrder[0],
+      deps.enqueueDeletion.mock.invocationCallOrder[0],
     );
   });
 
-  it('treats an already absent MinIO object as a successful cleanup', async () => {
+  it('rejects unauthorized deletion before changing metadata or enqueuing cleanup', async () => {
     const deps = dependencies();
-    deps.storageDelete.mockResolvedValue(false);
-    const useCase = new DeleteProcessDocument(deps.repository, deps.scopeService, deps.storage, deps.logger);
+    const denied = new Error('Access denied');
+    deps.resolveForDocument.mockRejectedValueOnce(denied);
+    const useCase = new DeleteProcessDocument(deps.repository, deps.scopeService, deps.storage);
 
-    await useCase.execute({
-      documentId: document.id,
-      draftToken: null,
-      actor: { userId: '7', isRoot: false, authorizationContext: {} },
-    });
+    await expect(
+      useCase.execute({
+        documentId: document.id,
+        draftToken: null,
+        actor: { userId: '7', isRoot: false, authorizationContext: {} },
+      }),
+    ).rejects.toThrow(denied);
 
-    expect(deps.logger.warn).toHaveBeenCalledWith('Объект удалённого документа уже отсутствовал в хранилище', {
-      storageKey: document.storageKey,
-    });
+    expect(deps.withTransaction).not.toHaveBeenCalled();
+    expect(deps.enqueueDeletion).not.toHaveBeenCalled();
   });
 
-  it('logs a MinIO failure after the metadata transaction', async () => {
+  it('fails the metadata transaction when cleanup cannot be enqueued', async () => {
     const deps = dependencies();
-    const storageError = new Error('MinIO unavailable');
-    deps.storageDelete.mockRejectedValue(storageError);
-    const useCase = new DeleteProcessDocument(deps.repository, deps.scopeService, deps.storage, deps.logger);
+    const storageError = new Error('Queue unavailable');
+    deps.enqueueDeletion.mockRejectedValue(storageError);
+    const useCase = new DeleteProcessDocument(deps.repository, deps.scopeService, deps.storage);
 
-    await useCase.execute({
-      documentId: document.id,
-      draftToken: null,
-      actor: { userId: '7', isRoot: false, authorizationContext: {} },
-    });
-
-    expect(deps.logger.error).toHaveBeenCalledWith(
-      'После удаления документа остался объект в хранилище',
-      storageError,
-      { documentId: document.id, storageKey: document.storageKey },
-    );
+    await expect(
+      useCase.execute({
+        documentId: document.id,
+        draftToken: null,
+        actor: { userId: '7', isRoot: false, authorizationContext: {} },
+      }),
+    ).rejects.toThrow(storageError);
   });
 });

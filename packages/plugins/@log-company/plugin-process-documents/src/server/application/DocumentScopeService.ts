@@ -7,12 +7,9 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import {
-  assertDraftOwner,
-  assertRecordMatchesScope,
-  type DocumentScope,
-  type ScopedRecord,
-} from '../domain/documents/DocumentScope';
+import { assertDraftOwner, assertRecordMatchesScope } from '../domain/documents/DocumentScope';
+import type { CompanyDocumentTarget, DocumentScope, ScopedRecord } from '../domain/documents/DocumentScope';
+import { allowsFolderOperation } from '../domain/documents/FolderAccess';
 import { ProcessDocumentsError } from '../domain/documents/DocumentErrors';
 import type { ProcessDocumentAccess, ProcessDocumentOperation } from './ports/ProcessDocumentAccess';
 import type {
@@ -23,7 +20,7 @@ import type {
   TransactionContext,
 } from './ports/ProcessDocumentsRepository';
 
-export interface ResolveDocumentScopeInput {
+export interface ResolveDocumentScopeInput extends CompanyDocumentTarget {
   shipmentId: string | null;
   draftToken: string | null;
   operation: ProcessDocumentOperation;
@@ -37,6 +34,25 @@ export class DocumentScopeService {
   ) {}
 
   async resolve(input: ResolveDocumentScopeInput): Promise<DocumentScope> {
+    if (input.companyId || input.runId) {
+      if (input.shipmentId || input.draftToken) {
+        throw new ProcessDocumentsError('INVALID_DOCUMENT_SCOPE', 'Укажите один раздел для документов.');
+      }
+      if (input.runId && this.access.assertRunAccess) {
+        await this.access.assertRunAccess(input.runId, input.operation, input.actor, input.companyId ?? null);
+        return { mode: 'run', runId: input.runId };
+      }
+      if (!input.runId && input.companyId && this.access.assertCompanyAccess) {
+        const scope = {
+          mode: 'company' as const,
+          companyId: input.companyId,
+          ...(input.companyArea ? { companyArea: input.companyArea } : {}),
+        };
+        await this.access.assertCompanyAccess(scope, input.operation, input.actor);
+        return scope;
+      }
+      throw new ProcessDocumentsError('INVALID_DOCUMENT_SCOPE', 'Раздел документов недоступен.');
+    }
     if (input.shipmentId) {
       if (!(await this.repository.shipmentExists(input.shipmentId))) {
         throw new ProcessDocumentsError('SHIPMENT_NOT_FOUND', 'Поставка не найдена.');
@@ -51,6 +67,7 @@ export class DocumentScopeService {
         'Сначала сохраните поставку или откройте форму создания поставки.',
       );
     }
+    await this.access.assertDraftAccess?.(input.operation, input.actor);
     if (
       !input.actor.isRoot &&
       (!input.actor.userId || (await this.repository.draftHasRecordsOwnedByOther(input.draftToken, input.actor.userId)))
@@ -66,7 +83,9 @@ export class DocumentScopeService {
     operation: ProcessDocumentOperation,
     actor: DocumentActor,
   ): Promise<DocumentScope> {
-    return this.resolveForExistingRecord(document, draftToken, operation, actor);
+    const scope = await this.resolveForExistingRecord(document, draftToken, operation, actor);
+    await this.assertFolderAccess(document.folderId, scope, operation, actor);
+    return scope;
   }
 
   async resolveForFolder(
@@ -75,7 +94,31 @@ export class DocumentScopeService {
     operation: ProcessDocumentOperation,
     actor: DocumentActor,
   ): Promise<DocumentScope> {
-    return this.resolveForExistingRecord(folder, draftToken, operation, actor);
+    const scope = await this.resolveForExistingRecord(folder, draftToken, operation, actor);
+    await this.assertFolderAccess(folder.id, scope, operation, actor);
+    return scope;
+  }
+
+  async assertFolderAccess(
+    folderId: string | null,
+    scope: DocumentScope,
+    operation: ProcessDocumentOperation,
+    actor: DocumentActor,
+    transaction?: TransactionContext,
+  ): Promise<void> {
+    if (actor.isRoot) return;
+    const seen = new Set<string>();
+    let current = folderId;
+    while (current) {
+      if (seen.has(current)) throw new ProcessDocumentsError('FOLDER_CYCLE', 'Обнаружен цикл папок.');
+      seen.add(current);
+      const folder = await this.requireFolder(current, scope, transaction);
+      if (!folder) return;
+      if (!allowsFolderOperation(folder.grants, operation, actor)) {
+        throw new ProcessDocumentsError('DOCUMENT_ACCESS_DENIED', 'Нет доступа к папке.');
+      }
+      current = folder.parentFolderId;
+    }
   }
 
   async requireFolder(
@@ -159,6 +202,17 @@ export class DocumentScopeService {
     operation: ProcessDocumentOperation,
     actor: DocumentActor,
   ): Promise<DocumentScope> {
+    if (record.companyId || record.runId) {
+      return this.resolve({
+        shipmentId: null,
+        draftToken: null,
+        companyId: record.companyId,
+        companyArea: record.companyArea,
+        runId: record.runId,
+        operation,
+        actor,
+      });
+    }
     if (record.shipmentId) {
       if (!(await this.repository.shipmentExists(record.shipmentId))) {
         throw new ProcessDocumentsError('SHIPMENT_NOT_FOUND', 'Поставка не найдена.');
@@ -170,6 +224,7 @@ export class DocumentScopeService {
     if (!draftToken) {
       throw new ProcessDocumentsError('DRAFT_ACCESS_DENIED', 'Нет прав для действия с черновыми документами поставки.');
     }
+    await this.access.assertDraftAccess?.(operation, actor);
     const scope: DocumentScope = { mode: 'draft', draftToken };
     assertDraftOwner(record, scope, actor);
     return scope;

@@ -12,6 +12,11 @@ import type {
   DocumentRequestScope,
   DocumentsListResponse,
   FolderDeleteSummary,
+  FolderAccess,
+  DocumentAccessRule,
+  DocumentSection,
+  SectionAccessResponse,
+  SectionPermissions,
 } from '../../../../contracts/processDocuments';
 
 export interface ProcessDocumentsTransport {
@@ -50,12 +55,14 @@ export class ProcessDocumentsApi {
     )
       throw new Error('Сервер вернул некорректный список документов');
     return {
+      ...(isDocument(data.currentFolder) ? { currentFolder: data.currentFolder } : {}),
       breadcrumbs: data.breadcrumbs,
       folders: data.folders,
       files: data.files,
       permissions: {
         canWrite: record(data.permissions).canWrite === true,
         canDelete: record(data.permissions).canDelete === true,
+        ...(record(data.permissions).canManageAccess === true ? { canManageAccess: true } : {}),
       },
     };
   }
@@ -67,11 +74,44 @@ export class ProcessDocumentsApi {
   ): Promise<void> {
     if (!files.length) return;
     const data = new FormData();
-    if (scope.shipmentId !== undefined) data.append('shipmentId', String(scope.shipmentId));
-    else data.append('draftToken', scope.draftToken);
+    for (const [key, value] of Object.entries(scope)) {
+      if (value !== undefined) data.append(key, String(value));
+    }
     if (folderId !== null) data.append('folderId', String(folderId));
     for (const file of files) data.append('files', file, file.webkitRelativePath || file.name);
     await this.request('uploadFiles', data);
+  }
+
+  async createFolder(scope: DocumentRequestScope, parentFolderId: DocumentIdentifier | null, title: string) {
+    await this.request('createFolder', { ...scope, parentFolderId, title });
+  }
+
+  async setFolderAccess(folderId: DocumentIdentifier, grants: FolderAccess | null) {
+    await this.request('setFolderAccess', { folderId, grants });
+  }
+
+  async sectionPermissions(companyId?: DocumentIdentifier): Promise<SectionPermissions> {
+    const data = responseData(await this.request('sectionPermissions', { companyId }));
+    if (!data.sections || typeof data.sections !== 'object') throw new Error('Сервер не вернул права на документы.');
+    return {
+      sections: data.sections as SectionPermissions['sections'],
+      canManageAccess: data.canManageAccess === true,
+    };
+  }
+
+  async sectionAccess(section: DocumentSection, companyId?: DocumentIdentifier): Promise<SectionAccessResponse> {
+    const data = responseData(await this.request('getSectionAccess', { section, companyId }));
+    if (!Array.isArray(data.rules) || !Array.isArray(data.inherited))
+      throw new Error('Сервер не вернул правила доступа.');
+    return { rules: data.rules, inherited: data.inherited };
+  }
+
+  async setSectionAccess(
+    section: DocumentSection,
+    companyId: DocumentIdentifier | undefined,
+    rules: DocumentAccessRule[],
+  ) {
+    await this.request('setSectionAccess', { section, companyId, rules });
   }
 
   async deleteFile(documentId: DocumentIdentifier, draftToken?: string): Promise<void> {

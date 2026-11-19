@@ -7,7 +7,9 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import type { DocumentScope } from '../../domain/documents/DocumentScope';
+import type { CompanyDocumentTarget, DocumentScope } from '../../domain/documents/DocumentScope';
+
+import type { FolderAccess } from '../../../contracts/processDocuments';
 
 export interface TransactionContext {
   afterCommit?(callback: () => void | Promise<void>): void;
@@ -16,10 +18,12 @@ export interface TransactionContext {
 export interface DocumentActor {
   userId: string | null;
   isRoot: boolean;
+  roles?: readonly string[];
   authorizationContext: unknown;
 }
 
-export interface DocumentFolderRecord {
+export interface DocumentFolderRecord extends CompanyDocumentTarget {
+  grants?: FolderAccess | null;
   id: string;
   title: string;
   shipmentId: string | null;
@@ -31,7 +35,7 @@ export interface DocumentFolderRecord {
   author?: string;
 }
 
-export interface ProcessDocumentRecord {
+export interface ProcessDocumentRecord extends CompanyDocumentTarget {
   id: string;
   title: string;
   originalFilename: string;
@@ -98,6 +102,7 @@ export interface ProcessDocumentsRepository {
   listDocumentsByShipmentId(shipmentId: string, transaction?: TransactionContext): Promise<ProcessDocumentRecord[]>;
   createFolder(input: CreateFolderRecordInput, transaction?: TransactionContext): Promise<DocumentFolderRecord>;
   createDocument(input: CreateDocumentRecordInput, transaction?: TransactionContext): Promise<ProcessDocumentRecord>;
+  setFolderGrants?(id: string, grants: FolderAccess | null): Promise<void>;
   deleteFolder(id: string, transaction?: TransactionContext): Promise<void>;
   deleteDocument(id: string, transaction?: TransactionContext): Promise<void>;
   deleteDocumentsByShipmentId(shipmentId: string, transaction?: TransactionContext): Promise<void>;

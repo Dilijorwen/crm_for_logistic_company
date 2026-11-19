@@ -9,9 +9,20 @@
 
 import { ProcessDocumentsError } from './DocumentErrors';
 
-export type DocumentScope = { mode: 'shipment'; shipmentId: string } | { mode: 'draft'; draftToken: string };
+export type CompanyDocumentScope = { mode: 'company'; companyId: string; companyArea?: 'company' };
+export type DocumentScope =
+  | { mode: 'shipment'; shipmentId: string }
+  | { mode: 'draft'; draftToken: string }
+  | { mode: 'run'; runId: string }
+  | CompanyDocumentScope;
 
-export interface ScopedRecord {
+export interface CompanyDocumentTarget {
+  companyId?: string | null;
+  companyArea?: 'company';
+  runId?: string | null;
+}
+
+export interface ScopedRecord extends CompanyDocumentTarget {
   shipmentId: string | null;
   draftToken: string | null;
 }
@@ -43,12 +54,16 @@ export function recordMatchesScope(record: ScopedRecord, scope: DocumentScope): 
   if (scope.mode === 'shipment') {
     return record.shipmentId === scope.shipmentId;
   }
-  return record.shipmentId === null && record.draftToken === scope.draftToken;
+  if (scope.mode === 'run') return record.runId === scope.runId;
+  if (scope.mode === 'company') {
+    return !record.runId && record.companyId === scope.companyId && record.companyArea === scope.companyArea;
+  }
+  return !record.companyId && record.shipmentId === null && record.draftToken === scope.draftToken;
 }
 
 export function assertRecordMatchesScope(record: ScopedRecord, scope: DocumentScope): void {
   if (!recordMatchesScope(record, scope)) {
-    throw new ProcessDocumentsError('CROSS_SCOPE_FOLDER', 'Нельзя использовать папку другой поставки.');
+    throw new ProcessDocumentsError('CROSS_SCOPE_FOLDER', 'Нельзя использовать папку из другого раздела документов.');
   }
 }
 
