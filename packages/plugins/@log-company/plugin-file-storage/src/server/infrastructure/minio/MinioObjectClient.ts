@@ -53,7 +53,13 @@ export class MinioObjectClient {
     }
   }
 
-  async putObject(input: { key: string; filePath: string; size: number; contentType?: string }): Promise<void> {
+  async putObject(input: {
+    key: string;
+    filePath: string;
+    size: number;
+    contentType?: string;
+    createOnly?: boolean;
+  }): Promise<void> {
     const stream = fs.createReadStream(input.filePath);
     try {
       await this.client.send(
@@ -63,6 +69,7 @@ export class MinioObjectClient {
           Body: stream,
           ContentLength: input.size,
           ContentType: input.contentType || 'application/octet-stream',
+          IfNoneMatch: input.createOnly ? '*' : undefined,
         }),
       );
     } finally {
@@ -78,6 +85,25 @@ export class MinioObjectClient {
       throw new Error('Хранилище не вернуло поток файла.');
     }
     return response.Body as Readable;
+  }
+
+  async copyNewObject(sourceKey: string, targetKey: string): Promise<void> {
+    const metadata = await this.statObject(sourceKey);
+    const stream = await this.getObject(sourceKey);
+    try {
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: this.config.bucket,
+          Key: validateStorageKey(targetKey),
+          Body: stream,
+          ContentLength: metadata.size,
+          ContentType: metadata.contentType || 'application/octet-stream',
+          IfNoneMatch: '*',
+        }),
+      );
+    } finally {
+      stream.destroy();
+    }
   }
 
   async statObject(key: string): Promise<{ size: number; contentType?: string }> {

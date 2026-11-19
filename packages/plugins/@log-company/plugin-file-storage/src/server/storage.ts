@@ -12,3 +12,8 @@ export { MinioStorageArea } from './infrastructure/minio/MinioStorageArea';
 export { readFileStorageConfig } from './infrastructure/minio/FileStorageConfig';
 export type { MinioConfig, FileStorageConfig } from './infrastructure/minio/FileStorageConfig';
 export { canPreviewInline } from './domain/PreviewPolicy';
+export { FileStorageError } from './domain/FileStorageError';
+export { FileStorageArea, FileStorageService, generateFileKey } from './infrastructure/FileStorageService';
+export { fileResponseHeaders } from './interfaces/fileResponseHeaders';
+export { inspectUpload } from './infrastructure/InspectUpload';
+export { InvalidUploadError, processDocumentUpload, validateUploadBatch } from './domain/UploadPolicy';

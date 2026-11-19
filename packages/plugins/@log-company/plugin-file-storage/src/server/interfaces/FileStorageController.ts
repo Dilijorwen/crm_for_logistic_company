@@ -10,7 +10,8 @@
 import { Readable } from 'node:stream';
 import type { Plugin } from '@nocobase/server';
 import type { Context, Next } from '@nocobase/actions';
-import { canPreviewInline } from '../domain/PreviewPolicy';
+import { FileStorageError } from '../domain/FileStorageError';
+import { fileResponseHeaders } from './fileResponseHeaders';
 import {
   InvalidFileLinkError,
   OpenStoredAttachment,
@@ -32,28 +33,21 @@ export class FileStorageController {
   private readonly open = async (context: Context, next: Next): Promise<void> => {
     try {
       await this.respond(context);
-      await next();
     } catch (error) {
       if (error instanceof InvalidFileLinkError) context.throw(403, 'Ссылка на файл истекла или недействительна.');
       if (error instanceof StoredAttachmentNotFoundError) context.throw(404, 'Файл не найден.');
+      if (error instanceof FileStorageError && error.code === 'not-found') context.throw(404, error.message);
       this.plugin.log.error('Не удалось открыть вложение из единого хранилища.', { err: error });
       context.throw(503, 'Файл временно недоступен. Повторите попытку позже.');
     }
+    await next();
   };
 
   private async respond(context: Context): Promise<void> {
     const { id, expires, signature } = context.action.params;
     const file = await this.openAttachment.execute({ id, expires, signature });
-    context.set('Content-Type', file.mimeType);
-    context.set('X-Content-Type-Options', 'nosniff');
-    context.set('Cache-Control', 'private, no-store');
-    context.set('Content-Security-Policy', "sandbox; default-src 'none'");
-    context.set(
-      'Content-Disposition',
-      `${canPreviewInline(file.mimeType) ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(
-        file.fileName,
-      )}`,
-    );
+    const headers = fileResponseHeaders({ ...file, preview: true });
+    for (const [name, value] of Object.entries(headers)) context.set(name, value);
     context.body = Readable.from(file.stream);
   }
 }

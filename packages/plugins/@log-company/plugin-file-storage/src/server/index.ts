@@ -8,8 +8,4 @@
  */
 
 export { default } from './plugin';
-export { MinioObjectClient } from './infrastructure/minio/MinioObjectClient';
-export { MinioStorageArea } from './infrastructure/minio/MinioStorageArea';
-export { readFileStorageConfig } from './infrastructure/minio/FileStorageConfig';
-export type { MinioConfig, FileStorageConfig } from './infrastructure/minio/FileStorageConfig';
-export { canPreviewInline } from './domain/PreviewPolicy';
+export * from './storage';
