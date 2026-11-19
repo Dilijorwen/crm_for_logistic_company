@@ -23,6 +23,8 @@ export interface SummaryShipment {
   number: string;
   client: string;
   invoice: string;
+  application?: string;
+  declaration?: string;
   status?: string;
 }
 export interface RunSummary {
@@ -38,6 +40,10 @@ function object(value: unknown): Record<string, unknown> {
 }
 function label(value: unknown): string {
   return typeof value === 'string' || typeof value === 'number' ? String(value) : '—';
+}
+function documentNumber(value: unknown): string | undefined {
+  const number = label(value).trim();
+  return number && number !== '—' ? number : undefined;
 }
 function items(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.map(object) : [];
@@ -63,7 +69,15 @@ export class WorkspaceSummaryApi {
         .get({ filterByTk: runId, appends: ['managers', 'declarants', 'parent_runs', 'child_runs'] }),
       this.api.resource('transport_runs.shipments', runId).list({
         paginate: false,
-        fields: ['id', 'shipment_number', 'invoice_number', 'status', 'chinese_client'],
+        fields: [
+          'id',
+          'shipment_number',
+          'invoice_number',
+          'application_number',
+          'declaration_number',
+          'status',
+          'chinese_client',
+        ],
         appends: ['chinese_client'],
         sort: ['shipment_number'],
       }),
@@ -82,8 +96,12 @@ export class WorkspaceSummaryApi {
       shipments: items(shipmentsResponse?.data?.data).map((item) => ({
         id: String(item.id),
         number: label(item.shipment_number),
-        client: label(object(item.chinese_client).name),
+        client: (Array.isArray(item.chinese_client) ? items(item.chinese_client) : [object(item.chinese_client)])
+          .map((client) => label(client.name))
+          .join(', '),
         invoice: label(item.invoice_number),
+        application: documentNumber(item.application_number),
+        declaration: documentNumber(item.declaration_number),
         status: typeof item.status === 'string' ? item.status : undefined,
       })),
     };

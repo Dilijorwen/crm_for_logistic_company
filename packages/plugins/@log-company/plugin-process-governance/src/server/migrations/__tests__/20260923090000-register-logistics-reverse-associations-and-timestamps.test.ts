@@ -72,8 +72,8 @@ describe('RegisterLogisticsMetadata migration', () => {
       values: expect.objectContaining({
         collectionName: 'chinese_clients',
         name: 'shipments',
-        type: 'hasMany',
-        interface: 'o2m',
+        type: 'belongsToMany',
+        interface: 'm2m',
         target: 'shipments',
         foreignKey: 'chinese_client_id',
       }),

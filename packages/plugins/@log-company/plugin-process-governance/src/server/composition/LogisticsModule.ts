@@ -23,6 +23,9 @@ import { WriteLogisticsHistory } from '../application/logistics/WriteLogisticsHi
 import { NocoBaseGovernanceLogger } from '../infrastructure/nocobase/NocoBaseGovernanceLogger';
 import { LogisticsIntegrityGuard } from '../infrastructure/persistence/nocobase/LogisticsIntegrityGuard';
 import { NocoBaseLogisticsRepository } from '../infrastructure/persistence/nocobase/NocoBaseLogisticsRepository';
+import { ShipmentChineseClientHooks } from '../interfaces/hooks/ShipmentChineseClientHooks';
+import { SynchronizeShipmentChineseClients } from '../application/logistics/SynchronizeShipmentChineseClients';
+import { NocoBaseShipmentChineseClientsRepository } from '../infrastructure/persistence/nocobase/NocoBaseShipmentChineseClientsRepository';
 import { LogisticsHooks } from '../interfaces/hooks/LogisticsHooks';
 import { LogisticsPreActions } from '../interfaces/http/LogisticsPreActions';
 import { LogisticsWorkspaceActions } from '../interfaces/http/LogisticsWorkspaceActions';
@@ -57,5 +60,9 @@ export class LogisticsModule {
       validateShipmentContract,
       validateShipmentDeletion,
     }).register();
+    new ShipmentChineseClientHooks(
+      this.plugin,
+      new SynchronizeShipmentChineseClients(new NocoBaseShipmentChineseClientsRepository(this.plugin.db)),
+    ).register();
   }
 }

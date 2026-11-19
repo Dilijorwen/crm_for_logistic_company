@@ -151,6 +151,28 @@ describe('LogisticsService', () => {
     ]);
   });
 
+  it('saves and reads every selected Chinese client', async () => {
+    const { service, api } = setup();
+    const resource = api.resource('shipments') as unknown as ResourceStub;
+    resource.create.mockResolvedValue({
+      data: {
+        data: {
+          id: 'shipment-1',
+          chinese_client: [
+            { id: 'a', name: 'Клиент А' },
+            { id: 'b', name: 'Клиент Б' },
+          ],
+        },
+      },
+    });
+    const shipment = await service.createShipment({ chineseClientIds: ['a', 'b'], companyId: 'company-1' });
+    expect(resource.create.mock.calls[0][0].values.chinese_client).toEqual(['a', 'b']);
+    expect(shipment.chineseClients).toEqual([
+      { id: 'a', label: 'Клиент А' },
+      { id: 'b', label: 'Клиент Б' },
+    ]);
+  });
+
   it('does not send removed fields from an outdated client value object', async () => {
     const { service, api } = setup();
     const shipments = api.resource('shipments') as unknown as ResourceStub;

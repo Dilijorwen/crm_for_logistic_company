@@ -8,7 +8,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { LOGISTICS_WORKSPACE_VIEW_SQL } from '../LogisticsWorkspaceViewSql';
+import {
+  LOGISTICS_WORKSPACE_VIEW_SQL,
+  LOGISTICS_WORKSPACE_VIEW_WITH_SHIPMENT_CREATION_DATE_SQL,
+} from '../LogisticsWorkspaceViewSql';
 
 describe('LOGISTICS_WORKSPACE_VIEW_SQL', () => {
   it('projects every run-shipment link and keeps runs without shipments', () => {
@@ -23,5 +26,11 @@ describe('LOGISTICS_WORKSPACE_VIEW_SQL', () => {
     expect(LOGISTICS_WORKSPACE_VIEW_SQL).toContain('shipment.declaration_number');
     expect(LOGISTICS_WORKSPACE_VIEW_SQL).not.toContain('INSERT INTO');
     expect(LOGISTICS_WORKSPACE_VIEW_SQL).not.toContain('DELETE FROM');
+  });
+
+  it('exposes the shipment timestamp alongside the separate run timestamp', () => {
+    expect(LOGISTICS_WORKSPACE_VIEW_WITH_SHIPMENT_CREATION_DATE_SQL).toContain(
+      'run."createdAt" AS run_created_at,\n    shipment."createdAt" AS shipment_created_at',
+    );
   });
 });

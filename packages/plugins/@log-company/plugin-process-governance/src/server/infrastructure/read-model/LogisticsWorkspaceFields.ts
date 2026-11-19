@@ -18,6 +18,7 @@ const RUN_FIELDS: Record<string, string> = {
   declarant_names: 'declarants',
 };
 const SHIPMENT_FIELDS: Record<string, string> = {
+  shipment_created_at: 'createdAt',
   chinese_client_name: 'chinese_client',
   company_name: 'company',
   contract_name: 'contract_record',

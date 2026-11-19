@@ -64,6 +64,46 @@ function hasManyShipments(collectionName: string, foreignKey: string) {
   } as const;
 }
 
+export const shipmentChineseClientsField = {
+  name: 'chinese_client',
+  type: 'belongsToMany',
+  interface: 'm2m',
+  target: 'chinese_clients',
+  through: 'shipment_chinese_clients',
+  sourceKey: 'id',
+  targetKey: 'id',
+  foreignKey: 'shipment_id',
+  otherKey: 'chinese_client_id',
+  onDelete: 'CASCADE',
+  uiSchema: {
+    type: 'array',
+    title: 'Китайские клиенты',
+    required: true,
+    minItems: 1,
+    'x-component': 'AssociationField',
+    'x-component-props': { multiple: true, fieldNames: { value: 'id', label: 'name' } },
+  },
+} as const;
+
+export const clientShipmentsField = {
+  name: 'shipments',
+  type: 'belongsToMany',
+  interface: 'm2m',
+  target: 'shipments',
+  through: 'shipment_chinese_clients',
+  sourceKey: 'id',
+  targetKey: 'id',
+  foreignKey: 'chinese_client_id',
+  otherKey: 'shipment_id',
+  onDelete: 'RESTRICT',
+  uiSchema: {
+    type: 'array',
+    title: 'Поставки',
+    'x-component': 'AssociationField',
+    'x-component-props': { multiple: true, fieldNames: { value: 'id', label: 'shipment_number' } },
+  },
+} as const;
+
 export const logisticsAssociationFields = [
   {
     collectionName: 'transport_runs',
@@ -71,7 +111,7 @@ export const logisticsAssociationFields = [
   },
   {
     collectionName: 'shipments',
-    field: belongsTo('chinese_client', 'chinese_clients', 'chinese_client_id', 'Китайский клиент', 'name', true),
+    field: shipmentChineseClientsField,
   },
   {
     collectionName: 'shipments',
@@ -98,6 +138,6 @@ export const logisticsAssociationFields = [
 ] as const;
 
 export const logisticsReverseShipmentAssociationFields = [
-  hasManyShipments('chinese_clients', 'chinese_client_id'),
+  { collectionName: 'chinese_clients', field: clientShipmentsField },
   hasManyShipments('our_companies', 'company_id'),
 ] as const;

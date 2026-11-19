@@ -12,6 +12,7 @@ import { createMockDatabase, type Database, type Model } from '@nocobase/databas
 import type { Plugin } from '@nocobase/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import logisticsWorkItems from '../../../collections/logisticsWorkItems';
+import { shipmentChineseClientsField } from '../../../infrastructure/metadata/LogisticsAssociationFields';
 import { LogisticsWorkspaceActions } from '../LogisticsWorkspaceActions';
 import { NocoBaseWorkspaceReadModel } from '../../../infrastructure/read-model/NocoBaseWorkspaceReadModel';
 
@@ -29,7 +30,8 @@ describe('logistics workspace authorization and live search', () => {
   beforeEach(async () => {
     db = await createMockDatabase({ dialect: 'sqlite', storage: ':memory:' });
     db.collection({ name: 'transport_runs', fields: [{ type: 'integer', name: 'run_number' }] });
-    db.collection({ name: 'shipments', fields: [{ type: 'string', name: 'status' }] });
+    db.collection({ name: 'chinese_clients', fields: [{ type: 'string', name: 'name' }] });
+    db.collection({ name: 'shipments', fields: [{ type: 'string', name: 'status' }, shipmentChineseClientsField] });
     db.collection({ ...logisticsWorkItems, view: false });
     await db.sync();
     await db.getRepository('transport_runs').create({
@@ -49,7 +51,9 @@ describe('logistics workspace authorization and live search', () => {
         {
           id: '10:100',
           run_id: 10,
+          run_created_at: new Date('2026-11-18T02:00:00Z'),
           shipment_id: 100,
+          shipment_created_at: new Date('2026-11-16T15:30:00Z'),
           run_number: 30,
           transport_type: 'road',
           shipment_number: 100,
@@ -57,17 +61,34 @@ describe('logistics workspace authorization and live search', () => {
           manager_comment: 'Скрытая заметка',
           status: 'queue',
         },
-        { id: '10:101', run_id: 10, shipment_id: 101, run_number: 30, registration_number: 'AB123', status: 'release' },
+        {
+          id: '10:101',
+          run_id: 10,
+          run_created_at: new Date('2026-11-18T02:00:00Z'),
+          shipment_id: 101,
+          run_number: 30,
+          registration_number: 'AB123',
+          status: 'release',
+        },
         {
           id: '11:100',
           run_id: 11,
+          run_created_at: new Date('2026-11-17T02:00:00Z'),
           shipment_id: 100,
+          shipment_created_at: new Date('2026-11-16T15:30:00Z'),
           run_number: 31,
           transport_type: 'sea',
           registration_number: 'CD456',
           status: 'queue',
         },
-        { id: '10:0', run_id: 10, shipment_id: null, run_number: 30, registration_number: 'EF789' },
+        {
+          id: '10:0',
+          run_id: 10,
+          run_created_at: new Date('2026-11-18T02:00:00Z'),
+          shipment_id: null,
+          run_number: 30,
+          registration_number: 'EF789',
+        },
       ],
     });
     const plugin = {
@@ -120,6 +141,17 @@ describe('logistics workspace authorization and live search', () => {
     return (ctx.body as Model[]).map((row) => row.toJSON());
   }
 
+  it('finds a shipment by either selected client, including an exact name filter', async () => {
+    const first = await db.getRepository('chinese_clients').create({ values: { name: 'Клиент А' } });
+    const second = await db.getRepository('chinese_clients').create({ values: { name: 'Клиент Б' } });
+    await db.getRepository('shipments.chinese_client', 100).set([first.get('id'), second.get('id')]);
+    for (const name of ['Клиент А', 'Клиент Б']) {
+      const rows = await list(context({ filter: { chinese_client_name: { $eq: name } } }));
+      expect(rows.map((row) => row.id).sort()).toEqual(['10:100', '11:100']);
+    }
+    expect(await list(context({ filter: { chinese_client_name: { $eq: 'Другой клиент' } } }))).toEqual([]);
+  });
+
   it('respects source row scopes and retains accessible runs without shipments', async () => {
     const rows = await list(
       context(
@@ -149,6 +181,20 @@ describe('logistics workspace authorization and live search', () => {
     expect(rows[0]).not.toHaveProperty('shipment');
     const selected = await list(context({ fields: ['run_number'] }));
     expect(Object.keys(selected[0]).sort()).toEqual(['id', 'run_number']);
+  });
+
+  it('returns the same creation timestamp for a shipment in two runs and respects shipment field access', async () => {
+    const params = { fields: ['shipment_created_at'] };
+    const fields = ['shipment_number', 'createdAt'];
+    const rows = await list(context(params, { shipments: { params: { fields } } }));
+    expect(rows.filter((row) => String(row.id).endsWith(':100')).map((row) => row.shipment_created_at)).toEqual([
+      new Date('2026-11-16T15:30:00Z'),
+      new Date('2026-11-16T15:30:00Z'),
+    ]);
+    const permitted = await list(
+      context({ fields: ['shipment_created_at'] }, { shipments: { params: { fields: ['shipment_number'] } } }),
+    );
+    expect(permitted.every((row) => !Object.hasOwn(row, 'shipment_created_at'))).toBe(true);
   });
 
   it('denies access without source permissions and denies writes even to a privileged caller', async () => {
@@ -233,9 +279,9 @@ describe('logistics workspace authorization and live search', () => {
     expect(await db.getRepository('shipments').count()).toBe(2);
   });
 
-  it('paginates whole runs and reports a shared shipment once in the global count', async () => {
+  it('paginates by newest creation time even with a different run number sort', async () => {
     const queries = vi.spyOn(db.sequelize, 'query');
-    const ctx = context({ workspaceGroupByRun: true, pageSize: 1, page: 1, sort: ['run_number'] });
+    const ctx = context({ workspaceGroupByRun: true, pageSize: 1, page: 1, sort: ['-run_number'] });
     await authorize(ctx, () => groupedList(ctx, async () => undefined));
     expect(ctx.body).toMatchObject({ count: 2, page: 1, pageSize: 1, totalPage: 2 });
     const result = ctx.body as {

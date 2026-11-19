@@ -495,12 +495,12 @@ export function logisticsWorkspaceNativeTrees(): WorkspaceFlowTree[] {
     {
       uid: WORKSPACE_ADD_UID,
       use: 'LogisticsWorkspaceAddActionModel',
-      props: { title: 'Добавить рейс' },
+      props: { title: 'Добавить процесс' },
       parentId: 'lclogworkspacetable',
       subKey: 'actions',
       subType: 'array',
       stepParams: {
-        buttonSettings: { general: { title: 'Добавить рейс', type: 'primary', icon: 'PlusOutlined' } },
+        buttonSettings: { general: { title: 'Добавить процесс', type: 'primary', icon: 'PlusOutlined' } },
         popupSettings: {
           openView: {
             uid: WORKSPACE_CREATE_RUN_UID,

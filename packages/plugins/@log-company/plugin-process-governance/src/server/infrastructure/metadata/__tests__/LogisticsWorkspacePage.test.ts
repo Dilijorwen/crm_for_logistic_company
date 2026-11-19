@@ -19,6 +19,13 @@ import { UiSchemaModel } from '../../../../../../../@nocobase/plugin-ui-schema-s
 import { ServerHookModel } from '../../../../../../../@nocobase/plugin-ui-schema-storage/src/server/server-hooks/model';
 import UiSchemaRepository from '../../../../../../../@nocobase/plugin-ui-schema-storage/src/server/repository';
 import RepairWorkspaceForms from '../../../migrations/20261030003000-repair-workspace-popup-and-forms';
+import ConfigureUnifiedWorkspace from '../../../migrations/20261118020000-configure-unified-logistics-workspace';
+import RegisterDeclarantComment from '../../../migrations/20261118030000-register-declarant-comment-field';
+import RefineUnifiedShipmentForm from '../../../migrations/20261118040000-refine-unified-shipment-form';
+import ConsolidateRunEditor from '../../../migrations/20261118050000-consolidate-run-editor';
+import UseUnifiedDocumentsForRuns from '../../../migrations/20261118060000-use-unified-documents-for-runs';
+import ConfigureWorkspaceSelectorScopes from '../../../migrations/20261119020000-configure-workspace-selector-scopes';
+import ScopeWorkspaceCustomsWarehouses from '../../../migrations/20261119021000-scope-workspace-customs-warehouses';
 import { upgradeLogisticsWorkspace } from '../UpgradeLogisticsWorkspace';
 import { WORKSPACE_RECORD_POPUP_UID, type WorkspaceFlowTree } from '../LogisticsWorkspaceNativeModels';
 import { installWorkspacePresentation } from '../InstallWorkspacePresentation';
@@ -117,6 +124,250 @@ describe('logistics workspace with the real FlowModelRepository', () => {
         filter: { desktopRouteId: tab.get('id'), roleName: 'custom-role' },
       }),
     ).toBe(1);
+  });
+
+  it('adds one native shipment subform to each run editor and preserves the configured table actions', async () => {
+    await installWorkspacePresentation(db);
+    const table = await fullModel('lclogworkspacetable');
+    const migration = new ConfigureUnifiedWorkspace({ db } as ConstructorParameters<
+      typeof ConfigureUnifiedWorkspace
+    >[0]);
+    await migration.up();
+    await migration.up();
+    const actions = (await fullModel('lclogworkspacetable')).subModels.actions;
+    const toolbarSettings = (original: WorkspaceFlowTree[]) =>
+      original
+        .filter((action) => action.uid !== 'lcwsdeleteshipment')
+        .map(({ uid, use, props, stepParams }) => ({ uid, use, props, stepParams }));
+    expect(toolbarSettings(actions)).toEqual(toolbarSettings(table.subModels.actions));
+    expect(actions.find((action) => action.uid === 'lcwsdeleteshipment').props.iconOnly).toBe(true);
+    for (const uid of ['lcwscreaterun', 'lcwsrunform']) {
+      const form = await fullModel(uid);
+      expect(form.props.workspaceUnified).toBe(true);
+      expect(form.subModels.actions).toHaveLength(1);
+      const grid = form.subModels.grid;
+      const subform = grid.subModels.items.find((item: WorkspaceFlowTree) => item.uid === `${uid}unifiedshipment`);
+      expect(grid.stepParams.gridSettings.grid.rows.details[1]).toEqual([subform.uid]);
+      expect(subform.stepParams.fieldSettings.init.fieldPath).toBe('shipments');
+      expect(subform.subModels.field.use).toBe('LogisticsWorkspaceShipmentSubformModel');
+      const fields = subform.subModels.field.subModels.grid.subModels.items;
+      const paths = fields.map((item) => item.stepParams.fieldSettings.init.fieldPath);
+      expect(paths.slice(0, 5)).toEqual([
+        'shipments.status',
+        'shipments.chinese_client',
+        'shipments.customs_scheme',
+        'shipments.company',
+        'shipments.contract_record',
+      ]);
+      expect(paths.includes('shipments.customs_warehouse_storage_date')).toBe(uid === 'lcwsrunform');
+      expect(paths.includes('shipments.declarant_comment')).toBe(uid === 'lcwsrunform');
+      expect(paths.includes('shipments.ntm_honest_sign_goods')).toBe(uid === 'lcwsrunform');
+    }
+  });
+
+  it('scopes native selectors across run and shipment forms while preserving other field settings', async () => {
+    await installWorkspacePresentation(db);
+    await new ConfigureUnifiedWorkspace({ db } as ConstructorParameters<typeof ConfigureUnifiedWorkspace>[0]).up();
+    const filter = (field: WorkspaceFlowTree) => field.stepParams?.selectSettings;
+    const existing = await fullModel('lcwscreaterununifiedshipmentdetailsf2input');
+    const original = existing.stepParams.selectSettings;
+    const other = { path: 'name', operator: '$ne', value: 'Скрыто' };
+    await models.upsertModel({
+      uid: existing.uid,
+      stepParams: {
+        ...existing.stepParams,
+        selectSettings: { ...original, dataScope: { filter: { logic: '$and', items: [other] } } },
+      },
+    });
+    const migration = new ConfigureWorkspaceSelectorScopes({ db } as ConstructorParameters<
+      typeof ConfigureWorkspaceSelectorScopes
+    >[0]);
+    await migration.up();
+    await migration.up();
+    const active = { path: 'is_active', operator: '$isTruly', value: true, noValue: true };
+    for (const uid of ['lcwscreaterun', 'lcwsrunform']) {
+      expect(filter(await fullModel(`${uid}f5input`))).toMatchObject({
+        dataScope: { filter: { logic: '$and', items: [{ path: 'roles.title', operator: '$eq', value: 'Декларант' }] } },
+      });
+      expect(filter(await fullModel(`${uid}unifiedshipmentdetailsf4input`))).toMatchObject({
+        dataScope: { filter: { logic: '$and', items: [active] } },
+      });
+      expect(filter(await fullModel(`${uid}unifiedshipmentdetailsf5input`))).toMatchObject({
+        dataScope: {
+          filter: {
+            logic: '$and',
+            items: [
+              { path: 'importers.id', operator: '$eq', value: '{{ ctx.item.value.company.id }}' },
+              { path: 'importers.id', operator: '$notEmpty', value: true },
+              active,
+            ],
+          },
+        },
+      });
+    }
+    expect(filter(await fullModel(existing.uid))).toMatchObject({
+      allowMultiple: { allowMultiple: true },
+      dataScope: { filter: { logic: '$and', items: [active, other] } },
+    });
+    for (const uid of ['lcwscreateship', 'lcwspagegeneral']) {
+      expect(filter(await fullModel(`${uid}f1input`))).toMatchObject({ dataScope: { filter: { items: [active] } } });
+      const contract = await fullModel(`${uid}f6input`);
+      expect(contract.use).toBe('LogisticsWorkspaceScopedSelectFieldModel');
+      expect(filter(contract)).toMatchObject({
+        dataScope: {
+          filter: {
+            items: [
+              { path: 'importers.id', operator: '$eq', value: '{{ ctx.formValues.company.id }}' },
+              { path: 'importers.id', operator: '$notEmpty', value: true },
+              active,
+            ],
+          },
+        },
+      });
+    }
+  });
+
+  it('uses the active-record scope for the native warehouse selectors', async () => {
+    await installWorkspacePresentation(db);
+    await new ConfigureUnifiedWorkspace({ db } as ConstructorParameters<typeof ConfigureUnifiedWorkspace>[0]).up();
+    const importerUid = 'lcwscreaterununifiedshipmentdetailsf4input';
+    const existingImporter = await fullModel(importerUid);
+    const uids = [
+      'lcwscreaterununifiedshipmentdetailsf6',
+      'lcwsrunformunifiedshipmentdetailsf6',
+      'lcwscreateshipf8',
+      'lcwspagecustomsf2',
+    ];
+    const migration = new ScopeWorkspaceCustomsWarehouses({ db } as ConstructorParameters<
+      typeof ScopeWorkspaceCustomsWarehouses
+    >[0]);
+    await migration.up();
+    await migration.up();
+    expect(await fullModel(importerUid)).toEqual(existingImporter);
+    for (const uid of uids) {
+      expect(await fullModel(`${uid}input`)).toMatchObject({
+        use: 'LogisticsWorkspaceScopedSelectFieldModel',
+        stepParams: {
+          selectSettings: {
+            dataScope: { filter: { items: [{ path: 'is_active', operator: '$isTruly', value: true, noValue: true }] } },
+          },
+        },
+      });
+    }
+  });
+
+  it('registers the declarant comment in the designer only once', async () => {
+    db.collection({
+      name: 'fields',
+      fields: [
+        { name: 'key', type: 'string', unique: true },
+        { name: 'collectionName', type: 'string' },
+        { name: 'name', type: 'string' },
+        { name: 'type', type: 'string' },
+        { name: 'interface', type: 'string' },
+        { name: 'options', type: 'json' },
+      ],
+    });
+    await db.sync();
+    const migration = new RegisterDeclarantComment({ db } as ConstructorParameters<typeof RegisterDeclarantComment>[0]);
+    await migration.up();
+    await migration.up();
+    const fields = await db.getRepository('fields').find({ filter: { collectionName: 'shipments' } });
+    expect(fields).toHaveLength(1);
+    expect(fields[0].toJSON()).toMatchObject({
+      name: 'declarant_comment',
+      type: 'text',
+      interface: 'textarea',
+      options: { uiSchema: { title: 'Комментарий декларанта' } },
+    });
+  });
+
+  it('puts run documents below the run fields and retires the separate shipment tab without losing its saved selector', async () => {
+    await installWorkspacePresentation(db);
+    await new ConfigureUnifiedWorkspace({ db } as ConstructorParameters<typeof ConfigureUnifiedWorkspace>[0]).up();
+    const migration = new ConsolidateRunEditor({ db } as ConstructorParameters<typeof ConsolidateRunEditor>[0]);
+    await migration.up();
+    await migration.up();
+    const page = await fullModel('lcwsrecordpage');
+    expect(page.subModels.tabs.map((tab: WorkspaceFlowTree) => tab.uid)).toEqual([
+      'lcwsruntab',
+      'lcwsruntreetab',
+      'lcwsrunhistorytab',
+    ]);
+    expect((await fullModel('lcwsrsassociate')).use).toBe('LogisticsWorkspaceAssociateActionModel');
+    for (const uid of ['lcwsrunformgrid', 'lcwscreaterungrid']) {
+      const grid = await fullModel(uid);
+      const docsId = `${uid}documents`;
+      expect(grid.stepParams.gridSettings.grid.rows.details[0].at(-1)).toBe(docsId);
+      expect(grid.subModels.items.filter((item: WorkspaceFlowTree) => item.uid === docsId)).toMatchObject([
+        {
+          use: 'LogisticsWorkspaceRunDocumentsModel',
+          subModels: {
+            files: {
+              use: 'CompanyFilesBlockModel',
+              props: { source: 'auto' },
+              decoratorProps: { title: 'Документы рейса' },
+            },
+          },
+        },
+      ]);
+    }
+    const unifiedDocuments = new UseUnifiedDocumentsForRuns({ db } as ConstructorParameters<
+      typeof UseUnifiedDocumentsForRuns
+    >[0]);
+    await unifiedDocuments.up();
+    await unifiedDocuments.up();
+    for (const uid of ['lcwsrunformgrid', 'lcwscreaterungrid']) {
+      const wrapper = await fullModel(`${uid}documents`);
+      expect(wrapper.subModels.files).toMatchObject({
+        uid: `${uid}documentsfiles`,
+        use: 'ProcessDocumentsBlockModel',
+        decoratorProps: { title: 'Документы рейса' },
+      });
+    }
+    expect((await fullModel('lcwspagedocs')).use).toBe('ProcessDocumentsBlockModel');
+  });
+
+  it('configures a native picker and moves invoice, customs and NTM fields into their original editors', async () => {
+    await installWorkspacePresentation(db);
+    await new ConfigureUnifiedWorkspace({ db } as ConstructorParameters<typeof ConfigureUnifiedWorkspace>[0]).up();
+    const migration = new RefineUnifiedShipmentForm({ db } as ConstructorParameters<
+      typeof RefineUnifiedShipmentForm
+    >[0]);
+    const editUid = 'lcwsrunformunifiedshipmentfield';
+    const before = (await fullModel(editUid)).subModels.grid.subModels.items as WorkspaceFlowTree[];
+    await migration.up();
+    await migration.up();
+    const button = await fullModel('lcwsadd');
+    expect(button.stepParams.buttonSettings.general).toMatchObject({ title: 'Добавить процесс', icon: 'PlusOutlined' });
+    for (const uid of ['lcwscreaterununifiedshipmentfield', editUid]) {
+      const field = await fullModel(uid);
+      expect(field.stepParams.selectExitRecordSettings.openView).toEqual({ mode: 'dialog', size: 'large' });
+      const selector = field.subModels['grid-block'].subModels.items[0];
+      expect(selector.use).toBe('TableSelectModel');
+      expect(selector.stepParams.resourceSettings.init).toEqual({ dataSourceKey: 'main', collectionName: 'shipments' });
+      expect(
+        selector.subModels.columns.some((column) => column.stepParams.fieldSettings.init.fieldPath === 'company.name'),
+      ).toBe(true);
+    }
+    const after = (await fullModel(editUid)).subModels.grid.subModels.items as WorkspaceFlowTree[];
+    const sections = after.filter((item) => item.use === 'LogisticsWorkspaceShipmentFoldGridModel');
+    expect(sections.map((item) => item.props.workspaceSectionTitle)).toEqual([
+      'Инвойс и товары',
+      'Таможенное оформление',
+      'НТМ',
+    ]);
+    const nested = sections.flatMap((section) => section.subModels.items as WorkspaceFlowTree[]);
+    expect([...after.filter((item) => !sections.includes(item)), ...nested].map((item) => item.uid).sort()).toEqual(
+      before.map((item) => item.uid).sort(),
+    );
+    for (const uid of ['lclogworkspacetable', 'lcwsrunshipments']) {
+      const table = await fullModel(uid);
+      const column = table.subModels.columns.find(
+        (item) => item.stepParams.fieldSettings?.init?.fieldPath === 'shipment_number',
+      );
+      expect(column.subModels.field.stepParams.displayFieldSettings.clickToOpen.clickToOpen).toBe(false);
+    }
   });
 
   it('repairs orphaned metadata from the earlier migration without losing settings', async () => {

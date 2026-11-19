@@ -8,14 +8,13 @@
  */
 
 import { ExpandOutlined } from '@ant-design/icons';
-import { Alert, Button, Collapse, Descriptions, Empty, Skeleton, Space, Tabs, Tag, Typography } from 'antd';
+import { Alert, Button, Collapse, Descriptions, Empty, Popover, Skeleton, Space, Tabs, Tag, Typography } from 'antd';
 import React from 'react';
 import { LOGISTICS_STATUS_COLORS, LOGISTICS_STATUS_LABELS, type LogisticsStatus } from '../../../../shared/logistics';
 import { TRANSPORT_TYPE_LABELS, type TransportType } from '../../../../shared/transport';
 import { ScopedNativeBlock } from '../../../features/scoped-native-block';
 import {
   openWorkspaceRun,
-  openWorkspaceShipment,
   WorkspaceShipmentAddButton,
   WorkspaceSharedShipmentBadge,
   WorkspaceShipmentDetachButton,
@@ -62,15 +61,7 @@ function Overview({ group }: { group: WorkspaceRunGroup }) {
             <Descriptions
               size="small"
               column={1}
-              items={[
-                {
-                  key: 'type',
-                  label: 'Тип перевозки',
-                  children: TRANSPORT_TYPE_LABELS[group.row.transport_type as TransportType] || '—',
-                },
-                { key: 'registration', label: 'Номер транспорта', children: rowText(group.row, 'registration_number') },
-                { key: 'city', label: 'Город отправления', children: rowText(group.row, 'departure_city_name') },
-              ]}
+              items={[{ key: 'city', label: 'Город отправления', children: rowText(group.row, 'departure_city_name') }]}
             />
           ),
         },
@@ -104,11 +95,15 @@ function Overview({ group }: { group: WorkspaceRunGroup }) {
               {summary.shipments.map((shipment) => (
                 <div className="lc-workspace-summary-shipment" key={shipment.id}>
                   <div>
-                    <Typography.Link onClick={() => openWorkspaceShipment(table, group.id, shipment.id)}>
-                      №{shipment.number}
-                    </Typography.Link>{' '}
-                    {shipment.client}
-                    <div className="lc-workspace-secondary">{shipment.invoice}</div>
+                    <Typography.Text>
+                      №{shipment.number} · {shipment.client}
+                    </Typography.Text>
+                    <div className="lc-workspace-secondary">Инвойс: {shipment.invoice}</div>
+                    {(shipment.declaration || shipment.application) && (
+                      <div className="lc-workspace-secondary">
+                        {shipment.declaration ? `ДТ: ${shipment.declaration}` : `ЗВ: ${shipment.application}`}
+                      </div>
+                    )}
                     <WorkspaceSharedShipmentBadge host={table} shipmentId={shipment.id} />
                   </div>
                   <Tag color={LOGISTICS_STATUS_COLORS[shipment.status as LogisticsStatus]}>
@@ -131,7 +126,14 @@ function Overview({ group }: { group: WorkspaceRunGroup }) {
             <Space direction="vertical">
               <div>Основные рейсы: {links(summary.parents)}</div>
               <div>Зависимые рейсы: {links(summary.children)}</div>
-              <Button onClick={() => openWorkspaceRun(table, group.id, group.row.id)}>Изменить связи</Button>
+              <Popover
+                trigger="click"
+                placement="bottomRight"
+                destroyTooltipOnHide
+                content={<ScopedNativeBlock host={table} templateUid="lcwssidelinks" runId={group.id} />}
+              >
+                <Button>Изменить связи</Button>
+              </Popover>
             </Space>
           ),
         },
@@ -161,12 +163,14 @@ export function WorkspaceRunSidebar() {
         />
       </div>
       <Typography.Title level={4}>
-        {transportIcon(group.row.transport_type)} Рейс №{rowText(group.row, 'run_number')}
+        <Space wrap size="small">
+          <span role="img" aria-label={TRANSPORT_TYPE_LABELS[group.row.transport_type as TransportType]}>
+            {transportIcon(group.row.transport_type)}
+          </span>
+          <span>Рейс №{rowText(group.row, 'run_number')}</span>
+          <span>{rowText(group.row, 'registration_number')}</span>
+        </Space>
       </Typography.Title>
-      <Typography.Text type="secondary">
-        {rowText(group.row, 'registration_number')} ·{' '}
-        {TRANSPORT_TYPE_LABELS[group.row.transport_type as TransportType] || '—'}
-      </Typography.Text>
       <Tabs
         key={group.id}
         items={[
@@ -175,11 +179,6 @@ export function WorkspaceRunSidebar() {
             key: 'tree',
             label: 'Дерево',
             children: <ScopedNativeBlock host={state.table} templateUid="lcwssidetree" runId={group.id} />,
-          },
-          {
-            key: 'history',
-            label: 'История',
-            children: <ScopedNativeBlock host={state.table} templateUid="lcwssidehistory" runId={group.id} />,
           },
         ]}
       />

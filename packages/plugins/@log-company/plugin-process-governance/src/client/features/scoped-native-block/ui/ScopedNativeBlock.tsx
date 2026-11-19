@@ -24,14 +24,17 @@ export function ScopedNativeBlock({
   host,
   templateUid,
   runId,
+  shipmentId,
 }: {
   host: WorkspaceViewHost;
   templateUid: string;
-  runId: string;
-}) {
+} & ({ runId: string; shipmentId?: never } | { runId?: never; shipmentId: string })) {
   const [content, setContent] = useState<React.ReactNode>(<Skeleton active />);
   useEffect(() => {
     let active = true;
+    const id = shipmentId ?? runId;
+    const collectionName = shipmentId ? 'shipments' : 'transport_runs';
+    setContent(<Skeleton active />);
     const engine = createBlockScopedEngine(host.flowEngine);
     const context = new FlowContext();
     context.addDelegate(host.context);
@@ -41,20 +44,23 @@ export function ScopedNativeBlock({
         type: 'block',
         inputArgs: {
           dataSourceKey: 'main',
-          collectionName: 'transport_runs',
-          filterByTk: runId,
-          workspaceRunId: runId,
-          workspaceShipmentId: null,
+          collectionName,
+          filterByTk: id,
+          workspaceRunId: runId ?? null,
+          workspaceShipmentId: shipmentId ?? null,
           sourceId: null,
           associationName: null,
         },
       },
     });
-    context.defineProperty('record', { value: { id: runId } });
+    context.defineProperty('record', { value: { id } });
+    context.defineProperty('collection', {
+      get: () => host.context.dataSourceManager.getCollection('main', collectionName),
+    });
     async function load() {
       try {
         const options = await engine.modelRepository?.findOne({ uid: templateUid });
-        if (!options || typeof options.use !== 'string') throw new Error('Native run block is not configured');
+        if (!options || typeof options.use !== 'string') throw new Error('Не настроен блок рабочего списка');
         const model = engine.createModel(options as CreateModelOptions, { delegateToParent: false, delegate: context });
         if (active)
           setContent(
@@ -65,8 +71,8 @@ export function ScopedNativeBlock({
             </FlowEngineProvider>,
           );
       } catch (error) {
-        console.error('Не удалось загрузить блок рейса.', error);
-        if (active) setContent(<Alert type="error" showIcon message="Не удалось загрузить сведения рейса." />);
+        console.error('Не удалось загрузить блок рабочего списка.', error);
+        if (active) setContent(<Alert type="error" showIcon message="Не удалось загрузить сведения." />);
       }
     }
     load();
@@ -74,6 +80,6 @@ export function ScopedNativeBlock({
       active = false;
       engine.unlinkFromStack();
     };
-  }, [host, templateUid, runId]);
+  }, [host, templateUid, runId, shipmentId]);
   return <>{content}</>;
 }

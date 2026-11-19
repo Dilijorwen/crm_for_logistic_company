@@ -358,7 +358,7 @@ describe('workspace dialogs with real NocoBase KeepAlive and two FlowRoutes', ()
     }
   });
 
-  it('creates in one large dialog from a run header and from the opened run after Documents, retaining its source', async () => {
+  it('creates in one large dialog from the workspace and from the opened run after Documents, retaining its source', async () => {
     fixture();
     await screen.findByTestId('workspace-list');
     for (const fromCard of [false, true]) {
@@ -370,7 +370,10 @@ describe('workspace dialogs with real NocoBase KeepAlive and two FlowRoutes', ()
         await screen.findByText('Загружен рейс 10');
         fireEvent.click(within(screen.getByTestId('run-card')).getByRole('button', { name: /Добавить поставку/ }));
       } else {
-        fireEvent.click(screen.getAllByRole('button', { name: /Поставка/ })[0]);
+        const list = screen.getByTestId('workspace-list');
+        const header = within(list).getByRole('group', { name: 'Выбрать рейс №30' });
+        expect(within(header).queryByRole('button', { name: /Добавить поставку/ })).toBeNull();
+        fireEvent.click(within(list).getByRole('button', { name: /Добавить поставку/ }));
       }
       fireEvent.click(await screen.findByRole('menuitem', { name: 'Создать новую поставку' }));
       const creation = await screen.findByTestId('creation-card');

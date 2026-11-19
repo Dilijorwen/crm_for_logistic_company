@@ -10,5 +10,4 @@
 export { default } from './app/plugin';
 export * from './app/plugin';
 export * from './shared/lib';
-export * from './shared/lib';
 export * from './features/change-process-status';

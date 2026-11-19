@@ -45,13 +45,10 @@ export class NocoBaseWorkspaceReadModel implements WorkspaceReadModel {
       }),
     );
     const page = Math.min(query.page, Math.max(1, Math.ceil(count / query.pageSize)));
-    const runSort = query.sort.filter((field) => RUN_FIELDS.includes(field.replace(/^-/, '')));
-    if (!runSort.length) runSort.push('run_number');
-    const groupFields = [...new Set(['run_id', ...runSort.map((field) => field.replace(/^-/, ''))])];
     const runs = await this.groupRows(repository, {
       filter: query.filter,
-      fields: groupFields,
-      sort: [...runSort, 'run_id'],
+      fields: ['run_id', 'run_created_at'],
+      sort: ['-run_created_at', '-run_id'],
       offset: (page - 1) * query.pageSize,
       limit: query.pageSize,
     });
@@ -68,7 +65,7 @@ export class NocoBaseWorkspaceReadModel implements WorkspaceReadModel {
     const rows: unknown[] = await repository.find({
       filter: { $and: [query.filter, { run_id: { $in: runIds } }] } as Filter,
       fields: query.fields,
-      sort: query.sort.length ? query.sort : ['shipment_number'],
+      sort: query.sort.filter((field) => !RUN_FIELDS.includes(field.replace(/^-/, ''))).concat('shipment_number'),
     });
     const order = new Map(runIds.map((id, index) => [id, index]));
     output.rows = rows.map(json).sort((left, right) => {

@@ -90,11 +90,15 @@ function contractReference(value: unknown): ContractReferenceRecord | null {
 }
 
 export function normalizeShipment(value: Record<string, unknown>): ShipmentRecord {
+  const clients = (Array.isArray(value.chinese_client) ? value.chinese_client : [value.chinese_client])
+    .map((client) => reference(client, ['name', 'title']))
+    .filter((client): client is ReferenceRecord => client !== null);
   return {
     id: identifier(value.id),
     shipmentNumber: numberValue(value.shipment_number) ?? 0,
     status: stringValue(value.status),
-    chineseClient: reference(value.chinese_client, ['name', 'title']),
+    chineseClient: clients[0] ?? null,
+    chineseClients: clients,
     company: reference(value.company, ['name', 'title']),
     invoiceNumber: stringValue(value.invoice_number),
     invoiceValue: numberValue(value.invoice_value),
@@ -151,7 +155,7 @@ function associations(ids: string[]): Array<{ id: string }> {
 
 function shipmentValues(input: ShipmentMutationInput): Record<string, unknown> {
   return {
-    chinese_client: association(input.chineseClientId),
+    chinese_client: input.chineseClientIds ?? (input.chineseClientId ? [input.chineseClientId] : []),
     company: association(input.companyId),
     status: input.status,
     invoice_number: input.invoiceNumber,

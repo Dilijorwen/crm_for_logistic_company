@@ -17,8 +17,14 @@ import { RecordLogisticsCreated } from '../../../application/logistics/RecordLog
 import { RecordLogisticsFieldChanges } from '../../../application/logistics/RecordLogisticsFieldChanges';
 import { RecordLogisticsRelationChange } from '../../../application/logistics/RecordLogisticsRelationChange';
 import { WriteLogisticsHistory } from '../../../application/logistics/WriteLogisticsHistory';
-import { logisticsReverseShipmentAssociationFields } from '../../../infrastructure/metadata/LogisticsAssociationFields';
+import {
+  logisticsReverseShipmentAssociationFields,
+  shipmentChineseClientsField,
+} from '../../../infrastructure/metadata/LogisticsAssociationFields';
 import { NocoBaseLogisticsRepository } from '../../../infrastructure/persistence/nocobase/NocoBaseLogisticsRepository';
+import { SynchronizeShipmentChineseClients } from '../../../application/logistics/SynchronizeShipmentChineseClients';
+import { NocoBaseShipmentChineseClientsRepository } from '../../../infrastructure/persistence/nocobase/NocoBaseShipmentChineseClientsRepository';
+import { ShipmentChineseClientHooks } from '../ShipmentChineseClientHooks';
 import { LogisticsHooks, type LogisticsHookActions } from '../LogisticsHooks';
 
 interface HistoryRow {
@@ -121,13 +127,7 @@ function registerCollections(db: Database): void {
         },
       },
       { type: 'integer', name: 'chinese_client_id', isForeignKey: true },
-      {
-        type: 'belongsTo',
-        name: 'chinese_client',
-        target: 'chinese_clients',
-        foreignKey: 'chinese_client_id',
-        uiSchema: { title: 'Китайский клиент' },
-      },
+      shipmentChineseClientsField,
       { type: 'integer', name: 'company_id', isForeignKey: true },
       {
         type: 'belongsTo',
@@ -206,6 +206,10 @@ describe('Logistics history database integration', () => {
       validateShipmentDeletion: { execute: vi.fn(async () => undefined) },
     } as unknown as LogisticsHookActions;
     new LogisticsHooks(plugin, repository, actions).register();
+    new ShipmentChineseClientHooks(
+      plugin,
+      new SynchronizeShipmentChineseClients(new NocoBaseShipmentChineseClientsRepository(db)),
+    ).register();
 
     const run = await db.getRepository('transport_runs').create({
       values: {
@@ -232,6 +236,33 @@ describe('Logistics history database integration', () => {
     const createdShipment = await db.getRepository('shipments').findOne({ filterByTk: shipment.get('id') });
     expect(createdShipment?.get('invoice_value')).toBe(1);
     expect(createdShipment?.get('shipment_number')).toBeGreaterThan(0);
+    const secondClient = await db.getRepository('chinese_clients').create({ values: { name: 'Второй клиент' } });
+    await db.getRepository('shipments').update({
+      filterByTk: shipment.get('id'),
+      values: { chinese_client: [client.get('id'), secondClient.get('id')] },
+    });
+    const multiple = await db
+      .getRepository('shipments')
+      .findOne({ filterByTk: shipment.get('id'), appends: ['chinese_client'] });
+    expect(multiple.get('chinese_client')).toHaveLength(2);
+    expect(await db.getRepository('chinese_clients.shipments', secondClient.get('id')).count()).toBe(1);
+    await expect(
+      db
+        .getRepository('shipments')
+        .update({ filterByTk: shipment.get('id'), values: { chinese_client: [client.get('id'), 999999] } }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(
+      (
+        await db.getRepository('shipments').findOne({ filterByTk: shipment.get('id'), appends: ['chinese_client'] })
+      ).get('chinese_client'),
+    ).toHaveLength(2);
+    await db
+      .getRepository('shipments')
+      .update({ filterByTk: shipment.get('id'), values: { chinese_client: [secondClient.get('id')] } });
+    expect(await db.getRepository('chinese_clients.shipments', client.get('id')).count()).toBe(0);
+    await db
+      .getRepository('shipments')
+      .update({ filterByTk: shipment.get('id'), values: { chinese_client: [client.get('id')] } });
     const clientShipments = await db.getRepository('chinese_clients.shipments', client.get('id')).find();
     const companyShipments = await db.getRepository('our_companies.shipments', firstCompany.get('id')).find();
     expect(clientShipments.map((record) => record.get('id'))).toEqual([shipment.get('id')]);
@@ -289,6 +320,17 @@ describe('Logistics history database integration', () => {
     );
     expect(shipmentHistory).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({
+          event_type: 'field_changed',
+          field_name: 'chinese_client',
+          new_value: 'Второй клиент',
+        }),
+        expect.objectContaining({
+          event_type: 'field_changed',
+          field_name: 'chinese_client',
+          old_value: 'Клиент',
+          new_value: null,
+        }),
         expect.objectContaining({ event_type: 'field_initialized', field_name: 'status', new_value: 'В очереди' }),
         expect.objectContaining({
           event_type: 'field_initialized',
@@ -336,6 +378,53 @@ describe('Logistics history database integration', () => {
           new_value: `Компания (ID: ${String(secondCompany.get('id'))})`,
         }),
       ]),
+    );
+
+    const context = { action: { resourceName: 'transport_runs', params: { workspaceUnified: true } } };
+    const runs = db.getRepository('transport_runs');
+    const combined = await runs.create({
+      context,
+      updateAssociationValues: ['shipments'],
+      values: {
+        transport_type: 'road',
+        registration_number_input: 'AB123CD',
+        shipments: [{ chinese_client: [client.get('id'), secondClient.get('id')], company: firstCompany.get('id') }],
+      },
+    });
+    const linked = db.getRepository('transport_runs.shipments', combined.get('id'));
+    const [created] = await linked.find({ appends: ['chinese_client'] });
+    expect(created.get('chinese_client')).toHaveLength(2);
+    await runs.update({
+      context,
+      filterByTk: combined.get('id'),
+      updateAssociationValues: ['shipments'],
+      values: {
+        departure_city: secondCity.get('id'),
+        shipments: [
+          { id: created.get('id'), invoice_number: 'INV-COMBINED', chinese_client: [secondClient.get('id')] },
+        ],
+      },
+    });
+    const [updated] = await linked.find({ appends: ['chinese_client'] });
+    expect(updated.get('invoice_number')).toBe('INV-COMBINED');
+    expect(updated.get('chinese_client_id')).toBe(secondClient.get('id'));
+    expect(updated.get('chinese_client')).toHaveLength(1);
+    expect(await historyRows(db, 'shipment_history', { shipment_id: updated.get('id') })).toEqual(
+      expect.arrayContaining([expect.objectContaining({ field_name: 'invoice_number', new_value: 'INV-COMBINED' })]),
+    );
+    await expect(
+      runs.update({
+        context,
+        filterByTk: combined.get('id'),
+        updateAssociationValues: ['shipments'],
+        values: {
+          departure_city: firstCity.get('id'),
+          shipments: [{ id: created.get('id'), chinese_client: [999999] }],
+        },
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect((await runs.findOne({ filterByTk: combined.get('id') })).get('departure_city_id')).toBe(
+      secondCity.get('id'),
     );
   });
 });

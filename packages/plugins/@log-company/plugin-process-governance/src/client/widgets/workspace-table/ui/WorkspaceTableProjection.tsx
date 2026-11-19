@@ -7,14 +7,12 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { Button } from 'antd';
 import type { TableColumnsType } from 'antd';
 import type { TableBlockModel } from '@nocobase/client';
 import { observer } from '@nocobase/flow-engine';
 import React from 'react';
 import type { WorkspaceRow, WorkspaceTableMeta } from '../../../../shared/workspace';
 import { workspaceRecordIds } from '../../../shared/lib';
-import { openWorkspaceRun } from '../../../features/workspace-actions';
 import { groupedTableRows } from '../model/workspaceGroups';
 import { useWorkspaceTable } from '../model/WorkspaceTableContext';
 import { WorkspaceRunHeader } from './WorkspaceRunHeader';
@@ -58,14 +56,7 @@ export const WorkspaceTableProjection = observer(
           }
           const ids = workspaceRecordIds(row.id);
           if (!ids?.shipmentId)
-            return index === 0 ? (
-              <div className="lc-workspace-empty-run">
-                Поставок пока нет
-                <Button type="link" onClick={() => openWorkspaceRun(table, ids?.runId || '', row.id, 'lcwsshiptab')}>
-                  Добавить поставку
-                </Button>
-              </div>
-            ) : null;
+            return index === 0 ? <div className="lc-workspace-empty-run">Поставок пока нет</div> : null;
           return 'render' in column && column.render ? column.render(value, row, rowIndex) : (value as React.ReactNode);
         },
       }));

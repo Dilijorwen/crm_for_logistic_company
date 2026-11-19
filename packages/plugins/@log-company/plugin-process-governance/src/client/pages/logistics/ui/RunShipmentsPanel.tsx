@@ -126,9 +126,9 @@ export function RunShipmentsPanel({
         ),
       },
       {
-        title: 'Китайский клиент',
-        dataIndex: 'chineseClient',
-        render: (value: ShipmentRecord['chineseClient']) => value?.label || '—',
+        title: 'Китайские клиенты',
+        dataIndex: 'chineseClients',
+        render: (value: ShipmentRecord['chineseClients']) => value.map((client) => client.label).join(', ') || '—',
       },
       {
         title: 'Наша компания',

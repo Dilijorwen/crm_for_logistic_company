@@ -15,6 +15,7 @@ import { refreshShipmentConsumers } from './ShipmentSynchronizedEditFormModel';
 export class LogisticsWorkspaceCreateFormModel extends CreateFormModel {
   createResource(context: FlowModelContext, params: ResourceSettingsInitParams) {
     const resource = super.createResource(context, params);
+    if (this.props.workspaceUnified) resource.setSaveActionOptions({ params: { workspaceUnified: true } });
     const save = resource.save.bind(resource);
     resource.save = async (data, options) => {
       const result = await save(data, options);

@@ -12,4 +12,4 @@ import { isWorkspaceContext } from '../../../shared/lib';
 
 /** The main work list creates runs; shipments are created inside a run. */
 export class LogisticsWorkspaceAddActionModel extends LogisticsWorkspaceNewRunActionModel {}
-LogisticsWorkspaceAddActionModel.define({ label: 'Добавить рейс', hide: (ctx) => !isWorkspaceContext(ctx) });
+LogisticsWorkspaceAddActionModel.define({ label: 'Добавить процесс', hide: (ctx) => !isWorkspaceContext(ctx) });

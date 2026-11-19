@@ -70,22 +70,13 @@ describe('workspace native source actions', () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
-  it('opens the exact shipment as a source record rather than a composite run row', async () => {
+  it('keeps the shipment number passive even when an older field has a popup configured', async () => {
     const model = new FlowEngine().createModel({ use: LogisticsWorkspaceRecordFieldModel });
     model.context.defineProperty('record', { value: { id: '10:101' } });
     model.context.defineProperty('collectionField', { value: { name: 'shipment_number' } });
     const dispatch = vi.spyOn(model, 'dispatchEvent').mockResolvedValue([]);
     await model.onClick({ type: 'click' });
-    expect(dispatch).toHaveBeenCalledWith(
-      'click',
-      expect.objectContaining({
-        filterByTk: '101',
-        workspaceRunId: '10',
-        workspaceShipmentId: '101',
-        collectionName: 'shipments',
-      }),
-      { debounce: false, useCache: false },
-    );
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it('automatically links a new shipment to the current run rather than selected shipment rows', () => {

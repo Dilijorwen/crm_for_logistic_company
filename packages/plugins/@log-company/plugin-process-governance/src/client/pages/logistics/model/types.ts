@@ -23,6 +23,7 @@ export interface ShipmentRecord {
   shipmentNumber: number;
   status: string;
   chineseClient: ReferenceRecord | null;
+  chineseClients: ReferenceRecord[];
   company: ReferenceRecord | null;
   invoiceNumber: string;
   invoiceValue: number | null;
@@ -86,7 +87,8 @@ export interface RunMutationInput {
 }
 
 export interface ShipmentMutationInput {
-  chineseClientId: Identifier;
+  chineseClientId?: Identifier;
+  chineseClientIds?: Identifier[];
   companyId: Identifier;
   status?: string;
   invoiceNumber?: string;

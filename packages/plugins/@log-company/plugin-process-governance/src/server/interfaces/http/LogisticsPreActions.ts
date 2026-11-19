@@ -8,6 +8,8 @@
  */
 
 import type { Plugin } from '@nocobase/server';
+import { requireShipmentChineseClients } from '../../domain/logistics/ShipmentChineseClients';
+import { asLogisticsHttpError } from '../logistics/LogisticsHttpError';
 import { ValidateRunParents } from '../../application/logistics/ValidateRunParents';
 import { ValidateShipmentDeletion } from '../../application/logistics/ValidateShipmentDeletion';
 import type { LogisticsRepository } from '../../application/logistics/ports/LogisticsRepository';
@@ -19,6 +21,7 @@ import {
   type EntityId,
 } from '../../domain/shared/Identifiers';
 import { LOGISTICS_COLLECTIONS } from '../../../shared/logistics';
+import { WORKSPACE_DETACHED_SHIPMENT_IDS_FIELD } from '../../../shared/workspace';
 import { logisticsErrorStatus } from '../logistics/LogisticsHttpError';
 
 interface ActionContext {
@@ -77,7 +80,24 @@ export class LogisticsPreActions {
     await this.mapErrors(context, async () => {
       const params = context.action?.params;
       const values = this.asRecord(params?.values);
-      this.normalizeRunShipmentReferences(params, values);
+      const unified = params?.workspaceUnified === true || params?.workspaceUnified === 'true';
+      const detach = values[WORKSPACE_DETACHED_SHIPMENT_IDS_FIELD];
+      delete values[WORKSPACE_DETACHED_SHIPMENT_IDS_FIELD];
+      const detachedIds = new Set<string>();
+      if (unified && context.action?.actionName === 'update' && detach != null) {
+        if (
+          !Array.isArray(detach) ||
+          detach.some((id) => !['number', 'string'].includes(typeof id) || !/^[1-9]\d*$/.test(String(id)))
+        ) {
+          throw this.httpError(400, 'Не удалось определить поставку для отвязки.');
+        }
+        for (const id of detach) detachedIds.add(String(id));
+      }
+      if (unified) {
+        this.normalizeUnifiedShipments(params, values);
+      } else {
+        this.normalizeRunShipmentReferences(params, values);
+      }
       if (Object.prototype.hasOwnProperty.call(values, 'parent_runs')) {
         const runId =
           context.action?.actionName === 'create' ? extractIdentifier(values.id) : this.actionIdentifier(context);
@@ -86,9 +106,90 @@ export class LogisticsPreActions {
           parentIds: normalizeIdentifiers(values.parent_runs),
         });
       }
+      const associations = params?.updateAssociationValues;
+      if (Array.isArray(associations) && associations.includes('shipments')) {
+        // A resource-specific pre-action takes precedence over NocoBase's generic
+        // pre-action. Explicitly run the registered native association ACL before write.
+        const manager = this.plugin.app.resourcer;
+        const handlers = manager.getRegisteredPreActionHandlers('', context.action?.actionName || '');
+        if (!handlers.length) throw this.httpError(403, 'Недоступна проверка прав на изменение поставок.');
+        const preserveLinks = async () => {
+          await this.preserveRunShipmentLinks(context, detachedIds);
+          await next();
+        };
+        const proceed = handlers.reduceRight<typeof preserveLinks>(
+          (downstream, handler) => () => handler(context as Parameters<typeof handler>[0], downstream),
+          preserveLinks,
+        );
+        await proceed();
+        return;
+      }
       await next();
     });
   };
+
+  private async preserveRunShipmentLinks(context: ActionContext, detachedIds: ReadonlySet<string>): Promise<void> {
+    if (context.action?.actionName !== 'update') return;
+    const runId = this.actionIdentifier(context);
+    const values = this.asRecord(context.action.params?.values);
+    if (runId === null || !Array.isArray(values.shipments)) return;
+    const existing = await this.plugin.db.getRepository('transport_run_shipments').find({
+      filter: { transport_run_id: runId },
+      fields: ['shipment_id'],
+    });
+    const submitted = new Set(normalizeIdentifiers(values.shipments).map(String));
+    for (const item of existing) {
+      const id = extractIdentifier(item.get('shipment_id'));
+      if (id !== null && !submitted.has(String(id)) && !detachedIds.has(String(id))) values.shipments.push(id);
+    }
+  }
+
+  private normalizeUnifiedShipments(params: Record<string, unknown>, values: Record<string, unknown>): void {
+    if (!Array.isArray(params.updateAssociationValues) || !params.updateAssociationValues.includes('shipments')) {
+      this.normalizeRunShipmentReferences(params, values);
+      return;
+    }
+    // Native association ACL checks each shipment's fields and record scope. Keep this
+    // editor one level deep so reference pickers cannot write into other collections.
+    params.updateAssociationValues = ['shipments'];
+    if (!Array.isArray(values.shipments)) {
+      delete values.shipments;
+      return;
+    }
+    const scalarFields = this.plugin.db
+      .getCollection('shipments')
+      .getFields()
+      .filter((field) => !field.target && !field.options.isForeignKey)
+      .map((field) => field.name)
+      .filter((name) => !['id', 'shipment_number', 'createdAt', 'createdBy', 'updatedAt', 'updatedBy'].includes(name));
+    const editableFields = new Set<string>(['id', ...scalarFields, ...SHIPMENT_REFERENCE_FIELDS]);
+    values.shipments = values.shipments
+      .filter((item) => item != null)
+      .map((item) => {
+        if (typeof item === 'string' || typeof item === 'number') return item;
+        const shipment = Object.fromEntries(
+          Object.entries(this.asRecord(item)).filter(([key]) => editableFields.has(key)),
+        );
+        for (const field of SHIPMENT_REFERENCE_FIELDS) {
+          const value = shipment[field];
+          if (value == null) continue;
+          if (field === 'chinese_client') {
+            try {
+              shipment[field] = requireShipmentChineseClients(value);
+            } catch (error) {
+              if (error instanceof LogisticsError) throw asLogisticsHttpError(error);
+              throw error;
+            }
+            continue;
+          }
+          const id = extractIdentifier(value);
+          if (id === null) throw this.httpError(400, 'Не удалось определить выбранное значение поставки.');
+          shipment[field] = id;
+        }
+        return shipment;
+      })
+      .filter((item) => typeof item !== 'object' || Object.keys(item).length);
+  }
 
   private normalizeRunShipmentReferences(
     params: Record<string, unknown> | undefined,
@@ -189,6 +290,24 @@ export class LogisticsPreActions {
           continue;
         }
         const value = values[field];
+        if (field === 'chinese_client') {
+          if (
+            context.action?.actionName === 'update' &&
+            value !== null &&
+            !Array.isArray(value) &&
+            extractIdentifier(value) === null
+          ) {
+            delete values[field];
+            continue;
+          }
+          try {
+            values[field] = requireShipmentChineseClients(value);
+          } catch (error) {
+            if (error instanceof LogisticsError) throw asLogisticsHttpError(error);
+            throw error;
+          }
+          continue;
+        }
         if (value === null) {
           continue;
         }

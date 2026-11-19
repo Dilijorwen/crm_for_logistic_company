@@ -11,7 +11,7 @@ import { CaretDownOutlined, CaretRightOutlined } from '@ant-design/icons';
 import { Button, Space, Typography } from 'antd';
 import React from 'react';
 import { TRANSPORT_TYPE_LABELS, type TransportType } from '../../../../shared/transport';
-import { openWorkspaceRun, WorkspaceShipmentAddButton } from '../../../features/workspace-actions';
+import { openWorkspaceRun } from '../../../features/workspace-actions';
 import type { WorkspaceRunGroup } from '../model/workspaceGroups';
 import { useWorkspaceTable } from '../model/WorkspaceTableContext';
 
@@ -65,7 +65,6 @@ export function WorkspaceRunHeader({ group }: { group: WorkspaceRunGroup }) {
   const collapsed = state.collapsedRunIds.includes(group.id);
   const selected = state.selectedRunId === group.id;
   const type = row.transport_type as TransportType;
-  const total = group.total;
   const open = () => openWorkspaceRun(state.table, group.id, row.id);
   return (
     <div className={`lc-workspace-run-group${selected ? ' is-selected' : ''}`}>
@@ -98,7 +97,9 @@ export function WorkspaceRunHeader({ group }: { group: WorkspaceRunGroup }) {
             state.toggleRun(group.id);
           }}
         />
-        <span className="lc-workspace-transport-icon">{transportIcon(type)}</span>
+        <span className="lc-workspace-transport-icon" role="img" aria-label={TRANSPORT_TYPE_LABELS[type]}>
+          {transportIcon(type)}
+        </span>
         <div className="lc-workspace-run-title">
           <Space wrap size="small">
             <Typography.Link
@@ -112,6 +113,7 @@ export function WorkspaceRunHeader({ group }: { group: WorkspaceRunGroup }) {
               Рейс №{rowText(row, 'run_number')}
             </Typography.Link>
             <Typography.Link
+              strong
               onClick={(event) => {
                 event.stopPropagation();
                 state.selectRun(group.id);
@@ -122,16 +124,10 @@ export function WorkspaceRunHeader({ group }: { group: WorkspaceRunGroup }) {
             </Typography.Link>
           </Space>
           <div className="lc-workspace-run-subtitle">
-            <span>
-              {TRANSPORT_TYPE_LABELS[type] || 'Тип не указан'} · {rowText(row, 'departure_city_name')}
-            </span>
+            <span>{rowText(row, 'departure_city_name')}</span>
             <span>Менеджеры: {rowText(row, 'manager_names', 'Не назначены')}</span>
             <span>Декларанты: {rowText(row, 'declarant_names', 'Не назначены')}</span>
           </div>
-        </div>
-        <div className="lc-workspace-run-controls">
-          <span className="lc-workspace-run-count">Поставок: {total}</span>
-          <WorkspaceShipmentAddButton host={state.table} runId={group.id} rowId={row.id} compact />
         </div>
       </div>
     </div>

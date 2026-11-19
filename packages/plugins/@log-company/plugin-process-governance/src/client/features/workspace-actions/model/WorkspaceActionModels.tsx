@@ -108,6 +108,7 @@ export class LogisticsWorkspaceRecordFieldModel extends DisplayTextFieldModel {
     });
   }
   onClick(event: unknown) {
+    if (this.context.collectionField?.name === 'shipment_number') return;
     let id = recordId(this.context.record);
     const sourceId = resource(this)?.getSourceId?.();
     if (!workspaceRecordIds(id) && sourceId && id) id = `${sourceId}:${id}`;
@@ -115,30 +116,35 @@ export class LogisticsWorkspaceRecordFieldModel extends DisplayTextFieldModel {
     const anchors = workspaceRecordIds(id);
     const select = this.context.selectWorkspaceRun as ((runId: string) => void) | undefined;
     if (anchors && typeof select === 'function') select(anchors.runId);
-    const shipment = this.context.collectionField?.name === 'shipment_number';
     return this.dispatchEvent(
       'click',
       {
         event,
-        filterByTk: shipment ? anchors?.shipmentId : id,
+        filterByTk: id,
         sourceId: null,
         associationName: null,
         dataSourceKey: 'main',
-        collectionName: shipment ? 'shipments' : 'logistics_work_items',
+        collectionName: 'logistics_work_items',
         navigation: false,
         workspaceRunId: anchors?.runId,
         workspaceShipmentId: anchors?.shipmentId,
-        tabUid: shipment ? 'lcwsshipmentfulltab' : 'lcwsruntab',
+        tabUid: 'lcwsruntab',
       },
       { debounce: false, useCache: false },
     );
+  }
+
+  renderInDisplayStyle(value: unknown, record?: unknown, isToMany?: boolean, wrap?: boolean) {
+    // Existing column settings can still have the native link wrapper enabled.
+    if (this.context.collectionField?.name === 'shipment_number') return this.renderComponent(value, wrap);
+    return super.renderInDisplayStyle(value, record, isToMany, wrap);
   }
 
   renderComponent(value?: unknown, wrap?: boolean) {
     const shipment = this.context.collectionField?.name === 'shipment_number';
     const text = shipment && value != null && !this.props.prefix ? `№${value}` : value;
     const rendered = super.renderComponent(text, wrap);
-    if (this.context.collectionField?.name !== 'shipment_number') return rendered;
+    if (!shipment) return rendered;
     const current = workspaceRecordIds(recordId(this.context.record));
     const shipmentId =
       current?.shipmentId || (recordId(this.context.record) ? String(recordId(this.context.record)) : null);

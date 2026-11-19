@@ -43,6 +43,23 @@ function objectFilter(value: unknown): Record<string, unknown> | undefined {
   return parsed as Record<string, unknown>;
 }
 
+// Use the real association so an exact client filter matches any selected client.
+function clientNameFilters(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(clientNameFilters);
+  if (!value || typeof value !== 'object') return value;
+  const entries = Object.entries(value);
+  if (Object.prototype.hasOwnProperty.call(value, 'chinese_client_name')) {
+    return {
+      $and: entries.map(([key, item]) =>
+        key === 'chinese_client_name'
+          ? { shipment: { chinese_client: { name: item } } }
+          : { [key]: clientNameFilters(item) },
+      ),
+    };
+  }
+  return Object.fromEntries(entries.map(([key, item]) => [key, clientNameFilters(item)]));
+}
+
 /** Keeps the read model within the source collections' row and field permissions. */
 export class LogisticsWorkspaceActions {
   constructor(
@@ -157,7 +174,7 @@ export class LogisticsWorkspaceActions {
       );
     }
     context.workspaceReadScope = { $and: sourceFilters };
-    params.filter = { $and: [...(filter ? [filter] : []), ...sourceFilters] };
+    params.filter = { $and: [...(filter ? [clientNameFilters(filter)] : []), ...sourceFilters] };
     await next();
   };
 

@@ -56,13 +56,24 @@ const WORKSPACE_SELECT = `
     shipment.id AS shipment_id,
     run.transport_type`;
 
-const WORKSPACE_FROM = `
+const WORKSPACE_BEFORE_CLIENT_JOIN = `
   FROM transport_runs run
   INNER JOIN vehicles vehicle ON vehicle.id = run.vehicle_id
   LEFT JOIN transport_run_shipments link ON link.transport_run_id = run.id
   LEFT JOIN shipments shipment ON shipment.id = link.shipment_id
   LEFT JOIN departure_cities departure_city ON departure_city.id = run.departure_city_id
-  LEFT JOIN chinese_clients chinese_client ON chinese_client.id = shipment.chinese_client_id
+`;
+
+const SINGLE_CLIENT_JOIN = `  LEFT JOIN chinese_clients chinese_client ON chinese_client.id = shipment.chinese_client_id`;
+const MULTIPLE_CLIENT_JOIN = `  LEFT JOIN LATERAL (
+    SELECT COALESCE(string_agg(client.name, ', ' ORDER BY client.name, client.id),
+      (SELECT name FROM chinese_clients WHERE id = shipment.chinese_client_id)) AS name
+    FROM shipment_chinese_clients membership
+    INNER JOIN chinese_clients client ON client.id = membership.chinese_client_id
+    WHERE membership.shipment_id = shipment.id
+  ) chinese_client ON true`;
+
+const WORKSPACE_AFTER_CLIENT_JOIN = `
   LEFT JOIN our_companies company ON company.id = shipment.company_id
   LEFT JOIN contracts contract ON contract.id = shipment.contract_id
   LEFT JOIN customs_warehouses customs_warehouse ON customs_warehouse.id = shipment.customs_warehouse_id
@@ -86,7 +97,21 @@ const WORKSPACE_FROM = `
   ) declarant_list ON true
 `;
 
+const WORKSPACE_FROM = `${WORKSPACE_BEFORE_CLIENT_JOIN}${SINGLE_CLIENT_JOIN}${WORKSPACE_AFTER_CLIENT_JOIN}`;
+
 // Older migrations create the view before the second deadline column exists.
 export const LOGISTICS_WORKSPACE_VIEW_SQL = `${WORKSPACE_SELECT}${WORKSPACE_FROM}`;
 export const LOGISTICS_WORKSPACE_VIEW_WITH_60_DAY_DEADLINE_SQL = `${WORKSPACE_SELECT},
     shipment.additional_check_response_deadline_60_days${WORKSPACE_FROM}`;
+
+export const LOGISTICS_WORKSPACE_VIEW_WITH_MULTIPLE_CLIENTS_SQL = `${WORKSPACE_SELECT},
+    shipment.additional_check_response_deadline_60_days${WORKSPACE_BEFORE_CLIENT_JOIN}${MULTIPLE_CLIENT_JOIN}${WORKSPACE_AFTER_CLIENT_JOIN}`;
+
+const WORKSPACE_SELECT_NEWEST_RUNS = `${WORKSPACE_SELECT},
+    shipment.additional_check_response_deadline_60_days,
+    run."createdAt" AS run_created_at`;
+const WORKSPACE_FROM_MULTIPLE_CLIENTS = `${WORKSPACE_BEFORE_CLIENT_JOIN}${MULTIPLE_CLIENT_JOIN}${WORKSPACE_AFTER_CLIENT_JOIN}`;
+
+export const LOGISTICS_WORKSPACE_VIEW_NEWEST_RUNS_SQL = `${WORKSPACE_SELECT_NEWEST_RUNS}${WORKSPACE_FROM_MULTIPLE_CLIENTS}`;
+export const LOGISTICS_WORKSPACE_VIEW_WITH_SHIPMENT_CREATION_DATE_SQL = `${WORKSPACE_SELECT_NEWEST_RUNS},
+    shipment."createdAt" AS shipment_created_at${WORKSPACE_FROM_MULTIPLE_CLIENTS}`;

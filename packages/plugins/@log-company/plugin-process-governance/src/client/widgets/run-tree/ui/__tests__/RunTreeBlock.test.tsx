@@ -34,7 +34,8 @@ vi.mock('@nocobase/client', () => {
   };
 });
 
-vi.mock('../../../../shared/lib', () => ({
+vi.mock('../../../../shared/lib', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../../shared/lib')>()),
   getInnermostRouteFilterByTk: () => routeKey.value,
 }));
 

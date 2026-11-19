@@ -230,9 +230,9 @@ export function LogisticsWorkspaceTable({
     }
     if (has('chineseClient')) {
       shipmentColumns.push({
-        title: 'Китайский клиент',
+        title: 'Китайские клиенты',
         width: 190,
-        render: (_, item) => item.shipment?.chineseClient?.label || '—',
+        render: (_, item) => item.shipment?.chineseClients.map((client) => client.label).join(', ') || '—',
       });
     }
     if (has('company')) {

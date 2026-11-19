@@ -9,7 +9,8 @@
 
 import { FlowModelRenderer, useFlowViewContext, type FlowModel } from '@nocobase/flow-engine';
 import { Alert, Button, Skeleton, Space } from 'antd';
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
+import { WORKSPACE_RUN_VIEW_UID } from '../../../../shared/workspace';
 import { useWorkspaceViewModel } from '../model/useWorkspaceViewModel';
 
 /** Keep native page models, designer settings and openView's unsaved-form close handler. */
@@ -24,6 +25,13 @@ export function WorkspaceFlowPage({
   onModelLoaded?: (uid: string, model: FlowModel) => void;
 }) {
   const ctx = useFlowViewContext();
+  const navigation = ctx.view?.navigation;
+  const tabUid = navigation?.viewParams?.tabUid;
+  useEffect(() => {
+    if (parentId === WORKSPACE_RUN_VIEW_UID && tabUid === 'lcwsshiptab') {
+      navigation?.changeTo({ tabUid: 'lcwsruntab' });
+    }
+  }, [navigation, parentId, tabUid]);
   const options = useMemo(
     () => ({ parentId, use: pageModelClass, async: true, subKey: 'page', subType: 'object' as const }),
     [parentId, pageModelClass],

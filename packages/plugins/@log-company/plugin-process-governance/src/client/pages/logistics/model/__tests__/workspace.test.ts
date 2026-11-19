@@ -18,6 +18,7 @@ function shipment(overrides: Partial<ShipmentRecord> = {}): ShipmentRecord {
     displayName: 'Поставка 450',
     status: 'clearance',
     chineseClient: { id: 'client-1', label: 'Wang Export' },
+    chineseClients: [{ id: 'client-1', label: 'Wang Export' }],
     company: { id: 'company-1', label: 'Логистика' },
     invoiceNumber: '',
     invoiceValue: null,

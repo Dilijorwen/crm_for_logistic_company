@@ -15,18 +15,22 @@ import { WriteLogisticsHistory } from './WriteLogisticsHistory';
 export interface RecordLogisticsRelationChangeInput {
   entityId: EntityId;
   relatedId: EntityId;
-  relatedKind: 'run' | 'shipment' | 'user';
-  eventType: Extract<
-    LogisticsHistoryEventType,
-    | 'parent_added'
-    | 'parent_removed'
-    | 'manager_added'
-    | 'manager_removed'
-    | 'declarant_added'
-    | 'declarant_removed'
-    | 'shipment_attached'
-    | 'shipment_detached'
-  >;
+  entityKind?: 'run' | 'shipment';
+  relatedKind: 'run' | 'shipment' | 'user' | 'client';
+  eventType:
+    | Extract<
+        LogisticsHistoryEventType,
+        | 'parent_added'
+        | 'parent_removed'
+        | 'manager_added'
+        | 'manager_removed'
+        | 'declarant_added'
+        | 'declarant_removed'
+        | 'shipment_attached'
+        | 'shipment_detached'
+      >
+    | 'client_added'
+    | 'client_removed';
   fieldName: string;
   fieldLabel: string;
   transaction?: LogisticsTransaction;
@@ -43,13 +47,21 @@ export class RecordLogisticsRelationChange {
     const label =
       input.relatedKind === 'run' || input.relatedKind === 'shipment'
         ? await this.repository.getEntityLabel(input.relatedKind, input.relatedId, input.transaction)
-        : await this.repository.getRecordLabel('users', input.relatedId, 'id', input.transaction);
+        : await this.repository.getRecordLabel(
+            input.relatedKind === 'client' ? 'chinese_clients' : 'users',
+            input.relatedId,
+            'id',
+            input.transaction,
+          );
     const isRemoved = input.eventType.endsWith('_removed') || input.eventType === 'shipment_detached';
     await this.history.execute({
       entry: {
-        entityKind: 'run',
+        entityKind: input.entityKind ?? 'run',
         entityId: String(input.entityId),
-        eventType: input.eventType,
+        eventType:
+          input.eventType === 'client_added' || input.eventType === 'client_removed'
+            ? 'field_changed'
+            : input.eventType,
         fieldName: input.fieldName,
         fieldLabel: input.fieldLabel,
         oldValue: isRemoved ? label : null,

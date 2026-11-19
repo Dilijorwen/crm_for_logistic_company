@@ -19,7 +19,18 @@ import {
   useFormBlockContext,
   useRecord,
 } from '@nocobase/client';
-import { getInnermostRouteFilterByTk } from '../../../shared/lib';
+import {
+  asRecord,
+  getInnermostRouteFilterByTk,
+  isEmptyResourceKey,
+  isRecordCollection,
+  normalizeFilterByTk,
+  getKeyFromRecord,
+  getCollectionRecordData,
+  getRecordCollection,
+  isUpdateFormBlock,
+  isCreateFormBlock,
+} from '../../../shared/lib';
 import { observer } from '@formily/react';
 import { Alert, Button, Empty, Spin, Tag, theme as antdTheme } from 'antd';
 import dayjs from 'dayjs';
@@ -133,136 +144,6 @@ type LoadDirection = 'up' | 'down' | 'both';
 
 const statusFallbackLabels: Record<string, string> = LOGISTICS_STATUS_LABELS;
 
-function isEmptyResourceKey(value: unknown): value is null | undefined | '' {
-  return value === undefined || value === null || value === '';
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-}
-
-function callMethod(target: unknown, methodName: string, ...args: unknown[]): unknown {
-  const method = asRecord(target)[methodName];
-  if (typeof method !== 'function') {
-    return undefined;
-  }
-  try {
-    return method.apply(target, args);
-  } catch (error) {
-    console.debug(`[process-tree] Optional NocoBase method ${methodName} is unavailable`, error);
-    return undefined;
-  }
-}
-
-function getCollectionName(collection: unknown) {
-  if (!collection) {
-    return undefined;
-  }
-  if (typeof collection === 'string') {
-    return collection;
-  }
-  const metadata = asRecord(collection);
-  return metadata.name || metadata.collectionName || asRecord(metadata.options).name;
-}
-
-function isTreeCollection(collectionName: string, collection: unknown, record?: Record<string, unknown> | null) {
-  return (getCollectionName(collection) || record?.__collectionName) === collectionName;
-}
-
-function normalizeFilterByTk(value: unknown): ProcessResourceKey | undefined {
-  if (isEmptyResourceKey(value)) {
-    return undefined;
-  }
-  if (typeof value === 'string' || typeof value === 'number') {
-    return value;
-  }
-  if (typeof value === 'object') {
-    const entries = Object.entries(asRecord(value)).filter(([, item]) => !isEmptyResourceKey(item));
-    if (!entries.length) {
-      return undefined;
-    }
-    const searchParams = new URLSearchParams();
-    entries
-      .sort(([left], [right]) => left.localeCompare(right))
-      .forEach(([key, item]) => searchParams.append(key, String(item)));
-    return searchParams.toString() || undefined;
-  }
-  return String(value);
-}
-
-function getFallbackTargetKey(collection: unknown) {
-  const filterTargetKey = callMethod(collection, 'getFilterTargetKey');
-  if (filterTargetKey) {
-    return filterTargetKey;
-  }
-  const primaryKey = callMethod(collection, 'getPrimaryKey');
-  if (primaryKey) {
-    return primaryKey;
-  }
-
-  const metadata = asRecord(collection);
-  return metadata.filterTargetKey || asRecord(metadata.options).filterTargetKey || metadata.targetKey || 'id';
-}
-
-function getKeyFromRecord(
-  collectionManager: unknown,
-  collectionName: string,
-  collection: unknown,
-  record: Record<string, unknown> | null | undefined,
-) {
-  if (!record) {
-    return undefined;
-  }
-
-  const processKey = callMethod(collectionManager, 'getFilterByTK', collectionName, record);
-  const normalizedProcessKey = normalizeFilterByTk(processKey);
-  if (!isEmptyResourceKey(normalizedProcessKey)) {
-    return normalizedProcessKey;
-  }
-
-  if (collection) {
-    const collectionKey = callMethod(collectionManager, 'getFilterByTK', collection, record);
-    const normalizedCollectionKey = normalizeFilterByTk(collectionKey);
-    if (!isEmptyResourceKey(normalizedCollectionKey)) {
-      return normalizedCollectionKey;
-    }
-  }
-
-  const targetKey = getFallbackTargetKey(collection);
-  if (Array.isArray(targetKey)) {
-    return normalizeFilterByTk(
-      targetKey.reduce<Record<string, unknown>>((memo, key) => {
-        memo[String(key)] = record[String(key)];
-        return memo;
-      }, {}),
-    );
-  }
-
-  return normalizeFilterByTk(record[String(targetKey)] ?? record.id);
-}
-
-function getCollectionRecordData(record: unknown) {
-  if (!record) {
-    return undefined;
-  }
-  const recordData = asRecord(record);
-  return recordData.data && typeof recordData.data === 'object' ? asRecord(recordData.data) : recordData;
-}
-
-function getTreeCollection(collectionManager: unknown, collectionName: string, fallbackCollection?: unknown) {
-  return callMethod(collectionManager, 'getCollection', collectionName) || fallbackCollection;
-}
-
-function isUpdateFormBlock(formBlockContext: unknown, dataBlockProps: unknown) {
-  const formBlock = asRecord(formBlockContext);
-  const dataBlock = asRecord(dataBlockProps);
-  return formBlock.type === 'update' || formBlock.action === 'get' || dataBlock.action === 'get';
-}
-
-function isCreateFormBlock(formBlockContext: unknown) {
-  return asRecord(formBlockContext).type === 'create';
-}
-
 function useProcessTarget(
   entityKind: TreeEntityKind,
   modelContext?: ProcessTreeModelContext,
@@ -276,9 +157,9 @@ function useProcessTarget(
   const formBlockContext = useFormBlockContext();
   const popupRecord = useCurrentPopupRecord();
   const recordContext = useRecord<Record<string, unknown>>();
-  const processCollection = getTreeCollection(collectionManager, config.collection, collection);
+  const processCollection = getRecordCollection(collectionManager, config.collection, collection);
   const formBlockCollection = formBlockContext?.collectionName || dataBlockProps?.collection || collection;
-  const isProcessFormBlock = isTreeCollection(config.collection, formBlockCollection);
+  const isProcessFormBlock = isRecordCollection(config.collection, formBlockCollection);
   const formBlockIsCreate = isProcessFormBlock && isCreateFormBlock(formBlockContext);
   const formBlockIsUpdate = isProcessFormBlock && isUpdateFormBlock(formBlockContext, dataBlockProps);
 
@@ -318,7 +199,7 @@ function useProcessTarget(
   ];
 
   for (const candidate of candidates) {
-    if (!isTreeCollection(config.collection, candidate.collection, candidate.record)) {
+    if (!isRecordCollection(config.collection, candidate.collection, candidate.record)) {
       continue;
     }
     const key = getKeyFromRecord(collectionManager, config.collection, candidate.collection, candidate.record);
@@ -333,11 +214,11 @@ function useProcessTarget(
 
   const hasProcessContext =
     isProcessFormBlock ||
-    candidates.some((candidate) => isTreeCollection(config.collection, candidate.collection, candidate.record));
+    candidates.some((candidate) => isRecordCollection(config.collection, candidate.collection, candidate.record));
   const isNewProcess =
     formBlockIsCreate ||
     candidates.some(
-      (candidate) => candidate.isNew && isTreeCollection(config.collection, candidate.collection, candidate.record),
+      (candidate) => candidate.isNew && isRecordCollection(config.collection, candidate.collection, candidate.record),
     );
 
   if (isNewProcess) {

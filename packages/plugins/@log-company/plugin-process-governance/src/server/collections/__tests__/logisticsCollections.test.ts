@@ -111,9 +111,11 @@ describe('logistics collection metadata', () => {
         collectionName: 'chinese_clients',
         field: expect.objectContaining({
           name: 'shipments',
-          type: 'hasMany',
+          type: 'belongsToMany',
           target: 'shipments',
           foreignKey: 'chinese_client_id',
+          otherKey: 'shipment_id',
+          through: 'shipment_chinese_clients',
         }),
       }),
       expect.objectContaining({

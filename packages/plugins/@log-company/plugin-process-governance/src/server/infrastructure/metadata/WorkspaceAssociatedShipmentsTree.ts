@@ -45,6 +45,60 @@ function columns(prefix: string, popup: boolean): WorkspaceFlowTree[] {
   });
 }
 
+/** The native record picker can run before the new run has an ID. */
+export function workspaceUnifiedShipmentPicker(uid: string): WorkspaceFlowTree {
+  const tableUid = `${uid}pickertable`;
+  const referenceColumns = [
+    ['company.name', 'Импортер'],
+    ['contract_record.name', 'Контракт'],
+    ['customs_warehouse.name', 'СВХ'],
+  ].map(([path, title], index) => ({
+    ...workspaceColumn(`${tableUid}ref${index}`, 'shipments', path),
+    props: { title, width: 140 },
+  }));
+  const grid: WorkspaceFlowTree = {
+    uid: `${uid}picker`,
+    use: 'BlockGridModel',
+    parentId: uid,
+    subKey: 'grid-block',
+    subType: 'object',
+    async: true,
+    subModels: {
+      items: [
+        {
+          uid: tableUid,
+          use: 'TableSelectModel',
+          stepParams: {
+            resourceSettings: { init: { dataSourceKey: 'main', collectionName: 'shipments' } },
+            tableSettings: { tableDensity: { size: 'small' } },
+          },
+          subModels: {
+            columns: [...columns(`${tableUid}col`, false), ...referenceColumns],
+            actions: [
+              {
+                uid: `${tableUid}search`,
+                use: 'CollectionSearchActionModel',
+                props: {
+                  searchPlaceholder: 'Поиск по всем данным',
+                  searchableFieldNames: [
+                    'shipment_number',
+                    'invoice_number',
+                    'application_number',
+                    'declaration_number',
+                    'chinese_client',
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      ],
+    },
+  };
+  assignWorkspaceParents(grid);
+  return grid;
+}
+
 export function workspaceAssociatedShipmentsTree(): WorkspaceFlowTree {
   const tree: WorkspaceFlowTree = {
     uid: 'lcwsrunshipments',

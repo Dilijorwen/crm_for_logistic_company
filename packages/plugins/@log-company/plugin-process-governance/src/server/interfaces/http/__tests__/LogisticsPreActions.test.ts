@@ -16,13 +16,24 @@ import { LogisticsPreActions } from '../LogisticsPreActions';
 
 type PreActionHandler = (context: Record<string, unknown>, next: () => Promise<unknown>) => Promise<void>;
 
-function setup(linkedRunCount = 0) {
+function setup(linkedRunCount = 0, genericHandlers: PreActionHandler[] = [], linked = ['existing-shipment']) {
   const handlers = new Map<string, PreActionHandler>();
   const plugin = {
     app: {
       resourcer: {
         registerPreActionHandler: (name: string, handler: PreActionHandler) => handlers.set(name, handler),
+        getRegisteredPreActionHandlers: () => genericHandlers,
       },
+    },
+    db: {
+      getCollection: () => ({
+        getFields: () => [
+          { name: 'shipment_number', options: {} },
+          { name: 'invoice_number', options: {} },
+          { name: 'company_id', options: { isForeignKey: true } },
+        ],
+      }),
+      getRepository: () => ({ find: async () => linked.map((id) => ({ get: () => id })) }),
     },
   } as unknown as Plugin;
   const repository = {
@@ -41,6 +52,81 @@ function setup(linkedRunCount = 0) {
 }
 
 describe('LogisticsPreActions', () => {
+  it('unlinks only the explicitly removed shipment when saving the unified form', async () => {
+    const { handlers } = setup(
+      0,
+      [
+        async (_context, next) => {
+          await next();
+        },
+      ],
+      ['101', '102'],
+    );
+    const params = {
+      workspaceUnified: true,
+      filterByTk: '10',
+      updateAssociationValues: ['shipments'],
+      values: { shipments: [], _workspaceDetachedShipmentIds: ['101'] },
+    };
+    const write = vi.fn(async () => {
+      expect(params.values).toEqual({ shipments: ['102'] });
+    });
+    await handlers.get('transport_runs:update')?.({ action: { actionName: 'update', params } }, write);
+    expect(write).toHaveBeenCalledOnce();
+  });
+  it('checks native nested ACL and preserves links to shipments hidden from the unified form', async () => {
+    const params = {
+      workspaceUnified: true,
+      filterByTk: 'run-1',
+      updateAssociationValues: ['shipments', 'shipments.company'],
+      values: {
+        shipments: [
+          {
+            id: 'shipment-1',
+            invoice_number: 'INV-1',
+            company: { id: 'company-1', name: 'Компания' },
+            shipment_number: 25,
+          },
+        ] as unknown[],
+      },
+    };
+    const checkAcl: PreActionHandler = async (_context, next) => {
+      expect(params.updateAssociationValues).toEqual(['shipments']);
+      expect(params.values.shipments).toEqual([{ id: 'shipment-1', invoice_number: 'INV-1', company: 'company-1' }]);
+      params.values.shipments = ['shipment-1'];
+      await next();
+    };
+    const { handlers } = setup(0, [checkAcl]);
+    const write = vi.fn(async () => {
+      expect(params.values.shipments).toEqual(['shipment-1', 'existing-shipment']);
+    });
+    await handlers.get('transport_runs:update')?.({ action: { actionName: 'update', params } }, write);
+    expect(write).toHaveBeenCalledOnce();
+  });
+
+  it('keeps all selected client identifiers and strips nested client updates', async () => {
+    const { handlers } = setup();
+    const params = {
+      values: { chinese_client: [{ id: 'client-1', name: 'Changed' }, { id: 'client-2' }, { id: 'client-1' }] },
+      updateAssociationValues: ['chinese_client', 'chinese_client.name'],
+    };
+    await handlers.get('shipments:update')?.({ action: { actionName: 'update', params } }, async () => undefined);
+    expect(params.values.chinese_client).toEqual(['client-1', 'client-2']);
+    expect(params.updateAssociationValues).toEqual([]);
+  });
+
+  it('rejects clearing the client selection before persistence', async () => {
+    const { handlers } = setup();
+    const next = vi.fn();
+    await expect(
+      handlers.get('shipments:update')?.(
+        { action: { actionName: 'update', params: { values: { chinese_client: [] } } } },
+        next,
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it('keeps source run references without saving stale nested association snapshots', async () => {
     const { handlers } = setup();
     const params = {
@@ -156,7 +242,7 @@ describe('LogisticsPreActions', () => {
 
     await handler({ action: { actionName: 'create', params } }, next);
 
-    expect(params.values).toEqual({ chinese_client: 'client-1', company: 'company-1' });
+    expect(params.values).toEqual({ chinese_client: ['client-1'], company: 'company-1' });
     expect(params.updateAssociationValues).toEqual([]);
     expect(next).toHaveBeenCalledOnce();
   });

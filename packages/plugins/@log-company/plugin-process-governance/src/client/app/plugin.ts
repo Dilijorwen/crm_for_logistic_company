@@ -41,12 +41,18 @@ import {
   LogisticsWorkspaceShipmentSectionsGridModel,
 } from '../widgets/workspace-shipment-page';
 import { isWorkspaceDeleteContext } from '../shared/lib';
+import { LogisticsWorkspaceRunDocumentsModel } from '../features/scoped-native-block/ui/WorkspaceRunDocumentsModel';
 import { RunTreeActionModel } from '../widgets/run-tree';
 import { RunTreeBlockModel } from '../widgets/run-tree';
 import {
   ShipmentSynchronizedEditFormModel,
   LogisticsWorkspaceCreateFormModel,
+  LogisticsWorkspaceScopedSelectFieldModel,
 } from '../features/synchronize-shipment-form';
+import {
+  LogisticsWorkspaceShipmentFoldGridModel,
+  LogisticsWorkspaceShipmentSubformModel,
+} from '../features/synchronize-shipment-form/model/WorkspaceShipmentSubformModel';
 
 const NAMESPACE = '@log-company/plugin-process-governance';
 
@@ -56,6 +62,10 @@ export class PluginProcessGovernanceClient extends Plugin {
     this.flowEngine.registerModels({
       EditFormModel: ShipmentSynchronizedEditFormModel,
       LogisticsWorkspaceCreateFormModel,
+      LogisticsWorkspaceScopedSelectFieldModel,
+      LogisticsWorkspaceShipmentSubformModel,
+      LogisticsWorkspaceShipmentFoldGridModel,
+      LogisticsWorkspaceRunDocumentsModel,
       RunTreeBlockModel,
       RunTreeActionModel,
       LogisticsWorkspaceNewRunActionModel,

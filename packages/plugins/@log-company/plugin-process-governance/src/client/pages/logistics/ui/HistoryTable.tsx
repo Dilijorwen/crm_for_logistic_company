@@ -43,7 +43,7 @@ const FIELD_LABELS: Record<string, string> = {
   child_runs: 'Дочерние рейсы',
   shipments: 'Поставки',
   runs: 'Рейсы',
-  chinese_client: 'Китайский клиент',
+  chinese_client: 'Китайские клиенты',
   company: 'Наша компания',
   route_delivery_number: 'Номер доставки',
   invoice_number: 'Номер инвойса',

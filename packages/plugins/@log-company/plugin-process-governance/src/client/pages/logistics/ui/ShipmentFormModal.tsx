@@ -23,7 +23,7 @@ import type { LogisticsService } from '../api/LogisticsService';
 import type { LogisticsReferenceData, ShipmentMutationInput, ShipmentRecord } from '../model/types';
 
 interface ShipmentFormValues {
-  chineseClientId: string;
+  chineseClientIds: string[];
   companyId: string;
   status: string;
   invoiceNumber?: string;
@@ -111,7 +111,7 @@ export function ShipmentFormModal({
     }
     setError(null);
     form.setFieldsValue({
-      chineseClientId: shipment?.chineseClient?.id,
+      chineseClientIds: shipment?.chineseClients.map((client) => client.id) ?? [],
       companyId: shipment?.company?.id,
       status: shipment?.status || DEFAULT_LOGISTICS_STATUS,
       invoiceNumber: shipment?.invoiceNumber,
@@ -198,11 +198,11 @@ export function ShipmentFormModal({
     <Row gutter={16}>
       <Col xs={24} md={12}>
         <Form.Item
-          name="chineseClientId"
-          label="Китайский клиент"
-          rules={[{ required: true, message: 'Выберите китайского клиента' }]}
+          name="chineseClientIds"
+          label="Китайские клиенты"
+          rules={[{ required: true, type: 'array', min: 1, message: 'Выберите хотя бы одного китайского клиента' }]}
         >
-          <Select showSearch optionFilterProp="label" options={options.clients} />
+          <Select mode="multiple" showSearch optionFilterProp="label" options={options.clients} />
         </Form.Item>
       </Col>
       <Col xs={24} md={12}>

@@ -73,7 +73,7 @@ function searchableValues(item: LogisticsWorkItem): string[] {
     ...item.run.managers.map((manager) => manager.label),
     ...item.run.declarants.map((declarant) => declarant.label),
     shipment ? String(shipment.shipmentNumber) : '',
-    shipment?.chineseClient?.label || '',
+    shipment?.chineseClients.map((client) => client.label).join(', ') || '',
     shipment?.company?.label || '',
     shipment?.invoiceNumber || '',
     shipment?.declarationNumber || '',

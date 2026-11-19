@@ -85,6 +85,17 @@ export default defineCollection({
     field('text', 'declarant_names', 'Декларанты', 'textarea'),
     field('integer', 'shipment_number', 'Номер поставки', 'integer'),
     {
+      type: 'date',
+      name: 'shipment_created_at',
+      interface: 'date',
+      uiSchema: {
+        type: 'string',
+        title: 'Дата создания поставки',
+        'x-component': 'DatePicker',
+        'x-component-props': { picker: 'date', showTime: false, dateFormat: 'DD.MM.YYYY' },
+      },
+    },
+    {
       type: 'string',
       name: 'transport_type',
       interface: 'select',
@@ -95,7 +106,7 @@ export default defineCollection({
         enum: TRANSPORT_TYPES.map((value) => ({ value, label: TRANSPORT_TYPE_LABELS[value] })),
       },
     },
-    field('string', 'chinese_client_name', 'Китайский клиент'),
+    field('string', 'chinese_client_name', 'Китайские клиенты'),
     field('string', 'company_name', 'Наша компания'),
     field('string', 'contract_name', 'Контракт'),
     {
@@ -138,6 +149,7 @@ export default defineCollection({
     field('boolean', 'actual_control', 'Фактический контроль', 'checkbox'),
     field('boolean', 'anosov_distributed', 'Распределено Аносовым', 'checkbox'),
     field('text', 'manager_comment', 'Комментарий менеджера', 'textarea'),
+    { type: 'date', name: 'run_created_at', hidden: true },
     { type: 'bigInt', name: 'run_id', hidden: true, isForeignKey: true },
     { type: 'bigInt', name: 'shipment_id', hidden: true, isForeignKey: true },
     {

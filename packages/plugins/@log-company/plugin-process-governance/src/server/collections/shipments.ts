@@ -149,6 +149,7 @@ export default defineCollection({
     booleanField('actual_control', 'Фактический контроль'),
     booleanField('anosov_distributed', 'Распределено Аносовым'),
     textField('manager_comment', 'Комментарий менеджера'),
+    textField('declarant_comment', 'Комментарий декларанта'),
     {
       type: 'belongsToMany',
       name: 'runs',

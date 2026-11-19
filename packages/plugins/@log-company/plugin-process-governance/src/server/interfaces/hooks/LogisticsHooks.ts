@@ -8,6 +8,7 @@
  */
 
 import type { Plugin } from '@nocobase/server';
+import type { Transaction } from '@nocobase/database';
 import { AssignImmutableNumber } from '../../application/logistics/AssignImmutableNumber';
 import { CaptureLogisticsSnapshot } from '../../application/logistics/CaptureLogisticsSnapshot';
 import { NormalizeShipmentNumericFields } from '../../application/logistics/NormalizeShipmentNumericFields';
@@ -65,14 +66,26 @@ interface RelationDescriptor {
   collection: string;
   entityField: string;
   relatedField: string;
-  relatedKind: 'run' | 'shipment' | 'user';
-  addedEvent: 'parent_added' | 'manager_added' | 'declarant_added' | 'shipment_attached';
-  removedEvent: 'parent_removed' | 'manager_removed' | 'declarant_removed' | 'shipment_detached';
+  entityKind?: 'run' | 'shipment';
+  relatedKind: 'run' | 'shipment' | 'user' | 'client';
+  addedEvent: 'parent_added' | 'manager_added' | 'declarant_added' | 'shipment_attached' | 'client_added';
+  removedEvent: 'parent_removed' | 'manager_removed' | 'declarant_removed' | 'shipment_detached' | 'client_removed';
   fieldName: string;
   fieldLabel: string;
 }
 
 const RELATIONS: RelationDescriptor[] = [
+  {
+    collection: 'shipment_chinese_clients',
+    entityKind: 'shipment',
+    entityField: 'shipment_id',
+    relatedField: 'chinese_client_id',
+    relatedKind: 'client',
+    addedEvent: 'client_added',
+    removedEvent: 'client_removed',
+    fieldName: 'chinese_client',
+    fieldLabel: 'Китайские клиенты',
+  },
   {
     collection: LOGISTICS_COLLECTIONS.runParents,
     entityField: 'child_run_id',
@@ -129,6 +142,7 @@ export class LogisticsHooks {
     this.registerRunReadProjection();
     this.registerEntityHooks('run', LOGISTICS_COLLECTIONS.runs, 'run_number');
     this.registerEntityHooks('shipment', LOGISTICS_COLLECTIONS.shipments, 'shipment_number');
+    this.registerNestedShipmentCompletion();
     this.registerRelationHooks();
     this.registerHistoryGuards();
   }
@@ -146,6 +160,41 @@ export class LogisticsHooks {
         }
       });
     }
+  }
+
+  /** Native nested writes omit the source repository's shipment completion events. */
+  private registerNestedShipmentCompletion(): void {
+    const pending = new WeakMap<NocoBaseModel, HookOptions>();
+    this.plugin.db.on('shipments.beforeValidate', (shipment: NocoBaseModel, options: HookOptions) => {
+      const action = this.asRecord(this.asRecord(options.context).action);
+      if (action.resourceName !== LOGISTICS_COLLECTIONS.runs) return;
+      const params = this.asRecord(action.params);
+      if (params.workspaceUnified !== true && params.workspaceUnified !== 'true') return;
+      if (options.inputValues || !pending.has(shipment)) pending.set(shipment, options);
+    });
+    this.plugin.db.on('transport_runs.afterSaveWithAssociations', async (run: NocoBaseModel) => {
+      const shipments = run.get('shipments');
+      if (!Array.isArray(shipments)) return;
+      for (const shipment of shipments as NocoBaseModel[]) {
+        const options = pending.get(shipment);
+        if (!options) continue;
+        pending.delete(shipment);
+        const storedShipment = Object.prototype.hasOwnProperty.call(
+          this.asRecord(options.inputValues),
+          'chinese_client',
+        )
+          ? await this.plugin.db.getRepository('shipments').findOne({
+              filterByTk: String(this.requiredIdentifier(shipment.get('id'), 'shipment')),
+              fields: ['id', 'chinese_client_id'],
+              transaction: options.transaction as Transaction,
+            })
+          : shipment;
+        await this.plugin.db.emitAsync('shipments.afterSaveWithAssociations', storedShipment ?? shipment, options);
+        if (!this.preparedNewRecords.has(shipment)) {
+          await this.plugin.db.emitAsync('shipments.afterUpdateWithAssociations', shipment, options);
+        }
+      }
+    });
   }
 
   private registerEntityHooks(entityKind: LogisticsEntityKind, collection: string, numberField: string): void {
@@ -425,6 +474,7 @@ export class LogisticsHooks {
       entityId,
       relatedId,
       relatedKind: relation.relatedKind,
+      ...(relation.entityKind ? { entityKind: relation.entityKind } : {}),
       eventType,
       fieldName: relation.fieldName,
       fieldLabel: relation.fieldLabel,
