@@ -11,6 +11,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { FileStorageService } from '@log-company/plugin-file-storage';
 import { MinioChatStorage } from '../infrastructure/storage/minio/MinioChatStorage';
 
 const runMinioIntegration = process.env.CHAT_MINIO_INTEGRATION === '1';
@@ -30,14 +31,21 @@ describe.runIf(runMinioIntegration)('MinioChatStorage', () => {
       throw new Error('CHAT_MINIO_ACCESS_KEY and CHAT_MINIO_SECRET_KEY are required for MinIO integration tests.');
     }
     directory = await fs.mkdtemp(path.join(os.tmpdir(), 'chat-minio-test-'));
-    storage = new MinioChatStorage({
-      endpoint: process.env.CHAT_MINIO_ENDPOINT || 'http://minio:9000',
-      region: process.env.CHAT_MINIO_REGION || 'us-east-1',
-      accessKey,
-      secretKey,
-      bucket: process.env.CHAT_MINIO_TEST_BUCKET || 'log-company-chats-test',
+    const service = new FileStorageService(
+      {
+        endpoint: process.env.CHAT_MINIO_ENDPOINT || 'http://minio:9000',
+        region: process.env.CHAT_MINIO_REGION || 'us-east-1',
+        accessKey,
+        secretKey,
+        bucket: process.env.CHAT_MINIO_TEST_BUCKET || 'log-company-chats-test',
+      },
+      (_area, operation, code) => console.error(operation, code),
+    );
+    const area = service.area('chat-attachments');
+    storage = new MinioChatStorage(area, async (key) => {
+      await area.delete(key, true);
     });
-    await storage.ensureReady();
+    await service.ensureReady();
   });
 
   afterAll(async () => {

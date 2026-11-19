@@ -91,7 +91,6 @@ describe('UploadChatAttachments', () => {
   it('promotes a validated temporary object and removes the temporary copy', async () => {
     const operations: string[] = [];
     const storage: ChatStorage = {
-      ensureReady: async () => undefined,
       storeTemporary: async ({ key }) => {
         operations.push(`temporary:${key}`);
       },
@@ -112,10 +111,9 @@ describe('UploadChatAttachments', () => {
     expect(operations.some((operation) => operation.startsWith('delete:chats/tmp/'))).toBe(true);
   });
 
-  it('compensates a failed promotion and exposes a typed storage error', async () => {
+  it('discards its temporary object without deleting a final key it failed to create', async () => {
     const deletedKeys: string[] = [];
     const storage: ChatStorage = {
-      ensureReady: async () => undefined,
       storeTemporary: async () => undefined,
       promote: async () => {
         throw new Error('storage unavailable');
@@ -129,6 +127,6 @@ describe('UploadChatAttachments', () => {
 
     await expect(createAction(storage).execute(uploadInput)).rejects.toBeInstanceOf(ChatStorageUploadError);
     expect(deletedKeys.some((key) => key.startsWith('chats/tmp/'))).toBe(true);
-    expect(deletedKeys.some((key) => key.startsWith('chats/100/'))).toBe(true);
+    expect(deletedKeys.some((key) => key.startsWith('chats/100/'))).toBe(false);
   });
 });

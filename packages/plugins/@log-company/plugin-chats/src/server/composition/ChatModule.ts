@@ -8,6 +8,7 @@
  */
 
 import type { Plugin } from '@nocobase/server';
+import type PluginFileStorage from '@log-company/plugin-file-storage';
 import { AddChatMembers } from '../application/AddChatMembers';
 import { ChatAccessService } from '../application/ChatAccessService';
 import { CreateDirectChat } from '../application/CreateDirectChat';
@@ -37,7 +38,7 @@ import { NocoBaseChatAttachmentRepository } from '../infrastructure/persistence/
 import { NocoBaseChatMemberRepository } from '../infrastructure/persistence/nocobase/NocoBaseChatMemberRepository';
 import { NocoBaseChatMessageRepository } from '../infrastructure/persistence/nocobase/NocoBaseChatMessageRepository';
 import { NocoBaseChatRepository } from '../infrastructure/persistence/nocobase/NocoBaseChatRepository';
-import { MinioChatStorage, readChatMinioConfig } from '../infrastructure/storage/minio/MinioChatStorage';
+import { MinioChatStorage } from '../infrastructure/storage/minio/MinioChatStorage';
 import { ChatUserHooks } from '../interfaces/hooks/ChatUserHooks';
 import { ChatController } from '../interfaces/http/ChatController';
 
@@ -53,7 +54,10 @@ export class ChatModule {
     const transactions = new NocoBaseTransactionManager(this.plugin);
     const clock = new SystemClock();
     const ids = new NocoBaseIdGenerator(this.plugin);
-    const storage = new MinioChatStorage(readChatMinioConfig(process.env, this.plugin.app.name));
+    const fileStorage = this.plugin.app.pm.get<PluginFileStorage>('@log-company/plugin-file-storage');
+    const storage = new MinioChatStorage(fileStorage.storage.area('chat-attachments'), (key) =>
+      fileStorage.deletionQueue.enqueue('chat-attachments', [key], { currentOnly: true }),
+    );
     const logger = new NocoBaseChatLogger(this.plugin);
     const access = new ChatAccessService(chats, members);
 
@@ -88,7 +92,6 @@ export class ChatModule {
       downloadAttachment: new DownloadChatAttachment(access, attachments, messages, storage, logger),
     };
 
-    await storage.ensureReady();
     new ChatController(this.plugin, actions, new NodeFileTypeDetector(), logger).register();
     new ChatUserHooks(this.plugin, new HandleDeletedUser(chats, members, messages, transactions, clock)).register();
   }

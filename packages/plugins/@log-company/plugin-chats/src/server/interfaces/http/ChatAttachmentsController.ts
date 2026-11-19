@@ -19,7 +19,7 @@ import type { FileTypeDetector } from '../../application/ports/FileTypeDetector'
 import { decodeUploadedFileName } from '../../infrastructure/files/UploadedFileName';
 import type { ChatActions } from './ChatActions';
 import type { ChatHttpSupport } from './ChatHttpSupport';
-import { canPreviewInline } from '@log-company/plugin-file-storage';
+import { fileResponseHeaders } from '@log-company/plugin-file-storage';
 
 interface UploadedFile {
   path: string;
@@ -73,13 +73,13 @@ export class ChatAttachmentsController {
         this.http.requiredId(values.attachmentId ?? values.id),
         this.http.actorId(context),
       );
-      context.set('Content-Type', result.mimeType);
-      context.set('Content-Length', String(result.size));
-      const disposition =
-        context.action.actionName === 'preview' && canPreviewInline(result.mimeType) ? 'inline' : 'attachment';
-      context.set('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(result.fileName)}`);
-      context.set('X-Content-Type-Options', 'nosniff');
-      context.set('Cache-Control', 'private, no-store');
+      for (const [name, value] of Object.entries(
+        fileResponseHeaders({
+          ...result,
+          preview: context.action.actionName === 'preview',
+        }),
+      ))
+        context.set(name, value);
       context.body = result.content;
       await next();
     });

@@ -133,9 +133,9 @@ export class UploadChatAttachments {
           );
         }
         for (const file of prepared) {
-          finalKeys.push(file.finalKey);
           try {
             await this.storage.promote(file.temporaryKey, file.finalKey);
+            finalKeys.push(file.finalKey);
           } catch (error) {
             this.logger.error('chat_attachment_promotion_failed', error, {
               chatId: input.chatId,

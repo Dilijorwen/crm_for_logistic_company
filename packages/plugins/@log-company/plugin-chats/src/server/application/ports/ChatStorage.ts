@@ -15,7 +15,6 @@ export interface StoreChatObjectInput {
 }
 
 export interface ChatStorage {
-  ensureReady(): Promise<void>;
   storeTemporary(input: StoreChatObjectInput): Promise<void>;
   promote(temporaryKey: string, finalKey: string): Promise<void>;
   open(key: string): Promise<unknown>;

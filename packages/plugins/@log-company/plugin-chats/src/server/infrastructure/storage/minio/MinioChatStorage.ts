@@ -7,18 +7,29 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { MinioStorageArea, readFileStorageConfig, type FileStorageConfig } from '@log-company/plugin-file-storage';
+import type { FileStorageArea } from '@log-company/plugin-file-storage';
 import type { ChatStorage, StoreChatObjectInput } from '../../../application/ports/ChatStorage';
 
-export type MinioChatConfig = FileStorageConfig;
-export const readChatMinioConfig = readFileStorageConfig;
-
-export class MinioChatStorage extends MinioStorageArea implements ChatStorage {
-  constructor(config: MinioChatConfig) {
-    super(config, 'chat-attachments');
-  }
+export class MinioChatStorage implements ChatStorage {
+  constructor(
+    private readonly area: FileStorageArea,
+    private readonly discard: (key: string) => Promise<void>,
+  ) {}
 
   storeTemporary(input: StoreChatObjectInput): Promise<void> {
-    return this.store(input);
+    return this.area.store(input);
+  }
+
+  open(key: string) {
+    return this.area.open(key);
+  }
+
+  promote(source: string, target: string) {
+    return this.area.promote(source, target);
+  }
+
+  async delete(key: string) {
+    await this.discard(key);
+    return true;
   }
 }
