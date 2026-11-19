@@ -12,7 +12,23 @@ import { createMockDatabase } from '@nocobase/database';
 import type { Plugin } from '@nocobase/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { NocoBaseSearchIndexRepository } from '../../../infrastructure/persistence/nocobase/NocoBaseSearchIndexRepository';
-import { CollectionSearchController } from '../CollectionSearchController';
+import { CollectionSearchController, type SearchDataSource } from '../CollectionSearchController';
+import { SearchCurrentCollection } from '../../../application/SearchCurrentCollection';
+import { NocoBaseCollectionSearchGateway } from '../../../infrastructure/persistence/nocobase/NocoBaseCollectionSearchGateway';
+
+function createController(plugin: Plugin, repository: NocoBaseSearchIndexRepository) {
+  return new CollectionSearchController(
+    plugin,
+    (context: Context, dataSource: SearchDataSource) =>
+      new SearchCurrentCollection(
+        new NocoBaseCollectionSearchGateway(
+          context,
+          dataSource as ConstructorParameters<typeof NocoBaseCollectionSearchGateway>[1],
+          repository,
+        ),
+      ),
+  );
+}
 
 describe('CollectionSearchController', () => {
   it('returns a Russian validation error and preserves its machine-readable code', async () => {
@@ -33,7 +49,7 @@ describe('CollectionSearchController', () => {
     const logger = { error: vi.fn() };
     const plugin = { app: { logger } } as unknown as Plugin;
     const indexRepository = {} as NocoBaseSearchIndexRepository;
-    new CollectionSearchController(plugin, indexRepository).register(dataSource);
+    createController(plugin, indexRepository).register(dataSource);
     const throwHttpError = vi.fn((status: number, message: string, properties?: Record<string, unknown>) => {
       throw Object.assign(new Error(message), { status, ...properties });
     });
@@ -77,7 +93,7 @@ describe('CollectionSearchController', () => {
       };
       const ensureSynchronized = vi.fn(async () => undefined);
       const plugin = { app: { logger: { error: vi.fn() } } } as unknown as Plugin;
-      new CollectionSearchController(plugin, {
+      createController(plugin, {
         ensureSynchronized,
       } as unknown as NocoBaseSearchIndexRepository).register(dataSource);
       const next = vi.fn(async () => undefined);
@@ -151,7 +167,7 @@ describe('CollectionSearchController', () => {
         collectionManager: { db: database },
       };
       const plugin = { app: { logger: { error: vi.fn() } } } as unknown as Plugin;
-      new CollectionSearchController(plugin, {
+      createController(plugin, {
         ensureSynchronized: vi.fn(async () => undefined),
       } as unknown as NocoBaseSearchIndexRepository).register(dataSource);
       const list = vi.spyOn(actions, 'list').mockImplementation(async (_context, actionNext) => {
@@ -201,7 +217,7 @@ describe('CollectionSearchController', () => {
         collectionManager: { db: database },
       };
       const plugin = { app: { logger: { error: vi.fn() } } } as unknown as Plugin;
-      new CollectionSearchController(plugin, {
+      createController(plugin, {
         ensureSynchronized: vi.fn(async () => undefined),
       } as unknown as NocoBaseSearchIndexRepository).register(dataSource);
       const list = vi.spyOn(actions, 'list').mockImplementation(async (_context, actionNext) => {
@@ -247,7 +263,7 @@ describe('CollectionSearchController', () => {
       collectionManager: {},
     };
     const plugin = { app: { logger: { error: vi.fn() } } } as unknown as Plugin;
-    new CollectionSearchController(plugin, {} as NocoBaseSearchIndexRepository).register(dataSource);
+    createController(plugin, {} as NocoBaseSearchIndexRepository).register(dataSource);
     const context = {
       action: { params: { searchTerm: 'needle', searchFields: '{broken' } },
       throw(status: number, message: string, properties?: Record<string, unknown>) {

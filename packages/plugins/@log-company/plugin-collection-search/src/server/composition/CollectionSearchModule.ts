@@ -17,6 +17,8 @@ import type { Context } from '@nocobase/actions';
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import { SearchCurrentCollection } from '../application/SearchCurrentCollection';
+import { NocoBaseCollectionSearchGateway } from '../infrastructure/persistence/nocobase/NocoBaseCollectionSearchGateway';
 import type { Plugin } from '@nocobase/server';
 import type { Database } from '@nocobase/database';
 import { NocoBaseSearchIndexRepository } from '../infrastructure/persistence/nocobase/NocoBaseSearchIndexRepository';
@@ -49,7 +51,17 @@ export class CollectionSearchModule {
 
   initialize(): void {
     const indexRepository = new NocoBaseSearchIndexRepository(this.plugin);
-    const controller = new CollectionSearchController(this.plugin, indexRepository);
+    const controller = new CollectionSearchController(
+      this.plugin,
+      (context, dataSource) =>
+        new SearchCurrentCollection(
+          new NocoBaseCollectionSearchGateway(
+            context,
+            dataSource as ConstructorParameters<typeof NocoBaseCollectionSearchGateway>[1],
+            indexRepository,
+          ),
+        ),
+    );
     const configurationGuard = new SearchConfigurationGuard(
       new AuthorizeSearchConfigurationChange(new NocoBaseSearchFlowModelRepository(this.plugin.db)),
     );

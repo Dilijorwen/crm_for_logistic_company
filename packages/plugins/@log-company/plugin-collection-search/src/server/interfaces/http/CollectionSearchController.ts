@@ -9,10 +9,8 @@
 
 import actions, { type Context, type Next } from '@nocobase/actions';
 import type { Plugin } from '@nocobase/server';
-import { SearchCurrentCollection } from '../../application/SearchCurrentCollection';
+import type { SearchCurrentCollection } from '../../application/SearchCurrentCollection';
 import { CollectionSearchError } from '../../domain/search/SearchErrors';
-import { NocoBaseCollectionSearchGateway } from '../../infrastructure/persistence/nocobase/NocoBaseCollectionSearchGateway';
-import { NocoBaseSearchIndexRepository } from '../../infrastructure/persistence/nocobase/NocoBaseSearchIndexRepository';
 import { COLLECTION_SEARCH_OPERATOR } from '../../infrastructure/persistence/nocobase/NocoBaseIndexedSearchOperator';
 
 export const COLLECTION_SEARCH_ACTION = 'searchCurrentCollection';
@@ -27,7 +25,7 @@ const ERROR_MESSAGES: Record<CollectionSearchError['code'], string> = {
 const MAX_CONFIGURED_SEARCH_FIELDS = 200;
 const MAX_FIELD_NAME_LENGTH = 128;
 
-interface SearchDataSource {
+export interface SearchDataSource {
   name: string;
   resourceManager: {
     registerActionHandler(name: string, handler: (context: Context, next: Next) => Promise<void>): void;
@@ -109,7 +107,7 @@ function aliases(value: string | string[] | undefined): string[] {
 export class CollectionSearchController {
   constructor(
     private readonly plugin: Plugin,
-    private readonly indexRepository: NocoBaseSearchIndexRepository,
+    private readonly createSearch: (context: Context, dataSource: SearchDataSource) => SearchCurrentCollection,
   ) {}
 
   register(dataSource: SearchDataSource): void {
@@ -128,12 +126,7 @@ export class CollectionSearchController {
   private async search(context: Context, next: Next, dataSource: SearchDataSource): Promise<void> {
     try {
       const params = queryParams(context);
-      const gateway = new NocoBaseCollectionSearchGateway(
-        context,
-        dataSource as ConstructorParameters<typeof NocoBaseCollectionSearchGateway>[1],
-        this.indexRepository,
-      );
-      const plan = await new SearchCurrentCollection(gateway).execute({
+      const plan = await this.createSearch(context, dataSource).execute({
         term: params.searchTerm ?? params.term,
         permittedFieldNames: permittedFieldNames(context),
         requestedFieldNames: requestedFieldNames(params.searchFields),
