@@ -12,7 +12,12 @@ import os from 'os';
 import multer from 'multer';
 import type { Readable } from 'stream';
 import { callbackify } from 'util';
-import { StorageType, type AttachmentModel, type StorageEngine } from '@nocobase/plugin-file-manager/server';
+import {
+  StorageType,
+  type AttachmentModel,
+  type PluginFileManagerServer,
+  type StorageEngine,
+} from '@nocobase/plugin-file-manager/server';
 import type { Transaction } from '@nocobase/database';
 import type { Context, Next } from '@nocobase/actions';
 import { FileStorageError } from '../../domain/FileStorageError';
@@ -113,7 +118,7 @@ export function createPrivateMinioStorageType(
   destroyTransactions: WeakMap<object, Transaction>,
   rollback: NativeUploadRollback,
   onTempFileError: (code: string) => void,
-) {
+): Parameters<PluginFileManagerServer['registerStorageType']>[1] {
   return class PrivateMinioStorageType extends StorageType {
     private uploadKey(filename: string): string {
       return [(this.storage.path || '').replace(/^\/|\/$/g, ''), filename].filter(Boolean).join('/');
