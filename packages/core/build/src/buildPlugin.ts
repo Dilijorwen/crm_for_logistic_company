@@ -560,7 +560,7 @@ export async function buildPluginClient(
   const outDir = path.join(cwd, target_dir, 'client');
 
   const globals = excludePackages.reduce<Record<string, string>>((prev, curr) => {
-    if (curr.startsWith('@nocobase')) {
+    if (curr.startsWith('@nocobase') || pluginPrefix.some((prefix) => curr.startsWith(prefix))) {
       prev[`${curr}/client`] = `${curr}/client`;
     }
     prev[curr] = curr;
