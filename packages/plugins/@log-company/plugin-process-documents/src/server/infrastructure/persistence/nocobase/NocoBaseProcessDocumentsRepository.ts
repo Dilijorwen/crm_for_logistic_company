@@ -20,7 +20,7 @@ import type {
   TransactionContext,
 } from '../../../application/ports/ProcessDocumentsRepository';
 
-import type { FolderAccess } from '../../../../contracts/processDocuments';
+import type { CompanyDocumentArea, FolderAccess } from '../../../../contracts/processDocuments';
 
 const SHIPMENTS_COLLECTION = 'shipments';
 const FOLDERS_COLLECTION = 'process_document_folders';
@@ -33,7 +33,7 @@ interface FolderRow {
   shipment_id: string | number | bigint | null;
   draft_token: string | null;
   company_id?: string | number | null;
-  company_area?: 'company' | null;
+  company_area?: CompanyDocumentArea | null;
   transport_run_id?: string | number | null;
   parent_folder_id: string | number | bigint | null;
   createdById: string | number | bigint | null;
@@ -49,7 +49,7 @@ interface DocumentRow {
   shipment_id: string | number | bigint | null;
   draft_token: string | null;
   company_id?: string | number | null;
-  company_area?: 'company' | null;
+  company_area?: CompanyDocumentArea | null;
   transport_run_id?: string | number | null;
   folder_id: string | number | bigint | null;
   storage_key: string;
@@ -66,6 +66,13 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
 
   async withTransaction<T>(work: (transaction: TransactionContext) => Promise<T>): Promise<T> {
     return this.plugin.db.sequelize.transaction((transaction) => work(transaction));
+  }
+
+  async lockCompanyFolders(companyId: string, transaction: TransactionContext): Promise<void> {
+    await this.plugin.db.sequelize.query('select id from our_companies where id = :companyId for update', {
+      replacements: { companyId },
+      transaction: this.asTransaction(transaction),
+    });
   }
 
   async shipmentExists(shipmentId: string, transaction?: TransactionContext): Promise<boolean> {
@@ -112,7 +119,11 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
     return rows[0] ? this.mapDocument(rows[0]) : null;
   }
 
-  async listFolders(scope: DocumentScope, parentFolderId: string | null): Promise<DocumentFolderRecord[]> {
+  async listFolders(
+    scope: DocumentScope,
+    parentFolderId: string | null,
+    transaction?: TransactionContext,
+  ): Promise<DocumentFolderRecord[]> {
     const [rows] = (await this.plugin.db.sequelize.query(
       `
         select f.*, coalesce(u.nickname, u.username, '') as author
@@ -122,7 +133,10 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
           and ((:parentFolderId is null and f.parent_folder_id is null) or f.parent_folder_id = :parentFolderId)
         order by f.title asc, f.id asc
       `,
-      { replacements: { ...this.scopeReplacements(scope), parentFolderId } },
+      {
+        replacements: { ...this.scopeReplacements(scope), parentFolderId },
+        transaction: this.asTransaction(transaction),
+      },
     )) as [FolderRow[], unknown];
     return rows.map((row) => this.mapFolder(row));
   }
@@ -328,6 +342,25 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
     }
   }
 
+  async renameEntry(
+    kind: 'folder' | 'file',
+    id: string,
+    title: string,
+    transaction: TransactionContext,
+  ): Promise<void> {
+    const collection = kind === 'folder' ? FOLDERS_COLLECTION : DOCUMENTS_COLLECTION;
+    const [rows] = await this.plugin.db.sequelize.query(
+      `update ${collection} set title = :title, "updatedAt" = now() where id = :id returning id`,
+      { replacements: { id, title }, transaction: this.asTransaction(transaction) },
+    );
+    if (!rows.length) {
+      throw new ProcessDocumentsError(
+        kind === 'folder' ? 'FOLDER_NOT_FOUND' : 'DOCUMENT_NOT_FOUND',
+        'Файл или папка больше не существует.',
+      );
+    }
+  }
+
   async deleteFolder(id: string, transaction?: TransactionContext): Promise<void> {
     await this.plugin.db.sequelize.query(`delete from ${FOLDERS_COLLECTION} where id = :id`, {
       replacements: { id },
@@ -383,7 +416,7 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
     const prefix = alias ? `${alias}.` : '';
     if (scope.mode === 'run') return `${prefix}transport_run_id = :runId`;
     if (scope.mode === 'company') {
-      const area = scope.companyArea ? "= 'company'" : 'is null';
+      const area = scope.companyArea ? '= :companyArea' : 'is null';
       return `${prefix}company_id = :companyId and ${prefix}transport_run_id is null and ${prefix}company_area ${area}`;
     }
     return scope.mode === 'shipment'
@@ -393,7 +426,9 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
 
   private scopeReplacements(scope: DocumentScope): Record<string, string> {
     if (scope.mode === 'run') return { runId: scope.runId };
-    if (scope.mode === 'company') return { companyId: scope.companyId };
+    if (scope.mode === 'company') {
+      return { companyId: scope.companyId, ...(scope.companyArea && { companyArea: scope.companyArea }) };
+    }
     return scope.mode === 'shipment' ? { shipmentId: scope.shipmentId } : { draftToken: scope.draftToken };
   }
 

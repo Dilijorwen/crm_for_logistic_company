@@ -8,9 +8,14 @@
  */
 
 import type { DocumentScope } from '../domain/documents/DocumentScope';
+import { contractAreaId } from '../../contracts/processDocuments';
 
 export function documentStorageOwnerPath(scope: DocumentScope): string {
   if (scope.mode === 'run') return `runs/${scope.runId}`;
-  if (scope.mode === 'company') return `companies/${scope.companyId}/${scope.companyArea || 'corporate'}`;
+  if (scope.mode === 'company') {
+    const contract = contractAreaId(scope.companyArea);
+    const area = contract ? `contracts/${contract}/agreements` : scope.companyArea || 'corporate';
+    return `companies/${scope.companyId}/${area}`;
+  }
   return scope.mode === 'shipment' ? `shipments/${scope.shipmentId}` : `shipments/drafts/${scope.draftToken}`;
 }

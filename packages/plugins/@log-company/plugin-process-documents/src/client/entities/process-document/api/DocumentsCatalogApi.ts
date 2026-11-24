@@ -17,6 +17,9 @@ export interface CatalogItem {
   id: CatalogId;
   title: string;
   attachmentOwnerId?: CatalogId;
+  createdAt?: string;
+  author?: string;
+  file_size?: number;
 }
 export interface CatalogFolder {
   id: string;
@@ -31,6 +34,7 @@ export type CatalogQuery =
   | { kind: 'shipments'; companyId: CatalogId; runId?: CatalogId }
   | { kind: 'shipments'; companyId?: undefined; runId: CatalogId }
   | { kind: 'permits'; companyId: CatalogId }
+  | { kind: 'contracts'; companyId: CatalogId; active: boolean }
   | { kind: 'permitAttachments'; permitIds: CatalogId[] }
   | { kind: 'attachments'; permitId: CatalogId }
   | { kind: 'companyAttachments'; companyId: CatalogId };
@@ -64,6 +68,15 @@ function queryOptions(query: Exclude<CatalogQuery, { kind: 'permitAttachments' }
       };
     case 'permits':
       return { resource: 'permit_documents', label: 'title', filter: { company_id: query.companyId } };
+    case 'contracts':
+      return {
+        resource: 'contracts',
+        label: 'name',
+        filter: {
+          'importers.id': query.companyId,
+          ...(query.active ? { is_active: true } : { $or: [{ is_active: false }, { is_active: null }] }),
+        },
+      };
     case 'attachments':
       return { resource: 'permit_documents.documents', label: 'title', parentId: query.permitId };
     case 'companyAttachments':
@@ -120,8 +133,12 @@ export class DocumentsCatalogApi {
       pageSize: catalogPageSize,
       sort: [options.label, 'id'],
       filter: options.filter,
-      ...(isAttachment ? {} : { fields: ['id', options.label] }),
-      ...(query.kind === 'runs' && { appends: ['vehicle.registration_number'] }),
+      ...(isAttachment ? {} : { fields: ['id', options.label, 'createdAt'] }),
+      appends: [
+        'createdBy.nickname',
+        'createdBy.username',
+        ...(query.kind === 'runs' ? ['vehicle.registration_number'] : []),
+      ],
     });
     const data = record(response.data);
     if (!Array.isArray(data.data)) throw new Error('Сервер вернул некорректный список.');
@@ -129,11 +146,21 @@ export class DocumentsCatalogApi {
       const item = record(value);
       const id = catalogIdentifier(item.id);
       if (id === undefined) return [];
-      if (query.kind === 'runs') return [{ id, title: runCatalogTitle(item, id) }];
+      const creator = record(item.createdBy);
+      const author = creator.nickname || creator.username;
+      const metadata = {
+        ...(typeof item.createdAt === 'string' && { createdAt: item.createdAt }),
+        ...(typeof author === 'string' && { author }),
+        ...(typeof item.size === 'number' && { file_size: item.size }),
+      };
+      if (query.kind === 'runs') return [{ id, title: runCatalogTitle(item, id), ...metadata }];
       const name = item[options.label] ?? (isAttachment ? item.filename : undefined);
       const prefix = query.kind === 'shipments' ? 'Поставка №' : '';
       const title = typeof name === 'string' || typeof name === 'number' ? `${prefix}${name}` : String(id);
-      return [{ id, title }];
+      const extension = isAttachment && typeof item.extname === 'string' ? item.extname : '';
+      return [
+        { id, title: title.toLowerCase().endsWith(extension.toLowerCase()) ? title : title + extension, ...metadata },
+      ];
     });
     const count = record(data.meta).count;
     return { rows, total: typeof count === 'number' ? count : rows.length };

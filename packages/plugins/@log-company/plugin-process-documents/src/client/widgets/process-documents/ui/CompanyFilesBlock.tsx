@@ -9,19 +9,32 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAPIClient } from '@nocobase/client';
-import { Alert, Button, Empty, Modal, Space, Spin, Typography, message } from 'antd';
+import { Alert, Button, Modal, Space, Spin, Typography, message } from 'antd';
 import { FolderOutlined, LockOutlined } from '@ant-design/icons';
-import { DocumentsCatalogApi, ProcessDocumentsApi, getDocumentErrorText } from '../../../entities/process-document';
+import {
+  DocumentsCatalogApi,
+  ProcessDocumentsApi,
+  RecordAttachmentsApi,
+  getDocumentErrorText,
+} from '../../../entities/process-document';
 import type { CatalogFolder, CatalogItem, CatalogQuery } from '../../../entities/process-document';
 import type { SectionPermissions } from '../../../../contracts/processDocuments';
 import { DocumentSectionAccessDialog } from './DocumentSectionAccessDialog';
-import { DocumentsCatalogList } from './DocumentsCatalogList';
+import { CatalogRows, DocumentsCatalogList } from './DocumentsCatalogList';
 import { RunDocuments } from './RunDocuments';
 import { ScopedDocuments } from './ScopedDocuments';
+import { CompanyRequestDocuments } from './CompanyRequestDocuments';
+import { DocumentPreviewDialog, downloadDocument } from './DocumentPreviewDialog';
+import type { DocumentPreviewTarget } from './DocumentPreviewDialog';
+import { RecordAttachments } from './RecordAttachments';
+import { DocumentCatalogContext } from './DocumentCatalogContext';
 
 export type CatalogNode =
   | { type: 'catalog' }
   | { type: 'company' | 'customs' | 'unassigned' | 'permits'; company: CatalogItem }
+  | { type: 'contracts'; company: CatalogItem }
+  | { type: 'contractStatus'; company: CatalogItem; active: boolean }
+  | { type: 'contract' | 'agreements'; company: CatalogItem; contract: CatalogItem }
   | { type: 'corporate'; company: CatalogItem; folderId?: CatalogItem['id']; companyArea?: 'company' }
   | { type: 'run'; run: CatalogItem; company?: CatalogItem }
   | { type: 'runGroup' | 'permitGroup'; company: CatalogItem; folder: CatalogFolder }
@@ -42,6 +55,14 @@ function title(node: CatalogNode): string {
       return 'Поставки без рейса';
     case 'permits':
       return 'Разрешительные документы';
+    case 'contracts':
+      return 'Контракты';
+    case 'contractStatus':
+      return node.active ? 'Действующий' : 'Недействующий';
+    case 'contract':
+      return node.contract.title;
+    case 'agreements':
+      return 'Доп. соглашение';
     case 'run':
       return node.run.title;
     case 'runGroup':
@@ -52,14 +73,6 @@ function title(node: CatalogNode): string {
     case 'permit':
       return node.permit.title;
   }
-}
-
-function FolderButton({ node, open }: { node: CatalogNode; open: (node: CatalogNode) => void }) {
-  return (
-    <Button type="text" icon={<FolderOutlined aria-hidden="true" />} onClick={() => open(node)}>
-      {title(node)}
-    </Button>
-  );
 }
 
 function Contents({
@@ -90,13 +103,45 @@ function Contents({
       ) : (
         <Spin size="small" />
       );
-    case 'customs':
+    case 'contracts':
       return (
-        <>
-          <FolderButton node={{ type: 'unassigned', company: node.company }} open={open} />
-          <StandardFolders api={api} company={node.company} kind="runs" open={open} />
-        </>
+        <CatalogRows
+          rows={[
+            { id: 'active', title: 'Действующий', author: 'Система' },
+            { id: 'inactive', title: 'Недействующий', author: 'Система' },
+          ]}
+          open={({ id }) => open({ type: 'contractStatus', company: node.company, active: id === 'active' })}
+        />
       );
+    case 'contractStatus':
+      return (
+        <DocumentsCatalogList
+          api={api}
+          query={{ kind: 'contracts', companyId: node.company.id, active: node.active }}
+          open={(contract) => open({ type: 'contract', company: node.company, contract })}
+        />
+      );
+    case 'contract':
+      return (
+        <RecordAttachments
+          recordId={node.contract.id}
+          collection="contracts"
+          dataSourceKey="main"
+          fields={[{ name: 'documents', title: 'Основной документ', multiple: true, readOnly: true }]}
+          extraFolders={[
+            {
+              id: 'agreements',
+              title: 'Доп. соглашение',
+              open: () => open({ ...node, type: 'agreements' }),
+            },
+          ]}
+          readOnly
+        />
+      );
+    case 'agreements':
+      return <ContractAgreements company={node.company} contract={node.contract} readOnly={readOnly} />;
+    case 'customs':
+      return <StandardFolders api={api} company={node.company} kind="runs" open={open} />;
     case 'unassigned':
       return (
         <DocumentsCatalogList
@@ -107,7 +152,7 @@ function Contents({
       );
     case 'run':
       return (
-        <RunDocuments runId={node.run.id} companyId={node.company?.id} readOnly={readOnly}>
+        <RunDocuments runId={node.run.id} companyId={node.company?.id} readOnly>
           <Typography.Text strong>Поставки рейса</Typography.Text>
           <DocumentsCatalogList
             api={api}
@@ -117,11 +162,10 @@ function Contents({
         </RunDocuments>
       );
     case 'shipment':
-      return <ShipmentFiles shipment={node.shipment} readOnly={readOnly} />;
+      return <ShipmentFiles shipment={node.shipment} />;
     case 'corporate':
       return (
         <CorporateFiles
-          api={api}
           company={node.company}
           folderId={node.folderId}
           companyArea={node.companyArea}
@@ -129,21 +173,27 @@ function Contents({
         />
       );
     case 'permits':
-      return <StandardFolders api={api} company={node.company} kind="permits" open={open} />;
+      return <PermitFiles api={api} company={node.company} open={open} />;
     case 'runGroup':
     case 'permitGroup':
+      if (node.folder.attachments) {
+        return (
+          <NativeAttachments api={api} query={{ kind: 'permitAttachments', permitIds: node.folder.attachments }} />
+        );
+      }
+      if (node.folder.items) {
+        return (
+          <CatalogRows rows={node.folder.items} open={(run) => open({ type: 'run', company: node.company, run })} />
+        );
+      }
       return (
-        <Space direction="vertical">
-          {node.folder.children?.map((folder) => (
-            <FolderButton key={folder.id} node={{ ...node, folder }} open={open} />
-          ))}
-          {node.folder.items?.map((run) => (
-            <FolderButton key={run.id} node={{ type: 'run', company: node.company, run }} open={open} />
-          ))}
-          {node.folder.attachments && (
-            <NativeAttachments api={api} query={{ kind: 'permitAttachments', permitIds: node.folder.attachments }} />
-          )}
-        </Space>
+        <CatalogRows
+          rows={(node.folder.children ?? []).map(({ id, title }) => ({ id, title, author: 'Система' }))}
+          open={({ id }) => {
+            const folder = node.folder.children?.find((item) => item.id === id);
+            if (folder) open({ ...node, folder });
+          }}
+        />
       );
     case 'permit':
       return <NativeAttachments api={api} query={{ kind: 'attachments', permitId: node.permit.id }} />;
@@ -162,22 +212,26 @@ function CompanyHome({
   open: (node: CatalogNode) => void;
 }) {
   const scope = useMemo(() => ({ companyId: company.id, companyArea: 'company' as const }), [company.id]);
-  const links = (['customs', 'permits', 'corporate'] as const).filter(
+  const links = (['customs', 'permits', 'contracts'] as const).filter(
     (type) => permissions.sections[type === 'customs' ? 'ved' : type],
   );
-  const sections = links.length ? (
-    <Space direction="vertical">
-      {links.map((type) => (
-        <FolderButton key={type} node={{ type, company }} open={open} />
-      ))}
-    </Space>
-  ) : null;
+  const extraFolders = links.map((type) => {
+    const node: CatalogNode = { type, company };
+    return { id: `section:${type}`, title: title(node), open: () => open(node) };
+  });
   return permissions.sections.company ? (
-    <ScopedDocuments title={company.title} requestScope={scope} readOnly={readOnly}>
-      {sections}
-    </ScopedDocuments>
+    <ScopedDocuments
+      title={company.title}
+      requestScope={scope}
+      readOnly={readOnly}
+      showRequestFolders
+      extraFolders={extraFolders}
+    />
   ) : (
-    sections
+    <CatalogRows
+      rows={extraFolders.map((folder) => ({ ...folder, author: 'Система' }))}
+      open={(row) => extraFolders.find(({ id }) => id === row.id)?.open()}
+    />
   );
 }
 
@@ -216,30 +270,66 @@ function StandardFolders({
     );
   }
   if (!folders) return <Spin size="small" />;
-  if (!folders.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Папка пуста" />;
+  if (!folders.length && kind === 'permits') return null;
   const type = kind === 'runs' ? 'runGroup' : 'permitGroup';
+  const rows = folders.map((folder) => ({ id: folder.id, title: folder.title, author: 'Система' }));
+  if (kind === 'runs') rows.push({ id: 'unassigned', title: 'Поставки без рейса', author: 'Система' });
   return (
-    <Space direction="vertical">
-      {folders.map((folder) => (
-        <FolderButton key={folder.id} node={{ type, company, folder }} open={open} />
-      ))}
-    </Space>
+    <CatalogRows
+      rows={rows}
+      open={({ id }) => {
+        if (id === 'unassigned') return open({ type: 'unassigned', company });
+        const folder = folders.find((item) => item.id === id);
+        if (folder) open({ type, company, folder });
+      }}
+    />
   );
 }
 
-function ShipmentFiles({ shipment, readOnly }: { shipment: CatalogItem; readOnly: boolean }) {
+function ShipmentFiles({ shipment }: { shipment: CatalogItem }) {
   const scope = useMemo(() => ({ shipmentId: shipment.id }), [shipment.id]);
-  return <ScopedDocuments title="Документы поставки" requestScope={scope} readOnly={readOnly} />;
+  return <ScopedDocuments title="Документы поставки" requestScope={scope} readOnly />;
+}
+
+function ContractAgreements({
+  company,
+  contract,
+  readOnly,
+}: {
+  company: CatalogItem;
+  contract: CatalogItem;
+  readOnly: boolean;
+}) {
+  const scope = useMemo(
+    () => ({ companyId: company.id, companyArea: `contract:${contract.id}` as const }),
+    [company.id, contract.id],
+  );
+  return <ScopedDocuments title="Доп. соглашение" requestScope={scope} readOnly={readOnly} />;
+}
+
+function PermitFiles({
+  api,
+  company,
+  open,
+}: {
+  api: DocumentsCatalogApi;
+  company: CatalogItem;
+  open: (node: CatalogNode) => void;
+}) {
+  const scope = useMemo(() => ({ companyId: company.id, companyArea: 'permits' as const }), [company.id]);
+  return (
+    <ScopedDocuments title="Разрешительные документы" requestScope={scope} readOnly>
+      <StandardFolders api={api} company={company} kind="permits" open={open} />
+    </ScopedDocuments>
+  );
 }
 
 function CorporateFiles({
-  api,
   company,
   folderId,
   readOnly,
   companyArea,
 }: {
-  api: DocumentsCatalogApi;
   company: CatalogItem;
   folderId?: CatalogItem['id'];
   readOnly: boolean;
@@ -249,20 +339,14 @@ function CorporateFiles({
     () => ({ companyId: company.id, ...(companyArea && { companyArea }) }),
     [company.id, companyArea],
   );
+  if (!folderId) return <CompanyRequestDocuments recordId={company.id} readOnly={readOnly} />;
   return (
     <ScopedDocuments
       title={companyArea ? company.title : 'Учредительные документы'}
       rootFolderId={folderId}
       requestScope={scope}
       readOnly={readOnly}
-    >
-      {!folderId ? (
-        <details>
-          <summary>Документы из карточки компании</summary>
-          <NativeAttachments api={api} query={{ kind: 'companyAttachments', companyId: company.id }} />
-        </details>
-      ) : null}
-    </ScopedDocuments>
+    />
   );
 }
 
@@ -271,26 +355,34 @@ function NativeAttachments({
   query,
 }: {
   api: DocumentsCatalogApi;
-  query: Extract<CatalogQuery, { kind: 'attachments' | 'companyAttachments' | 'permitAttachments' }>;
+  query: Extract<CatalogQuery, { kind: 'attachments' | 'permitAttachments' }>;
 }) {
+  const client = useAPIClient();
+  const [preview, setPreview] = useState<DocumentPreviewTarget>();
+  function target(file: CatalogItem): DocumentPreviewTarget | undefined {
+    const owner = query.kind === 'permitAttachments' ? file.attachmentOwnerId : query.permitId;
+    if (owner === undefined) return;
+    const files = new RecordAttachmentsApi(client, 'permit_documents', owner, 'documents', true, 'main');
+    return { name: file.title, load: (signal) => files.open(file.id, signal) };
+  }
   return (
-    <DocumentsCatalogList
-      fileList
-      api={api}
-      query={query}
-      open={async (file) => {
-        try {
-          let owner: Extract<CatalogQuery, { kind: 'attachments' | 'companyAttachments' }>;
-          if (query.kind === 'permitAttachments') {
-            if (file.attachmentOwnerId === undefined) throw new Error('Карточка разрешительного документа недоступна.');
-            owner = { kind: 'attachments', permitId: file.attachmentOwnerId };
-          } else owner = query;
-          window.location.assign(await api.attachmentDownload(owner, file.id));
-        } catch (error) {
-          message.error(getDocumentErrorText(error, 'Не удалось открыть файл.'));
-        }
-      }}
-    />
+    <>
+      <DocumentsCatalogList
+        fileList
+        api={api}
+        query={query}
+        open={(file) => setPreview(target(file))}
+        download={async (file) => {
+          try {
+            const source = target(file);
+            if (source) downloadDocument(await source.load(), source.name);
+          } catch (reason) {
+            message.error(getDocumentErrorText(reason, 'Не удалось скачать документ.'));
+          }
+        }}
+      />
+      {preview && <DocumentPreviewDialog file={preview} onClose={() => setPreview(undefined)} />}
+    </>
   );
 }
 
@@ -333,6 +425,8 @@ function CatalogBrowser({ root, readOnly }: { root: CatalogNode; readOnly: boole
   const documentsApi = useMemo(() => new ProcessDocumentsApi(apiClient), [apiClient]);
   const [path, setPath] = useState<CatalogNode[]>([root]);
   const [editing, setEditing] = useState(false);
+  const [companyAtRoot, setCompanyAtRoot] = useState(true);
+  const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
   const [revision, setRevision] = useState(0);
   const [access, setAccess] = useState<{ key: string; permissions?: SectionPermissions; error?: string }>();
   const node = path[path.length - 1];
@@ -359,33 +453,58 @@ function CatalogBrowser({ root, readOnly }: { root: CatalogNode; readOnly: boole
 
   return (
     <Space direction="vertical" style={{ width: '100%' }}>
-      <nav aria-label="Путь к документам">
-        <Space wrap size={4}>
-          {path.map((entry, index) => (
-            <React.Fragment key={index}>
-              {index > 0 ? <span aria-hidden="true">/</span> : null}
-              {index === path.length - 1 ? (
-                <Typography.Text strong aria-current="page">
-                  {title(entry)}
-                </Typography.Text>
-              ) : (
-                <Button type="link" size="small" onClick={() => setPath((previous) => previous.slice(0, index + 1))}>
-                  {title(entry)}
-                </Button>
-              )}
-            </React.Fragment>
-          ))}
-        </Space>
-      </nav>
-      {currentAccess?.permissions?.canManageAccess && !readOnly && settingsAvailable && (
-        <Button icon={<LockOutlined />} onClick={() => setEditing(true)}>
-          Права на документы
-        </Button>
-      )}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <nav aria-label="Путь к документам">
+          <Space wrap size={4}>
+            {path.map((entry, index) => (
+              <React.Fragment key={index}>
+                {index > 0 ? <span aria-hidden="true">/</span> : null}
+                {index === path.length - 1 ? (
+                  <Typography.Text strong aria-current="page">
+                    {title(entry)}
+                  </Typography.Text>
+                ) : (
+                  <Button
+                    type="link"
+                    size="small"
+                    onClick={() => {
+                      setCompanyAtRoot(true);
+                      setPath((previous) => previous.slice(0, index + 1));
+                    }}
+                  >
+                    {title(entry)}
+                  </Button>
+                )}
+              </React.Fragment>
+            ))}
+          </Space>
+        </nav>
+        <div
+          role="group"
+          aria-label="Действия файлового менеджера"
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            gap: 8,
+            marginInlineStart: 'auto',
+          }}
+        >
+          {currentAccess?.permissions?.canManageAccess &&
+            !readOnly &&
+            settingsAvailable &&
+            (node.type !== 'company' || companyAtRoot) && (
+              <Button icon={<LockOutlined />} onClick={() => setEditing(true)}>
+                Права на документы
+              </Button>
+            )}
+          <div ref={setToolbarTarget} style={{ display: 'contents' }} />
+        </div>
+      </div>
       {editing && (
         <DocumentSectionAccessDialog
           api={documentsApi}
-          catalogApi={api}
           company={node.type === 'company' ? node.company : undefined}
           onClose={() => setEditing(false)}
           onSaved={() => setRevision((previous) => previous + 1)}
@@ -399,14 +518,26 @@ function CatalogBrowser({ root, readOnly }: { root: CatalogNode; readOnly: boole
           action={<Button onClick={() => setRevision((previous) => previous + 1)}>Повторить</Button>}
         />
       ) : (
-        <Contents
-          key={JSON.stringify(node)}
-          api={api}
-          node={node}
-          readOnly={readOnly}
-          permissions={currentAccess?.permissions}
-          open={(entry) => setPath((previous) => [...previous, entry])}
-        />
+        <DocumentCatalogContext.Provider
+          value={{
+            path: path.map(title),
+            manageAccess: !readOnly,
+            toolbarTarget,
+            onCompanyFolderLocationChange: setCompanyAtRoot,
+          }}
+        >
+          <Contents
+            key={JSON.stringify(node)}
+            api={api}
+            node={node}
+            readOnly={readOnly}
+            permissions={currentAccess?.permissions}
+            open={(entry) => {
+              setCompanyAtRoot(true);
+              setPath((previous) => [...previous, entry]);
+            }}
+          />
+        </DocumentCatalogContext.Provider>
       )}
     </Space>
   );

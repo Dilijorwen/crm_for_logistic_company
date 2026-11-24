@@ -9,7 +9,7 @@
 
 import type { CompanyDocumentTarget, DocumentScope } from '../../domain/documents/DocumentScope';
 
-import type { FolderAccess } from '../../../contracts/processDocuments';
+import type { DocumentFormResource, FolderAccess } from '../../../contracts/processDocuments';
 
 export interface TransactionContext {
   afterCommit?(callback: () => void | Promise<void>): void;
@@ -20,6 +20,7 @@ export interface DocumentActor {
   isRoot: boolean;
   roles?: readonly string[];
   authorizationContext: unknown;
+  creatingOwner?: { resource: DocumentFormResource; recordId: string };
 }
 
 export interface DocumentFolderRecord extends CompanyDocumentTarget {
@@ -77,7 +78,11 @@ export interface ProcessDocumentsRepository {
   draftHasRecordsOwnedByOther(draftToken: string, actorId: string): Promise<boolean>;
   findFolderById(id: string, transaction?: TransactionContext): Promise<DocumentFolderRecord | null>;
   findDocumentById(id: string, transaction?: TransactionContext): Promise<ProcessDocumentRecord | null>;
-  listFolders(scope: DocumentScope, parentFolderId: string | null): Promise<DocumentFolderRecord[]>;
+  listFolders(
+    scope: DocumentScope,
+    parentFolderId: string | null,
+    transaction?: TransactionContext,
+  ): Promise<DocumentFolderRecord[]>;
   listDocuments(scope: DocumentScope, folderId: string | null): Promise<ProcessDocumentRecord[]>;
   listChildFolders(
     scope: DocumentScope,
@@ -101,8 +106,10 @@ export interface ProcessDocumentsRepository {
   ): Promise<ProcessDocumentRecord[]>;
   listDocumentsByShipmentId(shipmentId: string, transaction?: TransactionContext): Promise<ProcessDocumentRecord[]>;
   createFolder(input: CreateFolderRecordInput, transaction?: TransactionContext): Promise<DocumentFolderRecord>;
+  lockCompanyFolders(companyId: string, transaction: TransactionContext): Promise<void>;
   createDocument(input: CreateDocumentRecordInput, transaction?: TransactionContext): Promise<ProcessDocumentRecord>;
   setFolderGrants?(id: string, grants: FolderAccess | null): Promise<void>;
+  renameEntry(kind: 'folder' | 'file', id: string, title: string, transaction: TransactionContext): Promise<void>;
   deleteFolder(id: string, transaction?: TransactionContext): Promise<void>;
   deleteDocument(id: string, transaction?: TransactionContext): Promise<void>;
   deleteDocumentsByShipmentId(shipmentId: string, transaction?: TransactionContext): Promise<void>;

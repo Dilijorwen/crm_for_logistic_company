@@ -38,17 +38,24 @@ function folder(id: string, overrides: Partial<DocumentFolderRecord> = {}): Docu
 
 function fixture(rows: DocumentFolderRecord[] = []) {
   const assertCompanyAccess = vi.fn(async () => undefined);
+  const allowsCompanyFolderSection = vi.fn(async (_section: string, _company: string, _right: string) => true);
   const assertRunAccess = vi.fn(async () => undefined);
   const assertAccess = vi.fn(async () => undefined);
   const listDocuments = vi.fn(async () => []);
   const repository = {
     findFolderById: vi.fn(async (id: string) => rows.find((row) => row.id === id) ?? null),
-    listFolders: vi.fn(async () => rows.filter((row) => !row.parentFolderId)),
+    listFolders: vi.fn(async (_scope, parent: string | null) => rows.filter((row) => row.parentFolderId === parent)),
     listDocuments,
   } as unknown as ProcessDocumentsRepository;
-  const scopes = new DocumentScopeService(repository, { assertAccess, assertCompanyAccess, assertRunAccess });
+  const scopes = new DocumentScopeService(repository, {
+    assertAccess,
+    assertCompanyAccess,
+    assertRunAccess,
+    allowsCompanyFolderSection,
+  });
   return {
     scopes,
+    allowsCompanyFolderSection,
     assertCompanyAccess,
     assertRunAccess,
     listDocuments,
@@ -57,6 +64,69 @@ function fixture(rows: DocumentFolderRecord[] = []) {
 }
 
 describe('Company and run document scopes', () => {
+  it('ограничивает папку «По запросу» отдельно от остальных папок компании', async () => {
+    const owner = { runId: null, companyId: '10', companyArea: 'company' as const };
+    const input = { ...request, ...owner, folderId: null };
+    const empty = fixture();
+    empty.allowsCompanyFolderSection.mockImplementation(
+      async (section, _company, operation) => section !== 'requests' || operation === 'read',
+    );
+    await expect(empty.list.execute(input)).resolves.toMatchObject({
+      emptyRequestFolders: ['По запросу'],
+      virtualFolderWrite: { 'По запросу': false },
+    });
+    const current = fixture([folder('30', { ...owner, title: 'По запросу' }), folder('40', owner)]);
+    current.allowsCompanyFolderSection.mockImplementation(async (section) => section !== 'requests');
+    await expect(current.list.execute(input)).resolves.toMatchObject({ folders: [{ id: '40' }] });
+    await expect(current.list.execute({ ...input, folderId: '30' })).rejects.toMatchObject({
+      code: 'DOCUMENT_ACCESS_DENIED',
+    });
+  });
+  it('отделяет загруженные разрешительные документы от остальных папок компании', async () => {
+    const { scopes, assertCompanyAccess } = fixture([
+      folder('30', { companyId: '10', runId: null, companyArea: 'company' }),
+      folder('31', { companyId: '10', runId: null, companyArea: 'permits' }),
+    ]);
+    const scope = await scopes.resolve({
+      ...request,
+      runId: null,
+      operation: 'write',
+      companyArea: 'permits',
+    });
+    expect(assertCompanyAccess).toHaveBeenCalledWith(scope, 'write', actor);
+    expect(documentStorageOwnerPath(scope)).toBe('companies/10/permits');
+    await expect(scopes.requireFolder('31', scope)).resolves.toMatchObject({ id: '31' });
+    await expect(scopes.requireFolder('30', scope)).rejects.toMatchObject({ code: 'CROSS_SCOPE_FOLDER' });
+  });
+  it('предлагает пустую папку «По запросу» для компании до первой загрузки', async () => {
+    const { list } = fixture();
+    const company = { ...request, runId: null, folderId: null, companyArea: 'company' as const };
+    await expect(list.execute(company)).resolves.toMatchObject({ emptyRequestFolders: ['По запросу'] });
+    await expect(list.execute({ ...company, companyArea: undefined })).resolves.not.toHaveProperty(
+      'emptyRequestFolders',
+    );
+  });
+
+  it('не заменяет скрытую папку доступной пустой веткой', async () => {
+    const company = { ...request, runId: null, companyArea: 'company' as const };
+    const owner = { runId: null, companyId: '10', companyArea: 'company' as const };
+    const hidden = [{ kind: 'role' as const, subject: 'declarant', level: 'read' as const }];
+    const root = folder('30', { ...owner, title: 'По запросу', grants: hidden });
+    const hiddenRoot = fixture([root]);
+    await expect(hiddenRoot.list.execute({ ...company, folderId: null })).resolves.toEqual(
+      expect.objectContaining({ folders: [] }),
+    );
+    await expect(hiddenRoot.list.execute({ ...company, folderId: null })).resolves.not.toHaveProperty(
+      'emptyRequestFolders',
+    );
+
+    const contract = folder('31', { ...owner, title: 'Контракт', parentFolderId: '30', grants: hidden });
+    const visibleRoot = fixture([{ ...root, grants: null }, contract]);
+    await expect(visibleRoot.list.execute({ ...company, folderId: '30' })).resolves.toMatchObject({
+      folders: [],
+      emptyRequestFolders: ['Учредительные документы'],
+    });
+  });
   it('uses the same run owner from the card and both linked companies', async () => {
     const { scopes, list, listDocuments, assertRunAccess } = fixture([folder('30')]);
     await list.execute({ ...request, folderId: null });
@@ -108,7 +178,13 @@ describe('Company and run document scopes', () => {
   it('allows an individual reader and omits mutation permissions inside a read-only folder', async () => {
     const { list } = fixture([folder('30', { grants: [{ kind: 'user', subject: '7', level: 'read' }] })]);
     const result = await list.execute({ ...request, folderId: '30' });
-    expect(result.permissions).toEqual({ canRead: true, canWrite: false, canDelete: false, canManageAccess: false });
+    expect(result.permissions).toEqual({
+      canRead: true,
+      canWrite: false,
+      canDelete: false,
+      canRename: false,
+      canManageAccess: false,
+    });
   });
 
   it('keeps source permissions even when a folder grants access', async () => {

@@ -46,7 +46,10 @@ describe('permit document category form fields', () => {
       disabled: true,
     });
     expect(categoryFieldState('ordinary', 'manufacturer_name', true)?.visible).toBe(false);
-    expect(categoryFieldState('ordinary', 'related_document', false)?.visible).toBe(false);
+    expect(categoryFieldState('ordinary', 'related_document', false)).toMatchObject({
+      visible: true,
+      disabled: false,
+    });
     for (const category of ['ordinary', 'rented', 'voluntary'] as const) {
       for (const name of ['status', 'sync_status', 'period_from', 'period_until', 'internal_number', 'last_checked_at'])
         expect(categoryFieldState(category, name, false)).toMatchObject({ visible: false, disabled: true });

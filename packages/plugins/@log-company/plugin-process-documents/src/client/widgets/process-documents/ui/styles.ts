@@ -7,12 +7,20 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import { theme } from 'antd';
 import { css } from '@nocobase/client';
+import type { CSSProperties } from 'react';
 
 export const blockClass = css`
-  min-height: 320px;
-  max-height: 680px;
-  overflow: auto;
+  &.process-documents-scroll {
+    min-height: 320px;
+    max-height: 680px;
+    overflow: auto;
+  }
+
+  &.process-documents-scroll:has(.process-documents-form-controls) {
+    min-height: 0;
+  }
 
   .process-documents-shell {
     display: grid;
@@ -24,6 +32,7 @@ export const blockClass = css`
     flex-wrap: wrap;
     gap: 8px;
     align-items: center;
+    justify-content: flex-end;
   }
 
   .process-documents-breadcrumbs {
@@ -43,15 +52,39 @@ export const blockClass = css`
   }
 
   .process-documents-list {
+    container-type: inline-size;
     border: 1px solid var(--process-documents-border);
     border-radius: 6px;
     background: var(--process-documents-bg);
     overflow: hidden;
   }
 
+  .process-documents-list-dragging {
+    border-color: var(--process-documents-primary);
+    box-shadow: inset 0 0 0 1px var(--process-documents-primary);
+  }
+
+  .process-documents-form-controls {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border-bottom: 1px solid var(--process-documents-border-secondary);
+  }
+
+  .process-documents-form-hint {
+    color: var(--process-documents-text-secondary);
+    font-size: 13px;
+  }
+
+  .process-documents-draft-files {
+    margin: 0;
+    padding-inline-start: 20px;
+    overflow-wrap: anywhere;
+  }
+
   .process-documents-row {
     display: grid;
-    grid-template-columns: minmax(180px, 1fr) 110px 160px minmax(100px, 140px) auto;
+    grid-template-columns: minmax(150px, 1fr) 60px 75px 125px minmax(90px, 120px) 68px;
     gap: 12px;
     align-items: center;
     min-height: 44px;
@@ -65,6 +98,11 @@ export const blockClass = css`
     background: var(--process-documents-row-hover);
   }
 
+  .process-documents-columns {
+    font-weight: 500;
+    color: var(--process-documents-text-secondary);
+  }
+
   .process-documents-row:last-child {
     border-bottom: 0;
   }
@@ -75,6 +113,10 @@ export const blockClass = css`
     min-width: 0;
     gap: 8px;
     color: var(--process-documents-text);
+  }
+
+  .process-documents-name .anticon {
+    font-size: 21px;
   }
 
   button.process-documents-name {
@@ -113,7 +155,7 @@ export const blockClass = css`
     gap: 4px;
   }
 
-  @media (max-width: 760px) {
+  @container (max-width: 640px) {
     .process-documents-row {
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 6px;
@@ -124,3 +166,16 @@ export const blockClass = css`
     }
   }
 `;
+
+export function useDocumentsTheme(): CSSProperties {
+  const { token } = theme.useToken();
+  return {
+    '--process-documents-border': token.colorBorder,
+    '--process-documents-border-secondary': token.colorBorderSecondary,
+    '--process-documents-bg': token.colorBgContainer,
+    '--process-documents-primary': token.colorPrimary,
+    '--process-documents-row-hover': token.colorBgTextHover,
+    '--process-documents-text': token.colorText,
+    '--process-documents-text-secondary': token.colorTextSecondary,
+  } as CSSProperties;
+}

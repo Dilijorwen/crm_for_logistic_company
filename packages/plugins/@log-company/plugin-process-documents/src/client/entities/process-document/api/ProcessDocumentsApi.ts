@@ -7,6 +7,11 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import {
+  companyRequestFolderTitle,
+  companyRequestFolderTypes,
+  isCompanyRequestFolder,
+} from '../../../../contracts/processDocuments';
 import type {
   DocumentIdentifier,
   DocumentRequestScope,
@@ -17,7 +22,9 @@ import type {
   DocumentSection,
   SectionAccessResponse,
   SectionPermissions,
+  CompanyRequestFolderName,
 } from '../../../../contracts/processDocuments';
+import type { SelectedDocument } from './FormDocumentDraftsApi';
 
 export interface ProcessDocumentsTransport {
   request(config: { url: string; method: 'post'; data: unknown }): Promise<unknown>;
@@ -54,14 +61,31 @@ export class ProcessDocumentsApi {
       typeof record(data.permissions).canDelete !== 'boolean'
     )
       throw new Error('Сервер вернул некорректный список документов');
+    const emptyRequestFolders = data.emptyRequestFolders;
+    const standardFolders: CompanyRequestFolderName[] = [
+      companyRequestFolderTitle,
+      ...Object.values(companyRequestFolderTypes),
+    ];
     return {
       ...(isDocument(data.currentFolder) ? { currentFolder: data.currentFolder } : {}),
       breadcrumbs: data.breadcrumbs,
       folders: data.folders,
       files: data.files,
+      ...(Array.isArray(emptyRequestFolders) && {
+        emptyRequestFolders: standardFolders.filter((name) => emptyRequestFolders.includes(name)),
+      }),
+      ...(data.virtualFolderWrite !== undefined && {
+        virtualFolderWrite: Object.fromEntries(
+          standardFolders.flatMap((name) => {
+            const value = record(data.virtualFolderWrite)[name];
+            return typeof value === 'boolean' ? [[name, value]] : [];
+          }),
+        ),
+      }),
       permissions: {
         canWrite: record(data.permissions).canWrite === true,
         canDelete: record(data.permissions).canDelete === true,
+        ...(record(data.permissions).canRename === true ? { canRename: true } : {}),
         ...(record(data.permissions).canManageAccess === true ? { canManageAccess: true } : {}),
       },
     };
@@ -72,22 +96,59 @@ export class ProcessDocumentsApi {
     folderId: DocumentIdentifier | null,
     files: readonly File[],
   ): Promise<void> {
-    if (!files.length) return;
+    return this.uploadSelected(
+      scope,
+      folderId,
+      files.map((file) => ({ file, name: file.webkitRelativePath || file.name })),
+    );
+  }
+
+  async uploadSelected(
+    scope: DocumentRequestScope,
+    folderId: DocumentIdentifier | null,
+    files: readonly SelectedDocument[],
+    emptyFolders: readonly string[] = [],
+  ) {
+    if (!files.length && !emptyFolders.length) return;
     const data = new FormData();
     for (const [key, value] of Object.entries(scope)) {
       if (value !== undefined) data.append(key, String(value));
     }
     if (folderId !== null) data.append('folderId', String(folderId));
-    for (const file of files) data.append('files', file, file.webkitRelativePath || file.name);
+    if (emptyFolders.length) data.append('emptyFolders', JSON.stringify(emptyFolders));
+    for (const { file, name } of files) data.append('files', file, name);
     await this.request('uploadFiles', data);
   }
 
   async createFolder(scope: DocumentRequestScope, parentFolderId: DocumentIdentifier | null, title: string) {
-    await this.request('createFolder', { ...scope, parentFolderId, title });
+    const data = responseData(await this.request('createFolder', { ...scope, parentFolderId, title }));
+    return isDocument(data) ? data : undefined;
+  }
+
+  async ensureRequestFolder(
+    scope: DocumentRequestScope,
+    parent: DocumentIdentifier | null,
+    path: readonly CompanyRequestFolderName[],
+  ): Promise<DocumentIdentifier | null> {
+    let folderId = parent;
+    for (const name of path) {
+      const { folders } = await this.list(scope, folderId);
+      const folder =
+        folders.find(({ title }) =>
+          name === companyRequestFolderTitle ? isCompanyRequestFolder(title) : title === name,
+        ) ?? (await this.createFolder(scope, folderId, name));
+      if (!folder) throw new Error('Сервер не вернул созданную папку.');
+      folderId = folder.id;
+    }
+    return folderId;
   }
 
   async setFolderAccess(folderId: DocumentIdentifier, grants: FolderAccess | null) {
     await this.request('setFolderAccess', { folderId, grants });
+  }
+
+  async renameEntry(kind: 'file' | 'folder', id: DocumentIdentifier, title: string, draftToken?: string) {
+    await this.request('renameEntry', { kind, id, title, draftToken });
   }
 
   async sectionPermissions(companyId?: DocumentIdentifier): Promise<SectionPermissions> {

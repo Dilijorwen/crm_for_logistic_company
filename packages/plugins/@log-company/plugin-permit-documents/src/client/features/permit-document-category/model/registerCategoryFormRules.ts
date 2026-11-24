@@ -9,7 +9,7 @@
 
 import { FormBlockModel, FieldModel } from '@nocobase/client';
 import type { FormInstance } from 'antd';
-import { categoryFieldState, categoryValue } from './categoryFields';
+import { categoryFieldState, categoryValue, documentTypeForCategory, documentTypeOptions } from './categoryFields';
 
 interface FormNode {
   collectionField?: { name: string; collectionName: string };
@@ -30,7 +30,11 @@ function applyFields(node: FormNode, form: FormInstance, isNew: boolean): void {
         rules: state.required ? [{ required: true, message: 'Заполните поле.' }] : [],
       });
       const child = node.subModels?.field as FormNode | undefined;
-      child?.setProps({ disabled: state.disabled });
+      child?.setProps({
+        disabled: state.disabled,
+        ...(field.name === 'document_type' ? { options: documentTypeOptions(category) } : {}),
+      });
+      if (field.name === 'related_document') node.setProps({ normalize: (value: unknown) => value ?? null });
       if (child && field.name === 'technical_regulations') child.updateAssociation = false;
     }
   }
@@ -75,7 +79,9 @@ export function registerCategoryFormRules(): void {
             const form = context.form as FormInstance;
             const category = categoryValue(form.getFieldValue('category') ?? context.record?.category);
             if (form.getFieldValue('category') == null) form.setFieldValue('category', category);
-            if (category === 'voluntary') form.setFieldValue('document_type', 'certificate_of_conformity');
+            const type: unknown = form.getFieldValue('document_type');
+            const nextType = documentTypeForCategory(category, type);
+            if (type !== nextType) form.setFieldValue('document_type', nextType);
             if (category === 'rented') {
               form.setFieldValue('company', null);
               form.setFieldValue('company_id', null);

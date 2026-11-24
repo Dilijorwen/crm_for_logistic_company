@@ -1,4 +1,15 @@
+/**
+ * This file is part of the NocoBase (R) project.
+ * Copyright (c) 2020-2024 NocoBase Co., Ltd.
+ * Authors: NocoBase Team.
+ *
+ * This project is dual-licensed under AGPL-3.0 and NocoBase Commercial License.
+ * For more information, please refer to: https://www.nocobase.com/agreement.
+ */
+
 import { createUniqueDocumentName } from '../domain/documents/DocumentName';
+import { companyRequestFolderTypes, isCompanyRequestFolder } from '../../contracts/processDocuments';
+import { ProcessDocumentsError } from '../domain/documents/DocumentErrors';
 import type { DocumentScope } from '../domain/documents/DocumentScope';
 import type { IdentifierGenerator } from './ports/DocumentStorage';
 import type {
@@ -23,7 +34,29 @@ export class DocumentFolderService {
     actor: DocumentActor,
     transaction?: TransactionContext,
   ): Promise<DocumentFolderRecord> {
-    await this.scopeService.requireFolder(parentFolderId, scope, transaction);
+    const parent = await this.scopeService.requireFolder(parentFolderId, scope, transaction);
+    if (transaction && scope.mode === 'company' && scope.companyArea === 'company') {
+      const requestRoot = !parent && isCompanyRequestFolder(title);
+      const corporateFolder =
+        parent?.parentFolderId === null &&
+        isCompanyRequestFolder(parent.title) &&
+        title === companyRequestFolderTypes.our_companies;
+      if (requestRoot || corporateFolder) {
+        await this.scopeService.assertCompanyFolderSection(scope, 'requests', 'write', actor);
+        if (corporateFolder) await this.scopeService.assertCompanyFolderSection(scope, 'corporate', 'write', actor);
+        await this.repository.lockCompanyFolders(scope.companyId, transaction);
+        const matches = (await this.repository.listFolders(scope, parentFolderId, transaction)).filter((folder) =>
+          requestRoot ? isCompanyRequestFolder(folder.title) : folder.title === title,
+        );
+        if (matches.length > 1) {
+          throw new ProcessDocumentsError('DOCUMENT_NAME_CONFLICT', 'Найдено несколько папок с таким именем.');
+        }
+        if (matches[0]) {
+          await this.scopeService.assertFolderAccess(matches[0].id, scope, 'write', actor, transaction);
+          return matches[0];
+        }
+      }
+    }
     const existingTitles = await this.repository.listFolderTitles(scope, parentFolderId, transaction);
     const uniqueTitle = createUniqueDocumentName(title, existingTitles, false);
     return this.repository.createFolder(

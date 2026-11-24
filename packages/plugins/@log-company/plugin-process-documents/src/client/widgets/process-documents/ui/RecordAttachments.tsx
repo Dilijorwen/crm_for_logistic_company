@@ -7,19 +7,23 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { UploadOutlined } from '@ant-design/icons';
 import { useAPIClient } from '@nocobase/client';
-import { Alert, Button, Empty, List, Modal, Select, Space, Spin, message } from 'antd';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Button, Modal, Select, Space, Spin, message } from 'antd';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { RecordAttachmentsApi, getDocumentErrorText, isDocumentAccessDenied } from '../../../entities/process-document';
 import type { CatalogId, RecordAttachment, RecordAttachmentField } from '../../../entities/process-document';
-import { DocumentPreviewDialog } from './DocumentPreviewDialog';
+import { DocumentPreviewDialog, downloadDocument } from './DocumentPreviewDialog';
+import { DocumentsList } from './DocumentsList';
+import { DocumentCatalogContext } from './DocumentCatalogContext';
+import { blockClass, useDocumentsTheme } from './styles';
 
 interface RecordAttachmentsProps {
   recordId: string | number;
   collection: string;
   dataSourceKey: string;
   fields: RecordAttachmentField[];
+  extraFolders?: Array<{ id: string; title: string; open(): void }>;
+  readOnly?: boolean;
   canUpdateField?: (collection: string, field: string, dataSourceKey: string) => Promise<boolean>;
 }
 
@@ -53,28 +57,30 @@ function AttachmentFieldDocuments({
   collection,
   dataSourceKey,
   field,
+  extraFolders,
   canUpdateField,
+  readOnly = false,
 }: Omit<RecordAttachmentsProps, 'fields'> & { field: RecordAttachmentField }) {
+  const catalog = useContext(DocumentCatalogContext);
   const client = useAPIClient();
-  const { name, multiple, readOnly } = field;
+  const themeStyle = useDocumentsTheme();
+  const { name, multiple } = field;
   const api = useMemo(
     () => new RecordAttachmentsApi(client, collection, recordId, name, multiple, dataSourceKey),
     [client, collection, recordId, name, multiple, dataSourceKey],
   );
   const [result, setResult] = useState<{
     files: RecordAttachment[];
-    canUpdate: boolean;
     canDelete?: boolean;
     hidden?: boolean;
   }>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const [pending, setPending] = useState<CatalogId>();
   const [revision, setRevision] = useState(0);
   const [preview, setPreview] = useState<RecordAttachment>();
   const [deleting, setDeleting] = useState<RecordAttachment>();
+  const [folderId, setFolderId] = useState<string | null>(null);
   const busyRef = useRef(false);
-  const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
     let active = true;
     setError(undefined);
@@ -83,16 +89,18 @@ function AttachmentFieldDocuments({
       try {
         const files = await api.load();
         const fieldAccess =
-          !files.hidden && !readOnly && Boolean(await canUpdateField?.(collection, name, dataSourceKey));
+          !files.hidden &&
+          !readOnly &&
+          !field.readOnly &&
+          Boolean(await canUpdateField?.(collection, name, dataSourceKey));
         if (active)
           setResult({
             ...files,
-            canUpdate: files.canUpdate && fieldAccess,
             canDelete: (files.canDelete ?? files.canUpdate) && fieldAccess,
           });
       } catch (error) {
         if (!active) return;
-        if (isDocumentAccessDenied(error)) setResult({ files: [], canUpdate: false, hidden: true });
+        if (isDocumentAccessDenied(error)) setResult({ files: [], hidden: true });
         else setError(getDocumentErrorText(error, 'Не удалось загрузить список документов.'));
       }
     }
@@ -100,37 +108,22 @@ function AttachmentFieldDocuments({
     return () => {
       active = false;
     };
-  }, [api, canUpdateField, collection, dataSourceKey, name, readOnly, revision]);
+  }, [api, canUpdateField, collection, dataSourceKey, field.readOnly, name, readOnly, revision]);
 
-  async function mutate(work: () => Promise<void>, allowed = result?.canUpdate) {
-    if (!allowed || busyRef.current) return false;
+  async function deleteFile() {
+    if (!deleting || !result?.canDelete || busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     try {
-      await work();
+      await api.deleteFile(deleting.id);
+      setDeleting(undefined);
       setRevision((value) => value + 1);
-      return true;
     } catch (error) {
       message.error(getDocumentErrorText(error, 'Не удалось сохранить изменение.'));
-      return false;
     } finally {
       busyRef.current = false;
       setBusy(false);
     }
-  }
-
-  async function link(id: CatalogId) {
-    await api.link(id);
-    setPending(undefined);
-  }
-
-  async function upload(file?: File) {
-    if (!file || pending !== undefined) return;
-    await mutate(async () => {
-      const id = await api.upload(file);
-      setPending(id);
-      await link(id);
-    });
   }
 
   const previewTarget = useMemo(
@@ -138,9 +131,12 @@ function AttachmentFieldDocuments({
     [api, preview],
   );
 
-  async function deleteFile() {
-    if (!deleting) return;
-    if (await mutate(() => api.deleteFile(deleting.id), result?.canDelete)) setDeleting(undefined);
+  async function downloadFile(file: RecordAttachment) {
+    try {
+      downloadDocument(await api.open(file.id), file.title);
+    } catch (error) {
+      message.error(getDocumentErrorText(error, 'Не удалось скачать документ.'));
+    }
   }
 
   if (error)
@@ -155,73 +151,61 @@ function AttachmentFieldDocuments({
   if (!result) return <Spin aria-label="Загрузка документов" />;
   if (result.hidden) return null;
 
+  const directory = folderId?.split('/') ?? [];
+  const folders = new Set<string>();
+  const files = result.files.filter((file) => {
+    const path = file.folders ?? [];
+    if (!directory.every((name, index) => name === path[index])) return false;
+    if (path.length === directory.length) return true;
+    folders.add(path[directory.length]);
+    return false;
+  });
+  const folderNavigation =
+    folderId || folders.size
+      ? {
+          folderId,
+          folders: [...folders]
+            .sort((left, right) => left.localeCompare(right, 'ru'))
+            .map((title) => ({
+              id: [...directory, title].join('/'),
+              title,
+            })),
+          breadcrumbs: directory.map((title, index) => ({ id: directory.slice(0, index + 1).join('/'), title })),
+          setFolderId: (id: CatalogId | null) => setFolderId(id === null ? null : String(id)),
+        }
+      : undefined;
+
   return (
-    <Space direction="vertical" style={{ width: '100%' }}>
-      {result?.canUpdate && (multiple || !result.files.length || pending !== undefined) && (
-        <Space wrap>
-          <Button
-            icon={<UploadOutlined aria-hidden="true" />}
-            loading={busy}
-            disabled={pending !== undefined}
-            onClick={() => input.current?.click()}
+    <div className={blockClass} style={themeStyle}>
+      <div className="process-documents-shell">
+        <DocumentsList<RecordAttachment>
+          files={files}
+          compactActions={!!catalog}
+          extraFolders={extraFolders}
+          folderNavigation={folderNavigation}
+          previewFile={setPreview}
+          showParentRow
+          emptyDescription="Документов пока нет"
+          downloadFile={downloadFile}
+          deleteFile={result.canDelete ? setDeleting : undefined}
+          deleteDisabled={busy}
+        />
+        {deleting && (
+          <Modal
+            open
+            title={`Удалить файл «${deleting.title}»?`}
+            okText="Удалить"
+            okButtonProps={{ danger: true }}
+            confirmLoading={busy}
+            cancelText="Отмена"
+            onCancel={() => !busy && setDeleting(undefined)}
+            onOk={deleteFile}
           >
-            Загрузить файл
-          </Button>
-          <input
-            ref={input}
-            type="file"
-            hidden
-            onChange={(event) => {
-              const file = event.currentTarget.files?.[0];
-              event.currentTarget.value = '';
-              return upload(file);
-            }}
-          />
-          {pending !== undefined && (
-            <Button loading={busy} onClick={() => mutate(() => link(pending))}>
-              Повторить привязку файла
-            </Button>
-          )}
-        </Space>
-      )}
-      <List
-        size="small"
-        dataSource={result.files}
-        rowKey={(file) => file.id}
-        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Документов пока нет" /> }}
-        renderItem={(file) => (
-          <List.Item
-            actions={
-              result.canDelete
-                ? [
-                    <Button key="delete" type="text" danger disabled={busy} onClick={() => setDeleting(file)}>
-                      Удалить
-                    </Button>,
-                  ]
-                : []
-            }
-          >
-            <Button type="link" style={{ whiteSpace: 'normal', height: 'auto' }} onClick={() => setPreview(file)}>
-              {file.title}
-            </Button>
-          </List.Item>
+            Файл будет удалён из карточки и хранилища.
+          </Modal>
         )}
-      />
-      {deleting && (
-        <Modal
-          open
-          title={`Удалить файл «${deleting.title}»?`}
-          okText="Удалить"
-          okButtonProps={{ danger: true }}
-          confirmLoading={busy}
-          cancelText="Отмена"
-          onCancel={() => !busy && setDeleting(undefined)}
-          onOk={deleteFile}
-        >
-          Файл будет удалён из карточки и хранилища.
-        </Modal>
-      )}
-      {previewTarget && <DocumentPreviewDialog file={previewTarget} onClose={() => setPreview(undefined)} />}
-    </Space>
+        {previewTarget && <DocumentPreviewDialog file={previewTarget} onClose={() => setPreview(undefined)} />}
+      </div>
+    </div>
   );
 }

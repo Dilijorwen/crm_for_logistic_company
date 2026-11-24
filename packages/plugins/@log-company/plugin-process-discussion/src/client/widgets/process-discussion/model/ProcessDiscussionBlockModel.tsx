@@ -9,12 +9,21 @@
 
 import { BlockModel } from '@nocobase/client';
 import React from 'react';
-import { getProcessBlockModelContext } from '@log-company/plugin-process-governance/client';
+import { getProcessBlockModelContext, workspaceAnchors } from '@log-company/plugin-process-governance/client';
 import { ProcessDiscussionBlock } from '../ui/ProcessDiscussionBlock';
 
 export class ProcessDiscussionBlockModel extends BlockModel {
   renderComponent() {
-    return <ProcessDiscussionBlock modelContext={getProcessBlockModelContext(this, this.context)} />;
+    const modelContext = getProcessBlockModelContext(this, this.context);
+    const shared = this.props?.workspaceDiscussion;
+    const anchors = shared ? workspaceAnchors(this.context.view?.inputArgs) : undefined;
+    const workspace =
+      shared === 'run' && anchors?.runId
+        ? { entity: 'run' as const, id: anchors.runId }
+        : shared === 'shipment' && anchors?.shipmentId
+          ? { entity: 'shipment' as const, id: anchors.shipmentId }
+          : undefined;
+    return <ProcessDiscussionBlock modelContext={modelContext} workspace={workspace} />;
   }
 }
 

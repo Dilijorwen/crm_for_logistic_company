@@ -37,10 +37,7 @@ export default defineCollection({
   titleField: 'doc_num',
   filterTargetKey: ['id'],
   migrationRules: ['overwrite', 'schema-only'],
-  indexes: [
-    { name: 'technical_regulations_fsa_id_unique', unique: true, fields: ['fsa_id'] },
-    { name: 'technical_regulations_doc_num_unique', unique: true, fields: ['doc_num'] },
-  ],
+  indexes: [{ name: 'technical_regulations_fsa_id_unique', unique: true, fields: ['fsa_id'] }],
   fields: [
     { type: 'snowflakeId', name: 'id', interface: 'snowflakeId', primaryKey: true, allowNull: false },
     technicalRegulationFsaIdField,
@@ -49,6 +46,7 @@ export default defineCollection({
       name: 'doc_num',
       interface: 'input',
       allowNull: false,
+      unique: true,
       trim: true,
       uiSchema: { type: 'string', title: translate('field.docNum'), 'x-component': 'Input', required: true },
     },

@@ -326,7 +326,7 @@ describe('workspace dialogs with real NocoBase KeepAlive and two FlowRoutes', ()
     for (const label of ['Рейс №30', 'P762MH', 'Рейс №31', 'P762MH']) {
       fireEvent.click(screen.getByText(label));
       await screen.findByText(label === 'Рейс №31' ? 'Загружен рейс 11' : 'Загружен рейс 10');
-      fireEvent.click(screen.getByRole('button', { name: 'Закрыть рейс' }));
+      fireEvent.click(screen.getByRole('button', { name: 'К списку рейсов и поставок' }));
       await waitFor(() => expect(screen.queryByTestId('run-card')).toBeNull());
       fireEvent.click(screen.getByRole('button', { name: 'Документы', exact: true }));
       await screen.findByText('ТР ТС: документы');

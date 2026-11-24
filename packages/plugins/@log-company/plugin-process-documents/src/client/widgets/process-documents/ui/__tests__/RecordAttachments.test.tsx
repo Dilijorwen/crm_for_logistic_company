@@ -21,7 +21,7 @@ const { get, add, request, client } = vi.hoisted(() => {
   const request = vi.fn();
   return { get, add, request, client: { resource: vi.fn(() => ({ get, add })), request } };
 });
-vi.mock('@nocobase/client', () => ({ useAPIClient: () => client }));
+vi.mock('@nocobase/client', () => ({ useAPIClient: () => client, css: () => '' }));
 
 const fields = [{ name: 'documents', title: 'Документы', multiple: true, readOnly: false }];
 const canUpdateField = async () => true;
@@ -49,13 +49,8 @@ describe('Документы в карточке разрешения', () => {
     });
   });
 
-  it('offers an upload on an empty accessible record, then shows the attached file', async () => {
-    get.mockResolvedValueOnce(emptyField).mockResolvedValue({
-      data: {
-        data: { documents: [{ id: '12', title: 'certificate.pdf' }] },
-        meta: { allowedActions: { update: ['7'] } },
-      },
-    });
+  it('не показывает загрузку мимо черновика даже при праве редактирования', async () => {
+    get.mockResolvedValue(emptyField);
     const { container } = render(
       <RecordAttachments
         collection="permit_documents"
@@ -66,12 +61,8 @@ describe('Документы в карточке разрешения', () => {
       />,
     );
     expect(await screen.findByText('Документов пока нет')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Загрузить файл' })).toBeTruthy();
-    const input = container.querySelector('input[type=file]');
-    if (!input) throw new Error('File input not found');
-    fireEvent.change(input, { target: { files: [new File(['test'], 'certificate.pdf')] } });
-    await waitFor(() => expect(add).toHaveBeenCalledWith({ values: ['12'] }));
-    expect(await screen.findByRole('button', { name: 'certificate.pdf' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Загрузить файл' })).toBeNull();
+    expect(container.querySelector('input[type=file]')).toBeNull();
   });
 
   it('displays the empty field without an upload action for a read-only record', async () => {
@@ -87,6 +78,29 @@ describe('Документы в карточке разрешения', () => {
     );
     expect(await screen.findByText('Документов пока нет')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Загрузить файл' })).toBeNull();
+  });
+
+  it('открывает сохранённую вложенность разрешительных документов', async () => {
+    get.mockResolvedValue({
+      data: {
+        data: {
+          documents: [
+            { id: '1', title: 'Старый.pdf' },
+            { id: '2', title: 'Сертификат.pdf', meta: { logCompanyDocumentFolders: ['Сертификаты', '2026'] } },
+          ],
+        },
+      },
+    });
+    render(
+      <RecordAttachments collection="permit_documents" recordId="7" dataSourceKey="main" fields={fields} readOnly />,
+    );
+    expect(await screen.findByRole('button', { name: 'Старый.pdf' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Сертификат.pdf' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Сертификаты' }));
+    fireEvent.click(screen.getByRole('button', { name: '2026' }));
+    expect(screen.getByRole('button', { name: 'Сертификат.pdf' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '..' }));
+    expect(screen.getByRole('button', { name: '2026' })).toBeTruthy();
   });
 
   it('requires confirmation before deleting the stored file', async () => {
@@ -105,7 +119,8 @@ describe('Документы в карточке разрешения', () => {
         canUpdateField={canUpdateField}
       />,
     );
-    const remove = await screen.findByRole('button', { name: 'Удалить' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Действия: test.xlsx' }));
+    const remove = await screen.findByRole('menuitem', { name: 'Удалить' });
     expect(screen.queryByRole('button', { name: 'Убрать' })).toBeNull();
     fireEvent.click(remove);
     const confirmation = await screen.findByRole('dialog', { name: 'Удалить файл «test.xlsx»?' });
@@ -128,10 +143,31 @@ describe('Документы в карточке разрешения', () => {
     render(<RecordAttachments collection="permit_documents" recordId="7" dataSourceKey="main" fields={fields} />);
     fireEvent.click(await screen.findByRole('button', { name: 'архив.7z' }));
     expect(await screen.findByText('Для этого формата нет предпросмотра. Файл можно скачать.')).toBeTruthy();
-    expect(screen.getByRole('dialog', { name: 'архив.7z' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Скачать' })).toBeTruthy();
+    const dialog = screen.getByRole('dialog', { name: 'архив.7z' });
+    expect(within(dialog).getByRole('button', { name: 'Скачать' })).toBeTruthy();
     expect(request).not.toHaveBeenCalledWith(expect.objectContaining({ url: 'attachments:create' }));
   });
+
+  it.each(['our_companies', 'permit_documents', 'contracts'])(
+    'offers a context menu for a read-only file in %s',
+    async (collection) => {
+      get.mockResolvedValue({
+        data: {
+          data: { documents: [{ id: '12', title: 'договор.pdf', size: 1024 }] },
+          meta: { allowedActions: { update: [] } },
+        },
+      });
+      render(<RecordAttachments collection={collection} recordId="7" dataSourceKey="main" fields={fields} />);
+      const file = await screen.findByRole('button', { name: 'договор.pdf' });
+      expect(screen.getByText('1.0 КБ')).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Действия: договор.pdf' })).toBeTruthy();
+      fireEvent.contextMenu(file, { clientX: 20, clientY: 40 });
+      expect(await screen.findByRole('menuitem', { name: 'Скачать' })).toBeTruthy();
+      expect(screen.getByRole('menuitem', { name: 'Открыть' })).toBeTruthy();
+      expect(screen.queryByRole('menuitem', { name: 'Удалить' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Загрузить файл' })).toBeNull();
+    },
+  );
 
   it.each(['xlsx', 'xls'] as const)('shows actual cell values from a private .%s attachment', async (bookType) => {
     const workbook = utils.book_new();

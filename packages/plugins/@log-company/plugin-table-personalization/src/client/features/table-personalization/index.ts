@@ -7,5 +7,5 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-export { PersonalizedTableBlockModel } from './model/PersonalizedTableBlockModel';
+export { PersonalizedTableBlockModel, PersonalizedTableSelectModel } from './model/PersonalizedTableBlockModel';
 export { withColumnWidth } from './model/columnWidthBinding';

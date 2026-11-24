@@ -16,6 +16,8 @@ import { UploadProcessDocuments } from '../UploadProcessDocuments';
 import type { DocumentStorage } from '../ports/DocumentStorage';
 import type {
   CreateDocumentRecordInput,
+  CreateFolderRecordInput,
+  DocumentFolderRecord,
   DocumentActor,
   ProcessDocumentRecord,
   ProcessDocumentsRepository,
@@ -26,6 +28,7 @@ const actor: DocumentActor = { userId: 'user-1', isRoot: true, authorizationCont
 
 function dependencies() {
   const documents: ProcessDocumentRecord[] = [];
+  const folders: DocumentFolderRecord[] = [];
   const storedKeys = new Set<string>();
   const createDocument = vi.fn(async (input: CreateDocumentRecordInput): Promise<ProcessDocumentRecord> => {
     const document: ProcessDocumentRecord = {
@@ -47,6 +50,20 @@ function dependencies() {
     withTransaction: async <T>(work: (transaction: TransactionContext) => Promise<T>) => work({}),
     shipmentExists: async () => true,
     listDocumentTitles: async () => [],
+    listFolderTitles: async () => [],
+    findFolderById: async (id: string) => folders.find((folder) => folder.id === id) ?? null,
+    createFolder: async (input: CreateFolderRecordInput) => {
+      const folder = {
+        id: input.id,
+        title: input.title,
+        shipmentId: input.scope.mode === 'shipment' ? input.scope.shipmentId : null,
+        draftToken: input.scope.mode === 'draft' ? input.scope.draftToken : null,
+        parentFolderId: input.parentFolderId,
+        createdById: input.actorId,
+      };
+      folders.push(folder);
+      return folder;
+    },
     createDocument,
     listDocumentsByShipmentId: async (shipmentId: string) => documents.filter((item) => item.shipmentId === shipmentId),
     deleteDocumentsByShipmentId: vi.fn(async () => undefined),
@@ -70,7 +87,8 @@ function dependencies() {
     },
   };
   const logger = { warn: vi.fn(), error: vi.fn() };
-  const identifiers = { generate: () => 'document-1' };
+  let nextId = 0;
+  const identifiers = { generate: () => `document-${++nextId}` };
   const scopeService = new DocumentScopeService(repository, { assertAccess: async () => undefined });
   const upload = new UploadProcessDocuments(
     repository,
@@ -91,6 +109,25 @@ function dependencies() {
 }
 
 describe('document storage lifecycle', () => {
+  it('сохраняет пустые папки и файлы перетаскивания в общей структуре', async () => {
+    const deps = dependencies();
+    const input = {
+      shipmentId: 'shipment-1',
+      draftToken: null,
+      folderId: null,
+      actor,
+      files: [{ path: '/tmp/act.pdf', originalName: 'Сканы/Акт.pdf', mimeType: 'application/pdf', size: 10 }],
+    };
+    await expect(deps.upload.execute({ ...input, emptyFolders: ['Сканы/../Архив'] })).rejects.toMatchObject({
+      code: 'INVALID_UPLOAD',
+    });
+    expect(deps.storedKeys.size).toBe(0);
+    const result = await deps.upload.execute({ ...input, emptyFolders: ['Сканы/Архив'] });
+    const [scans, archive] = result.folders;
+    expect(scans).toMatchObject({ title: 'Сканы', parentFolderId: null });
+    expect(archive).toMatchObject({ title: 'Архив', parentFolderId: scans.id });
+    expect(result.files).toMatchObject([{ title: 'Акт.pdf', folderId: scans.id }]);
+  });
   it.each([
     { shipmentId: 'shipment-1', draftToken: null, expectedKey: 'shipments/shipment-1/generated-invoice.pdf' },
     { shipmentId: null, draftToken: 'draft-1', expectedKey: 'shipments/drafts/draft-1/generated-invoice.pdf' },

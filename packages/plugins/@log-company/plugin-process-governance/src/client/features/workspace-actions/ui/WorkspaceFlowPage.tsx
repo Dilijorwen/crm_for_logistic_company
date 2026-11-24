@@ -7,6 +7,7 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import { ArrowLeftOutlined } from '@ant-design/icons';
 import { FlowModelRenderer, useFlowViewContext, type FlowModel } from '@nocobase/flow-engine';
 import { Alert, Button, Skeleton, Space } from 'antd';
 import React, { useEffect, useMemo } from 'react';
@@ -27,11 +28,12 @@ export function WorkspaceFlowPage({
   const ctx = useFlowViewContext();
   const navigation = ctx.view?.navigation;
   const tabUid = navigation?.viewParams?.tabUid;
+  const isRun = parentId === WORKSPACE_RUN_VIEW_UID;
   useEffect(() => {
-    if (parentId === WORKSPACE_RUN_VIEW_UID && tabUid === 'lcwsshiptab') {
+    if (isRun && tabUid === 'lcwsshiptab') {
       navigation?.changeTo({ tabUid: 'lcwsruntab' });
     }
-  }, [navigation, parentId, tabUid]);
+  }, [navigation, isRun, tabUid]);
   const options = useMemo(
     () => ({ parentId, use: pageModelClass, async: true, subKey: 'page', subType: 'object' as const }),
     [parentId, pageModelClass],
@@ -51,15 +53,24 @@ export function WorkspaceFlowPage({
         }
       />
     );
-  return model ? (
-    <FlowModelRenderer
-      model={model}
-      hideRemoveInSettings
-      showFlowSettings={{ showBackground: false, showBorder: false }}
-      showErrorFallback
-      {...rest}
-    />
-  ) : (
-    <Skeleton active />
+  return (
+    <>
+      {isRun && (
+        <Button type="text" icon={<ArrowLeftOutlined aria-hidden="true" />} onClick={() => ctx.view.close()}>
+          К списку рейсов и поставок
+        </Button>
+      )}
+      {model ? (
+        <FlowModelRenderer
+          model={model}
+          hideRemoveInSettings
+          showFlowSettings={{ showBackground: false, showBorder: false }}
+          showErrorFallback
+          {...rest}
+        />
+      ) : (
+        <Skeleton active />
+      )}
+    </>
   );
 }

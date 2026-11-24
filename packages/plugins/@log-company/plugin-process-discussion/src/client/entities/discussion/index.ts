@@ -8,3 +8,6 @@
  */
 
 export { createDiscussionComment } from './api/DiscussionCommentsApi';
+
+export { WorkspaceDiscussionApi, compareMessageIds } from './api/WorkspaceDiscussionApi';
+export type { WorkspaceDiscussionMessage } from './api/WorkspaceDiscussionApi';

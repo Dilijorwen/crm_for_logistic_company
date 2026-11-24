@@ -9,7 +9,7 @@
 
 import { Application, TableActionsColumnModel, TableBlockModel, TableSelectModel } from '@nocobase/client';
 import type { CreateModelOptions, ModelConstructor } from '@nocobase/flow-engine';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PluginTablePersonalizationClient } from '../../../../app/plugin';
 import { PersonalizedTableBlockModel } from '../PersonalizedTableBlockModel';
 import { TableTemplatesBlockModel } from '../../../../widgets/table-templates';
@@ -149,10 +149,42 @@ describe('registered TableBlockModel designer creation', () => {
     expect(reloaded.subModels.columns.map((column) => column.uid)).toEqual(['existing-column', 'existing-actions']);
   });
 
-  it('preserves the selection-table registration and restores the native table when unloaded', async () => {
-    const { engine, plugin } = await scenario();
-    expect(engine.getModelClass('TableSelectModel')).toBe(TableSelectModel);
+  it('personalizes only opted-in selectors and preserves native row selection without templates', async () => {
+    const { engine, plugin } = await scenario('shipments');
+    const onChange = vi.fn();
+    engine.context.defineProperty('view', {
+      value: {
+        inputArgs: {
+          collectionName: 'shipments',
+          rowSelectionProps: { onChange },
+          associatedRecords: [{ id: 'existing' }],
+        },
+      },
+    });
+    function selector(uid: string, personalizeColumns: boolean) {
+      return engine.createModel({
+        uid,
+        use: 'TableSelectModel',
+        props: { personalizeColumns },
+        stepParams: { resourceSettings: { init: { dataSourceKey: 'main', collectionName: 'shipments' } } },
+      }) as TableSelectModel & PersonalizedTableBlockModel;
+    }
+    const picker = selector('shipment-picker', true);
+    expect(picker).toBeInstanceOf(TableSelectModel);
+    expect(picker.rowSelectionProps.onChange).toBe(onChange);
+    expect(JSON.stringify(picker.resource.getFilter())).toContain('"id.$ne":["existing"]');
+    expect(picker).not.toBeInstanceOf(TableTemplatesBlockModel);
+    expect(picker.getPersonalizationIdentity()).toEqual({ tableUid: 'shipment-picker', referencePath: [] });
+    const nativePicker = selector('another-picker', false);
+    const newDialog = vi.fn(() => Promise.resolve());
+    picker.context.defineProperty('viewer', { value: { dialog: newDialog } });
+    nativePicker.context.defineProperty('viewer', { value: { dialog: newDialog } });
+    await nativePicker.openPersonalizationSettings();
+    expect(newDialog).not.toHaveBeenCalled();
+    await picker.openPersonalizationSettings();
+    expect(newDialog).toHaveBeenCalledWith(expect.objectContaining({ title: 'Колонки' }));
     await plugin.unload();
+    expect(engine.getModelClass('TableSelectModel')).toBe(TableSelectModel);
     expect(engine.getModelClass('TableBlockModel')).toBe(TableBlockModel);
   });
 

@@ -17,6 +17,11 @@ import type { WorkspaceRow } from '../../../../../shared/workspace';
 import { WorkspaceTableContext } from '../../model/WorkspaceTableContext';
 import { workspaceGroups } from '../../model/workspaceGroups';
 import { WorkspaceTableProjection } from '../WorkspaceTableProjection';
+import { WorkspaceRunSidebar } from '../WorkspaceRunSidebar';
+
+vi.mock('../../model/useRunSummary', () => ({
+  useRunSummary: () => ({ data: { parents: [], children: [], managers: [], declarants: [], shipments: [] } }),
+}));
 
 interface ContentProps {
   model: TableBlockModel;
@@ -76,4 +81,26 @@ describe('native table row projection', () => {
     expect(nativeRender).toHaveBeenCalledWith('100', rows[0], 1);
     expect(result?.pagination?.showTotal(2)).toBe('2 рейсов · 2 уникальных поставок');
   });
+});
+
+it('keeps the full card entry point without offering to add a shipment in the sidebar', () => {
+  const table = new FlowEngine().createModel({ use: TableBlockModel });
+  render(
+    <WorkspaceTableContext.Provider
+      value={{
+        table,
+        groups: workspaceGroups([{ id: '10:0', run_number: 30, transport_type: 'road' }]),
+        selectedRunId: '10',
+        collapsedRunIds: [],
+        selectRun: vi.fn(),
+        toggleRun: vi.fn(),
+      }}
+    >
+      <WorkspaceRunSidebar />
+    </WorkspaceTableContext.Provider>,
+  );
+
+  expect(screen.getByText('Поставок пока нет')).toBeVisible();
+  expect(screen.queryByRole('button', { name: /Добавить поставку/ })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Открыть полную карточку рейса' })).toBeVisible();
 });

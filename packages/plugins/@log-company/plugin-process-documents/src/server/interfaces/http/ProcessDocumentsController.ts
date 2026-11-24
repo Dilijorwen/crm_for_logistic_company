@@ -22,7 +22,8 @@ import {
   validateUploadBatch,
 } from '@log-company/plugin-file-storage';
 import { SetDocumentFolderAccess } from '../../application/SetDocumentFolderAccess';
-import { documentRights, documentSections } from '../../../contracts/processDocuments';
+import type { RenameProcessDocumentEntry } from '../../application/RenameProcessDocumentEntry';
+import { documentRights, documentSections, MAX_DOCUMENT_UPLOAD_ENTRIES } from '../../../contracts/processDocuments';
 import type { DocumentAccessRule, DocumentSection, FolderAccess } from '../../../contracts/processDocuments';
 import type { DocumentSectionAccess } from '../../application/DocumentSectionAccess';
 import type { NocoBaseProcessDocumentAccess } from '../../infrastructure/nocobase/NocoBaseProcessDocumentAccess';
@@ -47,7 +48,7 @@ import { ProcessDocumentsError } from '../../domain/documents/DocumentErrors';
 import type { ProcessDocumentsErrorCode } from '../../domain/documents/DocumentErrors';
 import { normalizeNullableIdentifier, parseDraftToken, parseIdentifier } from '../../domain/documents/DocumentScope';
 
-import { PROCESS_DOCUMENTS_DRAFT_FIELD } from '../../../contracts/processDocuments';
+import { isCompanyDocumentArea, PROCESS_DOCUMENTS_DRAFT_FIELD } from '../../../contracts/processDocuments';
 import type { DocumentsListResponse } from '../../../contracts/processDocuments';
 
 import { decodeUploadedName } from './UploadedDocumentName';
@@ -74,6 +75,7 @@ export interface ProcessDocumentsActions {
   deleteFolder: DeleteProcessDocumentFolder;
   attachDraftDocuments: AttachDraftDocumentsToProcess;
   setFolderAccess: SetDocumentFolderAccess;
+  renameEntry: RenameProcessDocumentEntry;
 }
 
 export class ProcessDocumentsController {
@@ -104,6 +106,7 @@ export class ProcessDocumentsController {
         folderDeleteSummary: this.folderDeleteSummary,
         deleteFolder: this.deleteFolder,
         setFolderAccess: this.setFolderAccess,
+        renameEntry: this.renameEntry,
         sectionPermissions: this.sectionPermissions,
         attachmentPermissions: this.attachmentPermissions,
         getSectionAccess: this.getSectionAccess,
@@ -120,6 +123,7 @@ export class ProcessDocumentsController {
       'folderDeleteSummary',
       'deleteFolder',
       'setFolderAccess',
+      'renameEntry',
       'sectionPermissions',
       'attachmentPermissions',
       'getSectionAccess',
@@ -172,7 +176,11 @@ export class ProcessDocumentsController {
         currentFolder: result.currentFolder
           ? this.serializeFolder(result.currentFolder, result.permissions.canManageAccess)
           : null,
-        folders: result.folders.map((folder) => this.serializeFolder(folder, result.permissions.canManageAccess)),
+        folders: result.folders.map((folder) => ({
+          ...this.serializeFolder(folder, result.permissions.canManageAccess),
+          canRename: folder.canRename,
+          canDelete: folder.canDelete,
+        })),
         files: result.files.map((document) => this.serializeDocument(document)),
       };
       context.body = body;
@@ -192,6 +200,29 @@ export class ProcessDocumentsController {
         actor: this.actor(context),
       });
       context.body = this.serializeFolder(folder);
+      await next();
+    });
+  };
+
+  private readonly renameEntry = async (context: Context, next: Next): Promise<void> => {
+    await this.handle(context, async () => {
+      if (context.method !== 'POST') context.throw(405);
+      const { kind, id, title, ...values } = this.actionValues(context);
+      if ((kind !== 'folder' && kind !== 'file') || typeof title !== 'string') {
+        throw new ProcessDocumentsError('INVALID_DOCUMENT_NAME', 'Укажите файл или папку и новое имя.');
+      }
+      await this.actions.renameEntry.execute({
+        kind,
+        id: this.requiredIdentifier(
+          id,
+          kind === 'folder' ? 'FOLDER_NOT_FOUND' : 'DOCUMENT_NOT_FOUND',
+          'Запись не найдена.',
+        ),
+        title,
+        draftToken: this.draftToken(values),
+        actor: this.actor(context),
+      });
+      context.body = { success: true };
       await next();
     });
   };
@@ -219,6 +250,7 @@ export class ProcessDocumentsController {
           draftToken: this.draftToken(values),
           folderId: normalizeNullableIdentifier(values.folderId),
           files: verifiedFiles,
+          emptyFolders: this.parseEmptyFolders(values.emptyFolders),
           actor: this.actor(context),
         });
         context.body = {
@@ -459,8 +491,11 @@ export class ProcessDocumentsController {
     };
   }
 
-  private attachmentSection(resource: unknown): Extract<DocumentSection, 'corporate' | 'permits'> | undefined {
+  private attachmentSection(
+    resource: unknown,
+  ): Extract<DocumentSection, 'corporate' | 'permits' | 'contracts'> | undefined {
     if (resource === 'permit_documents.documents') return 'permits';
+    if (resource === 'contracts.documents') return 'contracts';
     if (resource === 'our_companies.documents') return 'corporate';
   }
 
@@ -479,14 +514,34 @@ export class ProcessDocumentsController {
   private owner(values: Record<string, unknown>) {
     const companyId = this.ownerId(values.companyId);
     const runId = this.ownerId(values.runId);
-    if (values.companyArea != null && (values.companyArea !== 'company' || !companyId || runId)) {
+    const companyArea = values.companyArea;
+    if (companyArea != null && (!isCompanyDocumentArea(companyArea) || !companyId || runId)) {
       throw new ProcessDocumentsError('INVALID_DOCUMENT_SCOPE', 'Укажите папку компании.');
     }
-    return { companyId, runId, ...(values.companyArea === 'company' && { companyArea: 'company' as const }) };
+    return { companyId, runId, ...(isCompanyDocumentArea(companyArea) && { companyArea }) };
   }
 
   private draftToken(values: Record<string, unknown>): string | null {
     return parseDraftToken(values.draftToken ?? values.draft_token ?? values[PROCESS_DOCUMENTS_DRAFT_FIELD]);
+  }
+
+  private parseEmptyFolders(value: unknown): string[] | undefined {
+    if (value === undefined) return;
+    if (typeof value === 'string') {
+      let paths: unknown;
+      try {
+        paths = JSON.parse(value);
+      } catch {
+        throw new ProcessDocumentsError('INVALID_UPLOAD', 'Неверный список пустых папок.');
+      }
+      if (
+        Array.isArray(paths) &&
+        paths.length <= MAX_DOCUMENT_UPLOAD_ENTRIES &&
+        paths.every((path) => typeof path === 'string')
+      )
+        return paths;
+    }
+    throw new ProcessDocumentsError('INVALID_UPLOAD', 'Неверный список пустых папок.');
   }
 
   private requiredIdentifier(value: unknown, code: ProcessDocumentsErrorCode, message: string): string {
@@ -563,6 +618,7 @@ export class ProcessDocumentsController {
   }
 
   private statusFor(code: ProcessDocumentsErrorCode): number {
+    if (code === 'DOCUMENT_NAME_CONFLICT') return 409;
     if (code === 'ATTACHMENT_IN_USE' || code === 'ATTACHMENT_STORAGE_UNSUPPORTED') return 409;
     if (code === 'ATTACHMENT_STORAGE_FAILED') return 503;
     if (code === 'DOCUMENT_ACCESS_DENIED' || code === 'SHIPMENT_ACCESS_DENIED' || code === 'DRAFT_ACCESS_DENIED') {

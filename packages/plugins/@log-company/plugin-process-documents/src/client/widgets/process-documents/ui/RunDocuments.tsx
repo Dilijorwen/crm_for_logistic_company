@@ -15,16 +15,27 @@ export function RunDocuments({
   runId,
   companyId,
   readOnly,
+  allowUpload,
+  showRefresh,
   children,
 }: {
   runId: CatalogId;
   companyId?: CatalogId;
   readOnly?: boolean;
+  allowUpload?: boolean;
+  showRefresh?: boolean;
   children?: React.ReactNode;
 }) {
   const scope = useMemo(() => ({ runId, companyId }), [runId, companyId]);
   return (
-    <ScopedDocuments title="Документы рейса" requestScope={scope} readOnly={readOnly}>
+    <ScopedDocuments
+      title="Документы рейса"
+      titleAsHeading
+      requestScope={scope}
+      readOnly={readOnly}
+      allowUpload={allowUpload}
+      showRefresh={showRefresh}
+    >
       {children}
     </ScopedDocuments>
   );

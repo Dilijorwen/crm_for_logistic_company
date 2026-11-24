@@ -79,4 +79,16 @@ export class NocoBasePermitDocumentNumberingRepository implements PermitDocument
       );
     }
   }
+
+  async clearPair(
+    documentId: string,
+    relatedDocumentId: string,
+    transaction: PermitNumberingTransaction,
+  ): Promise<void> {
+    await this.plugin.db.sequelize.query(
+      `update permit_documents set related_document_id = null, "updatedAt" = CURRENT_TIMESTAMP
+       where id = :relatedDocumentId and related_document_id = :documentId`,
+      { replacements: { documentId, relatedDocumentId }, transaction: transaction as Transaction },
+    );
+  }
 }

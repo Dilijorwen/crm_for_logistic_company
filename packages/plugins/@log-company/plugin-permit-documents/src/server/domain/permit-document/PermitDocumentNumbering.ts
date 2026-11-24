@@ -57,20 +57,11 @@ export function assertCanPairPermitDocument(
   }
 }
 
-export function assertPermitDocumentNumberingUnchanged(
-  current: { internalNumber: unknown; relatedDocumentId: unknown },
-  saved: { internalNumber: unknown; relatedDocumentId: unknown },
-): void {
-  if (String(current.internalNumber) !== String(saved.internalNumber)) {
+export function assertPermitDocumentNumberUnchanged(current: unknown, saved: string): void {
+  if (String(current) !== saved) {
     throw new PermitDocumentNumberingError(
       'INTERNAL_NUMBER_READ_ONLY',
       'Внутренний номер назначается автоматически и недоступен для изменения.',
-    );
-  }
-  if (permitDocumentIdentifier(current.relatedDocumentId) !== permitDocumentIdentifier(saved.relatedDocumentId)) {
-    throw new PermitDocumentNumberingError(
-      'RELATED_DOCUMENT_READ_ONLY',
-      'Связанный документ можно выбрать только при создании.',
     );
   }
 }

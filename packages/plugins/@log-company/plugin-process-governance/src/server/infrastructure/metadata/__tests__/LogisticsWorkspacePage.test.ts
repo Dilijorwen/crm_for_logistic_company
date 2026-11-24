@@ -26,6 +26,10 @@ import ConsolidateRunEditor from '../../../migrations/20261118050000-consolidate
 import UseUnifiedDocumentsForRuns from '../../../migrations/20261118060000-use-unified-documents-for-runs';
 import ConfigureWorkspaceSelectorScopes from '../../../migrations/20261119020000-configure-workspace-selector-scopes';
 import ScopeWorkspaceCustomsWarehouses from '../../../migrations/20261119021000-scope-workspace-customs-warehouses';
+import UseCombinedWorkspaceHistory from '../../../migrations/20261121020000-use-combined-workspace-history';
+import ConfigureSharedWorkspaceDiscussion from '../../../migrations/20261121021000-configure-shared-workspace-discussion';
+import PersonalizeShipmentPickers from '../../../migrations/20261122010000-personalize-workspace-shipment-pickers';
+import SwapUnifiedFormColumns from '../../../migrations/20261123010000-swap-unified-form-columns';
 import { upgradeLogisticsWorkspace } from '../UpgradeLogisticsWorkspace';
 import { WORKSPACE_RECORD_POPUP_UID, type WorkspaceFlowTree } from '../LogisticsWorkspaceNativeModels';
 import { installWorkspacePresentation } from '../InstallWorkspacePresentation';
@@ -282,6 +286,83 @@ describe('logistics workspace with the real FlowModelRepository', () => {
     });
   });
 
+  it('puts shipments before run fields in both unified forms and preserves widths and documents', async () => {
+    await installWorkspacePresentation(db);
+    await new ConfigureUnifiedWorkspace({ db } as ConstructorParameters<typeof ConfigureUnifiedWorkspace>[0]).up();
+    await new ConsolidateRunEditor({ db } as ConstructorParameters<typeof ConsolidateRunEditor>[0]).up();
+
+    const edit = await fullModel('lcwsrunformgrid');
+    const [runItems, shipmentItems] = edit.stepParams.gridSettings.grid.rows.details;
+    const runCell = { id: 'run', rows: [{ id: 'nested', cells: [{ id: 'fields', items: runItems }] }] };
+    const shipmentCell = { id: 'shipments', items: shipmentItems };
+    const savedLayout = { version: 2, rows: [{ id: 'details', cells: [runCell, shipmentCell], sizes: [9, 15] }] };
+    await models.upsertModel({
+      uid: edit.uid,
+      stepParams: {
+        ...edit.stepParams,
+        gridSettings: { grid: { ...edit.stepParams.gridSettings.grid, layout: savedLayout } },
+      },
+      props: { layout: savedLayout },
+    });
+
+    const migration = new SwapUnifiedFormColumns({ db } as ConstructorParameters<typeof SwapUnifiedFormColumns>[0]);
+    await migration.up();
+    await migration.up();
+
+    for (const formUid of ['lcwscreaterun', 'lcwsrunform']) {
+      const grid = await fullModel(`${formUid}grid`);
+      const layout = grid.stepParams.gridSettings.grid;
+      expect(layout.rows.details[0]).toEqual([`${formUid}unifiedshipment`]);
+      expect(layout.rows.details[1]).toContain(`${formUid}griddocuments`);
+      expect(layout.sizes.details).toEqual([14, 10]);
+    }
+    const updated = await fullModel(edit.uid);
+    const expected = { version: 2, rows: [{ id: 'details', cells: [shipmentCell, runCell], sizes: [15, 9] }] };
+    expect(updated.stepParams.gridSettings.grid.layout).toEqual(expected);
+    expect(updated.props.layout).toEqual(expected);
+    expect(updated.subModels).toEqual(edit.subModels);
+  });
+
+  it('enables column settings on existing shipment pickers without changing saved table columns', async () => {
+    await installWorkspacePresentation(db);
+    const uid = 'lcwsrsassoselecttable';
+    await models.upsertModel({ uid, props: { oldSetting: true } });
+    const before = await fullModel(uid);
+    const migration = new PersonalizeShipmentPickers({ db } as ConstructorParameters<
+      typeof PersonalizeShipmentPickers
+    >[0]);
+    await migration.up();
+    await migration.up();
+
+    const picker = await fullModel(uid);
+    expect(picker.props).toEqual({ oldSetting: true, personalizeColumns: true });
+    expect(picker.subModels).toEqual(before.subModels);
+    expect(picker.stepParams).toEqual(before.stepParams);
+  });
+
+  it('installs the common discussion once and converts the existing history block in place', async () => {
+    await installWorkspacePresentation(db);
+    await models.upsertModel({ uid: 'lcwsrunhistorytable', use: 'TableBlockModel' });
+    await models.remove('lcwsrundiscussiontab');
+    const history = new UseCombinedWorkspaceHistory({ db } as ConstructorParameters<
+      typeof UseCombinedWorkspaceHistory
+    >[0]);
+    const discussion = new ConfigureSharedWorkspaceDiscussion({ db } as ConstructorParameters<
+      typeof ConfigureSharedWorkspaceDiscussion
+    >[0]);
+    await history.up();
+    await discussion.up();
+    await discussion.up();
+    expect(await fullModel('lcwsrunhistorytable')).toMatchObject({ use: 'LogisticsWorkspaceHistoryBlockModel' });
+    expect(await fullModel('lcwsrundiscussion')).toMatchObject({
+      parentId: 'lcwsrundiscussiontabgrid',
+      props: { workspaceDiscussion: 'run' },
+    });
+    expect(await fullModel('lcwspagediscussion')).toMatchObject({ props: { workspaceDiscussion: 'shipment' } });
+    const page = await fullModel('lcwsrecordpage');
+    expect(page.subModels.tabs.filter((tab: WorkspaceFlowTree) => tab.uid === 'lcwsrundiscussiontab')).toHaveLength(1);
+  });
+
   it('puts run documents below the run fields and retires the separate shipment tab without losing its saved selector', async () => {
     await installWorkspacePresentation(db);
     await new ConfigureUnifiedWorkspace({ db } as ConstructorParameters<typeof ConfigureUnifiedWorkspace>[0]).up();
@@ -293,6 +374,7 @@ describe('logistics workspace with the real FlowModelRepository', () => {
       'lcwsruntab',
       'lcwsruntreetab',
       'lcwsrunhistorytab',
+      'lcwsrundiscussiontab',
     ]);
     expect((await fullModel('lcwsrsassociate')).use).toBe('LogisticsWorkspaceAssociateActionModel');
     for (const uid of ['lcwsrunformgrid', 'lcwscreaterungrid']) {
@@ -545,7 +627,7 @@ describe('logistics workspace with the real FlowModelRepository', () => {
         (item: { stepParams: { pageTabSettings: { tab: { title: string } } } }) =>
           item.stepParams.pageTabSettings.tab.title,
       ),
-    ).toEqual(['Рейс', 'Поставки', 'Дерево', 'История']);
+    ).toEqual(['Рейс', 'Поставки', 'Дерево', 'История', 'Обсуждение']);
     const runContext = popup.subModels.tabs[0].subModels.grid.subModels.items[0];
     expect(runContext.props.entity).toBe('run');
     expect(runContext.subModels.grid.subModels.items.map((item: { use: string }) => item.use)).toEqual([

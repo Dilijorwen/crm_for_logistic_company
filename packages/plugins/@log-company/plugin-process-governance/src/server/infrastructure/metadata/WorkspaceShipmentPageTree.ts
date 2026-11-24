@@ -19,6 +19,7 @@ import { SHIPMENT_FORM_SECTIONS } from './WorkspaceShipmentFormSections';
 function section(uid: string, title: string, names: string[]): WorkspaceFlowTree {
   const source = workspaceSourceForm(uid, 'shipments', names);
   const grid = source.subModels?.grid as WorkspaceFlowTree;
+  grid.use = 'LogisticsWorkspaceShipmentFieldsGridModel';
   grid.props = { workspaceSectionTitle: title };
   return grid;
 }
@@ -32,7 +33,11 @@ export function workspaceShipmentPageTree(): WorkspaceFlowTree {
       section(['lcwspagegeneral', 'lcwspagecustoms', 'lcwspagentm'][index], definition.title, definition.fields),
     ),
     { uid: 'lcwspagedocs', use: 'ProcessDocumentsBlockModel', props: { workspaceSectionTitle: 'Документы' } },
-    { uid: 'lcwspagediscussion', use: 'ProcessDiscussionBlockModel', props: { workspaceSectionTitle: 'Обсуждение' } },
+    {
+      uid: 'lcwspagediscussion',
+      use: 'ProcessDiscussionBlockModel',
+      props: { workspaceSectionTitle: 'Обсуждение', workspaceDiscussion: 'shipment' },
+    },
     { ...workspaceHistory('lcwspagehistory', 'shipment'), props: { workspaceSectionTitle: 'История' } },
   ];
   editor.subModels = {

@@ -10,7 +10,7 @@
 import type { APIClient } from '@nocobase/client';
 import { ACL } from '@nocobase/acl';
 import { createMockDatabase, type Database } from '@nocobase/database';
-import { sanitizeAssociationValues } from '@nocobase/plugin-acl/src/server/middlewares/check-change-with-association';
+import { sanitizeAssociationValues } from '../../../../../../../../@nocobase/plugin-acl/src/server/middlewares/check-change-with-association';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDiscussionComment, type DiscussionCommentValues } from '../DiscussionCommentsApi';
 

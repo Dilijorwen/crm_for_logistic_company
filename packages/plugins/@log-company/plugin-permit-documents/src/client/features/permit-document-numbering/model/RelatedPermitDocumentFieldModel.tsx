@@ -9,6 +9,7 @@
 
 import { RecordSelectFieldModel } from '@nocobase/client';
 import { EditableItemModel } from '@nocobase/flow-engine';
+import { relatedPermitDocumentFilter } from './useRelatedPermitDocumentProps';
 
 export class RelatedPermitDocumentFieldModel extends RecordSelectFieldModel {
   updateAssociation = false;
@@ -21,18 +22,14 @@ RelatedPermitDocumentFieldModel.registerFlow({
   steps: {
     enforcePairRules: {
       handler(context) {
-        const action = context.blockModel?.context.actionName;
-        const record = context.item?.value || context.record;
+        const blockContext = context.blockModel?.context;
+        const documentId = blockContext?.actionName === 'update' ? blockContext.record?.id : undefined;
         context.model.setProps({
-          disabled: action === 'update' || (action !== 'create' && record?.id != null && !record.__is_new__),
           allowMultiple: false,
           allowCreate: false,
           quickCreate: 'none',
         });
-        context.model.resource.addFilterGroup('permit-document-without-pair', {
-          related_document_id: { $is: null },
-          category: { $ne: 'voluntary' },
-        });
+        context.model.resource.addFilterGroup('permit-document-pair', relatedPermitDocumentFilter(documentId));
       },
     },
   },

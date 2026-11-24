@@ -20,6 +20,7 @@ import type {
 import { ProcessDocumentsError } from '../../domain/documents/DocumentErrors';
 import type { DocumentScope } from '../../domain/documents/DocumentScope';
 import { parseDraftToken, parseIdentifier } from '../../domain/documents/DocumentScope';
+import { isCompanyDocumentArea } from '../../../contracts/processDocuments';
 
 const SHIPMENTS_COLLECTION = 'shipments';
 const FOLDERS_COLLECTION = 'process_document_folders';
@@ -141,7 +142,8 @@ export class ProcessDocumentsHooks {
     const runId = parseIdentifier(model.get('transport_run_id'));
     if (runId) return { mode: 'run', runId };
     if (companyId) {
-      return { mode: 'company', companyId, ...(model.get('company_area') === 'company' && { companyArea: 'company' }) };
+      const companyArea = model.get('company_area');
+      return { mode: 'company', companyId, ...(isCompanyDocumentArea(companyArea) && { companyArea }) };
     }
     const draftToken = parseDraftToken(model.get('draft_token')) ?? previousDraftToken;
     if (!draftToken) {

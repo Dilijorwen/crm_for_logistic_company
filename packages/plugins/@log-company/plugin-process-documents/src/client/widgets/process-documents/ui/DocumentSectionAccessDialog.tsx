@@ -8,95 +8,99 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Alert, Modal, Select, Space, Spin, Typography } from 'antd';
-import type {
-  DocumentAccessRule,
-  DocumentSection,
-  SectionAccessResponse,
+import { Alert, Button, Modal, Select, Space, Spin, Typography } from 'antd';
+import {
+  isCompanyRequestFolder,
+  type DocumentAccessRule,
+  type DocumentFolderDto,
+  type DocumentSection,
+  type SectionAccessResponse,
 } from '../../../../contracts/processDocuments';
-import { DocumentsCatalogApi, ProcessDocumentsApi, getDocumentErrorText } from '../../../entities/process-document';
-import type { CatalogId, CatalogItem } from '../../../entities/process-document';
+import { ProcessDocumentsApi, getDocumentErrorText } from '../../../entities/process-document';
+import type { CatalogItem } from '../../../entities/process-document';
 import { DocumentPermissionsMatrix } from './DocumentPermissionsMatrix';
+import { folderAccessRules, folderAccessValue } from './DocumentFolderAccessDialog';
 
-const sections: { value: DocumentSection; label: string }[] = [
+const sections = [
   { value: 'ved', label: 'ВЭД' },
-  { value: 'corporate', label: 'Учредительные документы' },
   { value: 'permits', label: 'Разрешительные документы' },
-  { value: 'company', label: 'Папка компании' },
-];
+  { value: 'contracts', label: 'Контракты' },
+  { value: 'requests', label: 'По запросу' },
+] as const satisfies readonly { value: DocumentSection; label: string }[];
 
 export function DocumentSectionAccessDialog({
   api,
-  catalogApi,
   company,
   onClose,
   onSaved,
 }: {
   api: ProcessDocumentsApi;
-  catalogApi: DocumentsCatalogApi;
   company?: CatalogItem;
-  onClose: () => void;
-  onSaved: () => void;
+  onClose(): void;
+  onSaved(): void;
 }) {
-  const [companyId, setCompanyId] = useState<CatalogId | undefined>(company?.id);
-  const [section, setSection] = useState<DocumentSection>('ved');
-  const [companies, setCompanies] = useState<CatalogItem[]>(company ? [company] : []);
-  const [companiesError, setCompaniesError] = useState<string>();
-  const [access, setAccess] = useState<SectionAccessResponse>();
+  const companyId = company?.id;
+  const [target, setTarget] = useState<string>(sections[0].value);
+  const [folders, setFolders] = useState<DocumentFolderDto[]>([]);
+  const [foldersError, setFoldersError] = useState<string>();
+  const [retryFolders, setRetryFolders] = useState(0);
+  const [result, setResult] = useState<{ target: string; access?: SectionAccessResponse; error?: string }>();
   const [draft, setDraft] = useState<DocumentAccessRule[]>();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
+  const folder = folders.find(({ id }) => target === 'folder:' + id);
+  const section = sections.find(({ value }) => value === target)?.value;
+  const access = folder
+    ? { rules: folderAccessRules(folder.grants), inherited: [] }
+    : result?.target === target
+      ? result.access
+      : undefined;
 
   useEffect(() => {
+    if (companyId === undefined) return;
     let active = true;
-    async function loadCompanies() {
-      const items: CatalogItem[] = [];
-      for (let page = 1; ; page++) {
-        const { rows, total } = await catalogApi.list({ kind: 'companies' }, page);
-        if (!active) return;
-        items.push(...rows);
-        if (!rows.length || items.length >= total) break;
-      }
-      setCompanies(items);
-    }
-    loadCompanies().catch((reason) => {
-      if (active) setCompaniesError(getDocumentErrorText(reason, 'Не удалось загрузить компании.'));
-    });
+    setFoldersError(undefined);
+    api
+      .list({ companyId, companyArea: 'company' }, null)
+      .then(({ folders: entries }) => {
+        if (active) setFolders(entries.filter(({ title }) => !isCompanyRequestFolder(title)));
+      })
+      .catch((reason) => {
+        if (active) setFoldersError(getDocumentErrorText(reason, 'Не удалось загрузить папки компании.'));
+      });
     return () => {
       active = false;
     };
-  }, [catalogApi]);
+  }, [api, companyId, retryFolders]);
 
   useEffect(() => {
+    if (!section) return;
     let active = true;
-    setError(undefined);
-    setAccess(undefined);
     api
       .sectionAccess(section, companyId)
-      .then((data) => {
-        if (active) setAccess(data);
+      .then((value) => {
+        if (active) setResult({ target: section, access: value });
       })
       .catch((reason) => {
-        if (active) setError(getDocumentErrorText(reason, 'Не удалось загрузить права.'));
+        if (active) setResult({ target: section, error: getDocumentErrorText(reason, 'Не удалось загрузить права.') });
       });
     return () => {
       active = false;
     };
   }, [api, companyId, section]);
 
-  function changeScope(change: () => void) {
-    if (!draft) {
-      change();
-      return;
-    }
+  function changeTarget(value: string) {
+    const apply = () => {
+      setDraft(undefined);
+      setError(undefined);
+      setTarget(value);
+    };
+    if (!draft) return apply();
     Modal.confirm({
       title: 'Перейти без сохранения прав?',
       okText: 'Перейти',
       cancelText: 'Отмена',
-      onOk: () => {
-        setDraft(undefined);
-        change();
-      },
+      onOk: apply,
     });
   }
 
@@ -105,8 +109,14 @@ export function DocumentSectionAccessDialog({
     setSaving(true);
     setError(undefined);
     try {
-      await api.setSectionAccess(section, companyId, draft);
-      setAccess((previous) => previous && { ...previous, rules: draft });
+      if (folder) {
+        const grants = folderAccessValue(folder.grants, draft);
+        await api.setFolderAccess(folder.id, grants);
+        setFolders((entries) => entries.map((entry) => (entry.id === folder.id ? { ...entry, grants } : entry)));
+      } else if (section) {
+        await api.setSectionAccess(section, companyId, draft);
+        setResult((previous) => previous?.access && { target, access: { ...previous.access, rules: draft } });
+      }
       setDraft(undefined);
       onSaved();
     } catch (reason) {
@@ -116,10 +126,11 @@ export function DocumentSectionAccessDialog({
     }
   }
 
+  const sectionError = result?.target === target ? result.error : undefined;
   return (
     <Modal
       open
-      title="Права на документы"
+      title={company ? 'Права на документы · ' + company.title : 'Права на документы · Все компании'}
       width={820}
       okText="Сохранить права"
       cancelText="Закрыть"
@@ -130,44 +141,36 @@ export function DocumentSectionAccessDialog({
       onCancel={onClose}
     >
       <Space direction="vertical" style={{ width: '100%' }}>
-        <Space wrap>
-          <Select
-            aria-label="Компании"
-            style={{ minWidth: 205 }}
-            value={companyId === undefined ? 'all' : String(companyId)}
-            disabled={saving}
-            options={[
-              { label: 'Все компании · по умолчанию', value: 'all' },
-              ...companies.map(({ id, title }) => ({ label: title, value: String(id) })),
-            ]}
-            onChange={(id) => changeScope(() => setCompanyId(id === 'all' ? undefined : id))}
-          />
-          <Select
-            aria-label="Раздел"
-            value={section}
-            options={sections}
-            style={{ minWidth: 195 }}
-            disabled={saving}
-            onChange={(value) => changeScope(() => setSection(value))}
-          />
-        </Space>
+        <Select
+          aria-label="Папка первого уровня"
+          value={target}
+          options={[...sections, ...folders.map(({ id, title }) => ({ label: title, value: 'folder:' + id }))]}
+          style={{ minWidth: 250 }}
+          disabled={saving}
+          onChange={changeTarget}
+        />
         <Typography.Text type="secondary">
-          {companyId === undefined
-            ? 'Общие права действуют в существующих и новых компаниях.'
-            : 'Сохраните только отличия от общих прав.'}
+          {company ? 'Права папок первого уровня этой компании.' : 'Типовые права действуют во всех компаниях.'}
         </Typography.Text>
-        {companiesError && <Alert type="error" message={companiesError} />}
-        {error && <Alert type="error" message={error} />}
+        {foldersError && (
+          <Alert
+            type="error"
+            message={foldersError}
+            action={<Button onClick={() => setRetryFolders((previous) => previous + 1)}>Повторить</Button>}
+          />
+        )}
+        {(sectionError || error) && <Alert type="error" message={sectionError || error} />}
         {access ? (
           <DocumentPermissionsMatrix
-            key={`${companyId ?? 'all'}:${section}`}
+            key={target}
             rules={draft ?? access.rules}
             inherited={access.inherited}
+            defaultAllow={!Array.isArray(folder?.grants) && folder?.grants?.defaultAllow !== false}
             disabled={saving}
             onChange={setDraft}
           />
         ) : (
-          !error && <Spin size="small" />
+          !sectionError && <Spin aria-label="Загрузка прав" />
         )}
       </Space>
     </Modal>

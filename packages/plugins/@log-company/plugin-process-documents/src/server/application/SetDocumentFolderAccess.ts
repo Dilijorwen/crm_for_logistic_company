@@ -23,7 +23,7 @@ export class SetDocumentFolderAccess {
       throw new ProcessDocumentsError('DOCUMENT_ACCESS_DENIED', 'Настройка доступа доступна администратору.');
     }
     const folder = await this.scopes.requireFolderById(folderId);
-    await this.scopes.resolveForFolder(folder, null, 'write', actor);
+    await this.scopes.resolveForFolder(folder, null, 'read', actor);
     await this.repository.setFolderGrants(folderId, grants);
   }
 }

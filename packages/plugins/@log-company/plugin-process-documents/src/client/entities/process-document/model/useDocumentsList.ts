@@ -45,7 +45,10 @@ export function useDocumentsList(
   });
   const folderId = location.scopeKey === scopeKey ? location.folderId : rootFolderId;
   const requestKey = JSON.stringify([scopeKey, folderId]);
-  const [result, setResult] = useState<{ key: string; data: DocumentsListResponse }>({ key: '', data: empty });
+  const [result, setResult] = useState<{ key: string; data: DocumentsListResponse; rootTitle?: string }>({
+    key: '',
+    data: empty,
+  });
   const [status, setStatus] = useState<{ key: string; loading: boolean; error: string | null; forbidden?: boolean }>({
     key: '',
     loading: false,
@@ -65,13 +68,15 @@ export function useDocumentsList(
     setStatus({ key: requestKey, loading: true, error: null });
     try {
       const data = await api.list(scope, folderId);
+      let rootTitle: string | undefined;
       if (rootFolderId !== null) {
         const rootIndex = data.breadcrumbs.findIndex((folder) => String(folder.id) === String(rootFolderId));
         if (rootIndex < 0) throw new Error('Настроенная папка отсутствует или недоступна.');
+        rootTitle = data.breadcrumbs[rootIndex].title;
         data.breadcrumbs = data.breadcrumbs.slice(rootIndex + 1);
       }
       if (current !== generation.current) return;
-      setResult({ key: requestKey, data });
+      setResult({ key: requestKey, data, rootTitle });
       setStatus({ key: requestKey, loading: false, error: null });
     } catch (error) {
       if (current !== generation.current) return;
@@ -101,6 +106,7 @@ export function useDocumentsList(
     canDelete: !currentStatus.error && data.permissions.canDelete,
     ...currentStatus,
     folderId,
+    rootTitle: result.key === requestKey ? result.rootTitle : undefined,
     setFolderId,
     load,
   };

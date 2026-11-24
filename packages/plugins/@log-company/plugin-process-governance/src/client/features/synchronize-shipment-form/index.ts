@@ -10,3 +10,4 @@
 export { ShipmentSynchronizedEditFormModel } from './model/ShipmentSynchronizedEditFormModel';
 export { LogisticsWorkspaceCreateFormModel } from './model/WorkspaceCreateFormModel';
 export { LogisticsWorkspaceScopedSelectFieldModel } from './model/WorkspaceScopedSelectFieldModel';
+export { LogisticsWorkspaceShipmentFieldsGridModel } from './model/WorkspaceShipmentFieldsGridModel';

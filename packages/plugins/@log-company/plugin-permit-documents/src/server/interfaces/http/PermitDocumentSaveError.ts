@@ -36,6 +36,7 @@ const publicCodes = new Set([
   'INVALID_RENTAL_PERIOD',
   'UNEXPECTED_RENTAL_PERIOD',
   'VOLUNTARY_DOCUMENT_TYPE',
+  'RENTED_DOCUMENT_TYPE',
   'VOLUNTARY_DOCUMENT_PAIR',
   'INCOMPLETE_VOLUNTARY_DOCUMENT',
   'INVALID_VOLUNTARY_PERIOD',
@@ -46,7 +47,6 @@ const publicCodes = new Set([
   'RELATED_DOCUMENT_ALREADY_PAIRED',
   'INVALID_INTERNAL_NUMBER',
   'INTERNAL_NUMBER_READ_ONLY',
-  'RELATED_DOCUMENT_READ_ONLY',
   'PERMIT_NUMBERING_READ_ONLY',
   'INVALID_SELECTED_RECORD',
 ]);
@@ -54,7 +54,7 @@ const publicMessages = new Set([
   'Выберите технические регламенты.',
   'Технические регламенты этого документа заполняются из реестра.',
   'Реестровые поля и связи изменяются только синхронизацией.',
-  'Связанный документ можно выбрать только при создании.',
+  'Изменяйте связь через форму разрешительного документа.',
 ]);
 
 function publicError(status: number, message: string, code: string): Error {

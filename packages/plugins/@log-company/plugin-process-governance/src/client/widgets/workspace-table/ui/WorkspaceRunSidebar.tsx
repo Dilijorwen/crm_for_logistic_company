@@ -15,7 +15,6 @@ import { TRANSPORT_TYPE_LABELS, type TransportType } from '../../../../shared/tr
 import { ScopedNativeBlock } from '../../../features/scoped-native-block';
 import {
   openWorkspaceRun,
-  WorkspaceShipmentAddButton,
   WorkspaceSharedShipmentBadge,
   WorkspaceShipmentDetachButton,
 } from '../../../features/workspace-actions';
@@ -112,10 +111,7 @@ function Overview({ group }: { group: WorkspaceRunGroup }) {
                   <WorkspaceShipmentDetachButton host={table} runId={group.id} shipmentId={shipment.id} />
                 </div>
               ))}
-              <Space wrap>
-                {!summary.shipments.length && <Typography.Text type="secondary">Поставок пока нет</Typography.Text>}
-                <WorkspaceShipmentAddButton host={table} runId={group.id} rowId={group.row.id} />
-              </Space>
+              {!summary.shipments.length && <Typography.Text type="secondary">Поставок пока нет</Typography.Text>}
             </>
           ),
         },

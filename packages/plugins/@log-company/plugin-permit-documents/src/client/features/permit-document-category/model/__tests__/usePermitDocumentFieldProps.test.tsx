@@ -93,8 +93,9 @@ describe('category-dependent Formily form', () => {
     );
     expect(form.query('rental_until').take()?.visible).toBe(true);
     expect(form.values.rental_until).toBe('2027-01-01');
-    for (const name of ['status', 'company', 'related_document', 'period_from', 'valid_from'])
+    for (const name of ['status', 'company', 'period_from', 'valid_from'])
       expect(form.query(name).take()?.visible).toBe(false);
+    expect(form.query('related_document').take()?.visible).toBe(true);
     expect(form.query('technical_regulations').take()?.visible).toBe(true);
     expect(form.query('technical_regulations').take()?.required).toBe(false);
     expect(form.query('technical_regulations').take()?.componentProps.disabled).toBe(false);

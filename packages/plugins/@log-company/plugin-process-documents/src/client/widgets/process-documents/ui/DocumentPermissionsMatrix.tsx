@@ -16,7 +16,12 @@ import { getDocumentErrorText } from '../../../entities/process-document';
 
 type Recipient = { subject: string; title: string; roles: string[] };
 type Kind = DocumentAccessRule['kind'];
-const captions: Record<DocumentRight, string> = { read: 'Просмотр', write: 'Загрузка', delete: 'Удаление' };
+const captions: Record<DocumentRight, string> = {
+  read: 'Просмотр',
+  write: 'Загрузка',
+  rename: 'Переименование',
+  delete: 'Удаление',
+};
 const pageSize = 25;
 
 export function DocumentPermissionsMatrix({
@@ -123,7 +128,7 @@ export function DocumentPermissionsMatrix({
   }
 
   function toggle(recipients: Recipient[], right: DocumentRight, value: boolean) {
-    if (right === 'read' && !value) apply(recipients, { read: false, write: false, delete: false });
+    if (right === 'read' && !value) apply(recipients, { read: false, write: false, rename: false, delete: false });
     else if (right !== 'read' && value) apply(recipients, { read: true, [right]: true });
     else apply(recipients, { [right]: value });
   }
@@ -231,6 +236,7 @@ export function DocumentPermissionsMatrix({
                 {
                   read: preset !== 'none',
                   write: preset === 'write' || preset === 'delete',
+                  rename: preset === 'delete',
                   delete: preset === 'delete',
                 },
               );

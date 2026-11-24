@@ -68,6 +68,7 @@ export function workspaceUnifiedShipmentPicker(uid: string): WorkspaceFlowTree {
         {
           uid: tableUid,
           use: 'TableSelectModel',
+          props: { personalizeColumns: true },
           stepParams: {
             resourceSettings: { init: { dataSourceKey: 'main', collectionName: 'shipments' } },
             tableSettings: { tableDensity: { size: 'small' } },
@@ -184,6 +185,7 @@ export function workspaceAssociatedShipmentsTree(): WorkspaceFlowTree {
                       {
                         uid: 'lcwsrsassoselecttable',
                         use: 'TableSelectModel',
+                        props: { personalizeColumns: true },
                         stepParams: {
                           resourceSettings: { init: { dataSourceKey: 'main', collectionName: 'shipments' } },
                           tableSettings: { tableDensity: { size: 'small' } },

@@ -197,6 +197,17 @@ function tab(uid: string, title: string, items: WorkspaceFlowTree[]): WorkspaceF
   };
 }
 
+export function workspaceDiscussionTab(): WorkspaceFlowTree {
+  const discussion = tab('lcwsrundiscussiontab', 'Обсуждение', [
+    { uid: 'lcwsrundiscussion', use: 'ProcessDiscussionBlockModel', props: { workspaceDiscussion: 'run' } },
+  ]);
+  discussion.parentId = 'lcwsrecordpage';
+  discussion.subKey = 'tabs';
+  discussion.subType = 'array';
+  assignParents(discussion);
+  return discussion;
+}
+
 function context(
   uid: string,
   entity: 'run' | 'shipment',
@@ -485,8 +496,11 @@ export function logisticsWorkspaceNativeTrees(): WorkspaceFlowTree[] {
                 context('lcwsruntreecontext', 'run', [{ uid: 'lcwsruntree', use: 'RunTreeBlockModel' }]),
               ]),
               tab('lcwsrunhistorytab', 'История', [
-                context('lcwsrunhistorycontext', 'run', [history('lcwsrunhistorytable', 'run')]),
+                context('lcwsrunhistorycontext', 'run', [
+                  { ...history('lcwsrunhistorytable', 'run'), use: 'LogisticsWorkspaceHistoryBlockModel' },
+                ]),
               ]),
+              workspaceDiscussionTab(),
             ],
           },
         },

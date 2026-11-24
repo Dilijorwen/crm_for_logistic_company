@@ -44,7 +44,7 @@ export function shipmentCreationSections(grid: WorkspaceFlowTree): WorkspaceFlow
   if (remaining.size) definitions.push({ title: 'Дополнительно', fields: [...remaining] });
   return definitions.map((definition, index) => ({
     uid: `${grid.uid}section${index}`,
-    use: 'FormGridModel',
+    use: 'LogisticsWorkspaceShipmentFieldsGridModel',
     props: { workspaceSectionTitle: definition.title },
     stepParams: {
       gridSettings: {

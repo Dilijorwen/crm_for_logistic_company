@@ -8,22 +8,36 @@
  */
 
 import type { CompanyDocumentScope } from '../../domain/documents/DocumentScope';
-import type { DocumentActor } from './ProcessDocumentsRepository';
+import type { DocumentRight } from '../../../contracts/processDocuments';
+import type { DocumentActor, TransactionContext } from './ProcessDocumentsRepository';
 
-export type ProcessDocumentOperation = 'read' | 'write' | 'delete';
+export type ProcessDocumentOperation = DocumentRight;
 
 export interface ProcessDocumentAccess {
+  allowsCompanyFolderSection?(
+    section: 'requests' | 'corporate',
+    companyId: string,
+    operation: ProcessDocumentOperation,
+    actor: DocumentActor,
+  ): Promise<boolean>;
   assertDraftAccess?(operation: ProcessDocumentOperation, actor: DocumentActor): Promise<void>;
   assertRunAccess?(
     runId: string,
     operation: ProcessDocumentOperation,
     actor: DocumentActor,
     companyId: string | null,
+    transaction?: TransactionContext,
   ): Promise<void>;
   assertCompanyAccess?(
     scope: CompanyDocumentScope,
     operation: ProcessDocumentOperation,
     actor: DocumentActor,
+    transaction?: TransactionContext,
   ): Promise<void>;
-  assertAccess(shipmentId: string, operation: ProcessDocumentOperation, actor: DocumentActor): Promise<void>;
+  assertAccess(
+    shipmentId: string,
+    operation: ProcessDocumentOperation,
+    actor: DocumentActor,
+    transaction?: TransactionContext,
+  ): Promise<void>;
 }

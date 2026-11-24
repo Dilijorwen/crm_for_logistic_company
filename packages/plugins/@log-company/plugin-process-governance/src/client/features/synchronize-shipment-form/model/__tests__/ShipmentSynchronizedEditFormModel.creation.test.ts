@@ -52,7 +52,8 @@ async function createScenario(collectionName = 'shipments', shouldLoadPlugin = t
   });
   engine.registerModels({ EditFormModel, CreateFormModel, FormGridModel });
   if (shouldLoadPlugin) {
-    await new PluginProcessGovernanceClient({}, app).load();
+    await app.pm.add(PluginProcessGovernanceClient);
+    await app.pm.load();
   }
   const RegisteredEditForm = engine.getModelClass('EditFormModel') as typeof EditFormModel;
   const parent = engine.createModel({ use: 'FlowModel' });

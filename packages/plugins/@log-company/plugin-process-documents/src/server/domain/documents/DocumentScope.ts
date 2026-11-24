@@ -8,8 +8,9 @@
  */
 
 import { ProcessDocumentsError } from './DocumentErrors';
+import type { CompanyDocumentArea } from '../../../contracts/processDocuments';
 
-export type CompanyDocumentScope = { mode: 'company'; companyId: string; companyArea?: 'company' };
+export type CompanyDocumentScope = { mode: 'company'; companyId: string; companyArea?: CompanyDocumentArea };
 export type DocumentScope =
   | { mode: 'shipment'; shipmentId: string }
   | { mode: 'draft'; draftToken: string }
@@ -18,7 +19,7 @@ export type DocumentScope =
 
 export interface CompanyDocumentTarget {
   companyId?: string | null;
-  companyArea?: 'company';
+  companyArea?: CompanyDocumentArea;
   runId?: string | null;
 }
 

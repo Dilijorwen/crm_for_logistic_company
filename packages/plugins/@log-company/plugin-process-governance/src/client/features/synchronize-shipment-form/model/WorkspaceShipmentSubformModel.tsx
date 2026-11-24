@@ -7,12 +7,13 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { FormGridModel, SubFormListFieldModel } from '@nocobase/client';
+import { SubFormListFieldModel } from '@nocobase/client';
 import { DisconnectOutlined, DownOutlined, PlusOutlined } from '@ant-design/icons';
 import type { FlowModel } from '@nocobase/flow-engine';
 import { Button, Collapse, Dropdown, Form, Space, Tabs, Typography, theme } from 'antd';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { WORKSPACE_DETACHED_SHIPMENT_IDS_FIELD } from '../../../../shared/workspace';
+import { LogisticsWorkspaceShipmentFieldsGridModel } from './WorkspaceShipmentFieldsGridModel';
 import { ScopedNativeBlock } from '../../scoped-native-block';
 
 interface ShipmentRow {
@@ -133,22 +134,6 @@ function WorkspaceShipmentSubform({
       {shipmentId != null && (
         <Space direction="vertical" size={token.marginSM} style={{ width: '100%', marginTop: token.marginSM }}>
           <ScopedNativeBlock key={shipmentId} host={model} templateUid="lcwspagedocs" shipmentId={String(shipmentId)} />
-          <Collapse
-            items={[
-              {
-                key: 'discussion',
-                label: 'Обсуждение',
-                children: (
-                  <ScopedNativeBlock
-                    key={shipmentId}
-                    host={model}
-                    templateUid="lcwspagediscussion"
-                    shipmentId={String(shipmentId)}
-                  />
-                ),
-              },
-            ]}
-          />
         </Space>
       )}
     </Space>
@@ -174,7 +159,7 @@ export class LogisticsWorkspaceShipmentSubformModel extends SubFormListFieldMode
   }
 }
 
-export class LogisticsWorkspaceShipmentFoldGridModel extends FormGridModel {
+export class LogisticsWorkspaceShipmentFoldGridModel extends LogisticsWorkspaceShipmentFieldsGridModel {
   render() {
     const fields = super.render();
     if (this.context.flowSettingsEnabled) return fields;

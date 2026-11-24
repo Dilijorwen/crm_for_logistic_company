@@ -70,13 +70,23 @@ describe('native edit popup category flows', () => {
       Object.defineProperty(item, 'collectionField', { value: model.collection.getField(item.uid) });
     const before = model.serialize();
     await act(async () => {
-      form.setFieldsValue({ category: 'rented', rental_from: '2026-01-01', rental_until: '2027-01-01' });
+      form.setFieldsValue({
+        category: 'rented',
+        document_type: 'state_registration_certificate',
+        rental_from: '2026-01-01',
+        rental_until: '2027-01-01',
+      });
       await model.applyFlow('permitDocumentCategory-beforeRender');
     });
     const props = (name: string) => items.find((item) => item.uid === name).props;
     expect(props('company').hidden).toBe(true);
     expect(props('rental_until')).toMatchObject({ hidden: false, required: true });
-    for (const name of ['status', 'period_from', 'related_document']) expect(props(name).hidden).toBe(true);
+    for (const name of ['status', 'period_from']) expect(props(name).hidden).toBe(true);
+    expect(props('related_document').hidden).toBe(false);
+    expect(props('related_document').normalize(undefined)).toBeNull();
+    const typeOptions = () => items.find((item) => item.uid === 'document_type').subModels.field.props.options;
+    expect(typeOptions().map((option: { label: string }) => option.label)).toEqual(['ДС', 'СС']);
+    expect(form.getFieldValue('document_type')).toBeUndefined();
     expect(props('technical_regulations')).toMatchObject({ hidden: false, required: false });
     expect(items.find((item) => item.uid === 'technical_regulations').subModels.field.props.disabled).toBe(false);
     expect(form.getFieldValue('rental_until')).toBe('2027-01-01');
@@ -89,6 +99,12 @@ describe('native edit popup category flows', () => {
     expect(props('manufacturer_address')).toMatchObject({ hidden: false, required: true });
     expect(props('rental_from').hidden).toBe(true);
     expect(form.getFieldValue('document_type')).toBe('certificate_of_conformity');
+    expect(typeOptions().map((option: { label: string }) => option.label)).toEqual(['СС']);
+    await act(async () => {
+      form.setFieldValue('category', 'ordinary');
+      await model.applyFlow('permitDocumentCategory-formValuesChange');
+    });
+    expect(typeOptions().map((option: { label: string }) => option.label)).toEqual(['ДС', 'СС', 'СГР']);
     expect(model.serialize()).toEqual(before);
     hook.unmount();
   });

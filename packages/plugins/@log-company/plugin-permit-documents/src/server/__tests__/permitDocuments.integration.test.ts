@@ -12,7 +12,7 @@ import actions from '@nocobase/actions';
 import { ResourceManager } from '@nocobase/resourcer';
 import type { Plugin } from '@nocobase/server';
 import type { Transaction } from 'sequelize';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PermitDocumentRepository } from '../application/ports/PermitDocumentRepository';
 import documentTechnicalRegulationsDefinition from '../collections/documentTechnicalRegulations';
 import permitDocumentsDefinition from '../collections/permitDocuments';
@@ -26,13 +26,16 @@ import { AssignPermitDocumentNumber } from '../application/AssignPermitDocumentN
 import { NocoBasePermitDocumentNumberingRepository } from '../infrastructure/nocobase/NocoBasePermitDocumentNumberingRepository';
 import { PermitDocumentNumberingHooks } from '../interfaces/hooks/PermitDocumentNumberingHooks';
 import { PermitDocumentManagedFieldsGuard } from '../interfaces/http/PermitDocumentManagedFieldsGuard';
+import { PermitDocumentNumberingError } from '../domain/permit-document/PermitDocumentNumbering';
 
 describe('permit documents persistence', () => {
   let database: Database;
   let resourcer: ResourceManager;
+  const assertCanLink = vi.fn(async (_id: string) => {});
 
   beforeEach(async () => {
     database = await createMockDatabase();
+    assertCanLink.mockClear();
     let generatedId = 9000;
     SnowflakeIdField.setApp({ snowflakeIdGenerator: { generate: () => ++generatedId } });
     await database.clean({ drop: true });
@@ -78,7 +81,7 @@ describe('permit documents persistence', () => {
     new PermitDocumentNumberingHooks(
       plugin,
       numbering,
-      new AssignPermitDocumentNumber(numbering, { assertCanLink: async () => {} }),
+      new AssignPermitDocumentNumber(numbering, { assertCanLink }),
     ).register();
     await database.sync({ force: true });
     for (const index of indexes) {
@@ -403,9 +406,6 @@ describe('permit documents persistence', () => {
     expect((left.toJSON() as { related_document: { title: string } }).related_document.title).toBe('SECOND');
     expect((right.toJSON() as { related_document: { title: string } }).related_document.title).toBe('FIRST');
     await expect(
-      repository.update({ filterByTk: second.get('id'), values: { related_document: null } }),
-    ).rejects.toThrow('только при создании');
-    await expect(
       repository.create({
         values: {
           id: '8103',
@@ -430,22 +430,87 @@ describe('permit documents persistence', () => {
     expect(String(reused.get('internal_number'))).toBe('1');
   });
 
-  it('rejects link and number changes but allows regular document edits', async () => {
+  it('links, replaces and clears a pair through Submit while keeping both documents consistent', async () => {
     const repository = database.getRepository('permit_documents');
     const first = await repository.create({
       values: { id: '8201', title: 'FIRST', document_type: 'certificate_of_conformity' },
     });
     const second = await repository.create({
-      values: { id: '8202', title: 'SECOND', document_type: 'declaration_of_conformity' },
+      values: {
+        id: '8202',
+        title: 'SECOND',
+        category: 'rented',
+        document_type: 'declaration_of_conformity',
+        rental_from: '2026-01-01',
+        rental_until: '2099-01-01',
+      },
     });
-    await expect(
-      repository.update({ filterByTk: first.get('id'), values: { related_document: second.get('id') } }),
-    ).rejects.toThrow('только при создании');
+    const third = await repository.create({
+      values: { id: '8203', title: 'THIRD', document_type: 'certificate_of_conformity' },
+    });
+    const submit = async (related_document: unknown) => {
+      const context = {
+        db: database,
+        request: {
+          path: '/api/permit_documents:update',
+          method: 'POST',
+          querystring: 'filterByTk=8201',
+          body: { related_document },
+        },
+        body: undefined as unknown,
+      };
+      await resourcer.middleware({ prefix: '/api' })(context, async () => {});
+    };
+    const pairState = async (id: unknown) => {
+      const document = await repository.findOne({ filterByTk: id });
+      const relatedId = document.get('related_document_id');
+      return [String(document.get('internal_number')), relatedId == null ? null : String(relatedId)];
+    };
+    await submit({ id: second.get('id'), title: 'Не менять' });
+    await submit({ id: second.get('id') });
+    expect(await pairState(first.get('id'))).toEqual(['2', '8202']);
+    expect(await pairState(second.get('id'))).toEqual(['2', '8201']);
+    expect((await repository.findOne({ filterByTk: second.get('id') })).get('title')).toBe('SECOND');
+
+    await expect(submit(first.get('id'))).rejects.toMatchObject({ code: 'SELF_RELATED_DOCUMENT' });
+    assertCanLink
+      .mockImplementationOnce(async () => {})
+      .mockRejectedValueOnce(
+        new PermitDocumentNumberingError('RELATED_DOCUMENT_ACCESS_DENIED', 'Нет прав на связь с выбранным документом.'),
+      );
+    await expect(submit(third.get('id'))).rejects.toMatchObject({ status: 403 });
+    expect(await pairState(first.get('id'))).toEqual(['2', '8202']);
+    expect(await pairState(second.get('id'))).toEqual(['2', '8201']);
+    expect(await pairState(third.get('id'))).toEqual(['3', null]);
+    await submit(third.get('id'));
+    expect(await pairState(first.get('id'))).toEqual(['3', '8203']);
+    expect(await pairState(second.get('id'))).toEqual(['2', null]);
+    expect(await pairState(third.get('id'))).toEqual(['3', '8201']);
+
+    await submit(null);
+    expect(await pairState(first.get('id'))).toEqual(['1', null]);
+    expect(await pairState(third.get('id'))).toEqual(['3', null]);
     await expect(repository.update({ filterByTk: first.get('id'), values: { internal_number: 99 } })).rejects.toThrow(
       'назначается автоматически',
     );
     await repository.update({ filterByTk: first.get('id'), values: { title: 'FIRST-UPDATED' } });
     expect(String((await repository.findOne({ filterByTk: first.get('id') })).get('internal_number'))).toBe('1');
+  });
+
+  it('rejects SGR for rented permits on create and update', async () => {
+    const repository = database.getRepository('permit_documents');
+    const values = {
+      title: 'АРЕНДА-2',
+      category: 'rented',
+      document_type: 'state_registration_certificate',
+      rental_from: '2026-01-01',
+      rental_until: '2099-01-01',
+    };
+    await expect(repository.create({ values })).rejects.toMatchObject({ code: 'RENTED_DOCUMENT_TYPE' });
+    const rented = await repository.create({ values: { ...values, document_type: 'certificate_of_conformity' } });
+    await expect(
+      repository.update({ filterByTk: rented.get('id'), values: { document_type: values.document_type } }),
+    ).rejects.toMatchObject({ code: 'RENTED_DOCUMENT_TYPE' });
   });
 
   it('rejects missing, self and multiple references without consuming a number', async () => {

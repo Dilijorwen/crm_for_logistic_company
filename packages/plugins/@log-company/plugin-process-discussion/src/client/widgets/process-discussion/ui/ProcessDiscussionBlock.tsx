@@ -34,7 +34,12 @@ import type { UploadFile } from 'antd/es/upload/interface';
 import type { UploadProps } from 'antd';
 import dayjs from 'dayjs';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createDiscussionComment } from '../../../entities/discussion';
+import {
+  createDiscussionComment,
+  WorkspaceDiscussionApi,
+  compareMessageIds,
+  type WorkspaceDiscussionMessage,
+} from '../../../entities/discussion';
 import {
   PROCESS_DISCUSSION_ATTACHMENT_PURPOSE,
   PROCESS_DISCUSSION_ATTACHMENT_PURPOSE_FIELD,
@@ -51,6 +56,7 @@ type ProcessResourceKey = string | number;
 type ProcessDiscussionBlockProps = {
   processId?: ProcessResourceKey | null;
   modelContext?: ProcessDiscussionModelContext;
+  workspace?: { entity: 'run' | 'shipment'; id: ProcessResourceKey };
 };
 
 type AttachmentRecord = {
@@ -62,20 +68,11 @@ type AttachmentRecord = {
   size?: number;
 };
 
-type DiscussionMessage = {
-  id: number | string;
-  text?: string;
-  createdAt?: string;
-  createdBy?: {
-    id?: number | string;
-    nickname?: string;
-    username?: string;
-  };
-  [ATTACHMENT_FIELD]?: AttachmentRecord[];
-};
+type DiscussionMessage = WorkspaceDiscussionMessage;
 
 type ListResult = {
   data: DiscussionMessage[];
+  scopeKey?: string;
   meta?: {
     count?: number;
     page?: number;
@@ -283,14 +280,14 @@ function sortMessages(data: DiscussionMessage[]) {
     if (timeDiff !== 0) {
       return timeDiff;
     }
-    return String(a.id).localeCompare(String(b.id));
+    return compareMessageIds(a.id, b.id) || (a.messageKey ?? '').localeCompare(b.messageKey ?? '');
   });
 }
 
 function mergeMessages(previous: DiscussionMessage[], incoming: DiscussionMessage[]) {
   const map = new Map<string, DiscussionMessage>();
   [...previous, ...incoming].forEach((item) => {
-    map.set(String(item.id), item);
+    map.set(item.messageKey ?? String(item.id), item);
   });
   return sortMessages(Array.from(map.values()));
 }
@@ -351,12 +348,16 @@ function useElementVisibility(ref: React.RefObject<HTMLElement>) {
   return intersecting && documentVisible;
 }
 
-function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDiscussionBlockProps) {
+function ProcessDiscussionBlockComponent({ processId, modelContext, workspace }: ProcessDiscussionBlockProps) {
   const api = useAPIClient();
   const { token } = antdTheme.useToken();
   const currentUser = useCurrentUserContext()?.data?.data;
   const processTarget = useProcessTarget(modelContext, processId);
-  const processKey = processTarget.status === 'ready' ? processTarget.key : undefined;
+  const workspaceId = workspace?.id;
+  const workspaceEntity = workspace?.entity;
+  const workspaceApi = useMemo(() => new WorkspaceDiscussionApi(api), [api]);
+  const scopeKey = useRef<string>();
+  const processKey = workspaceId ?? (processTarget.status === 'ready' ? processTarget.key : undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const processKeyRef = useRef<ProcessResourceKey | undefined>(processKey);
@@ -388,6 +389,8 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
 
   const fetchPage = useCallback(
     async (page: number): Promise<ListResult> => {
+      if (workspaceEntity && workspaceId != null)
+        return workspaceApi.list(workspaceEntity, workspaceId, page, PAGE_SIZE);
       const response = await api.resource(ASSOCIATION_RESOURCE, processKey).list(
         {
           page,
@@ -402,7 +405,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
         meta: response?.data?.meta,
       };
     },
-    [api, processKey],
+    [api, processKey, workspaceApi, workspaceEntity, workspaceId],
   );
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
@@ -428,9 +431,11 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
           return;
         }
         const latestAscending = sortMessages(result.data);
-        setItems((previous) => (replace ? latestAscending : mergeMessages(previous, latestAscending)));
-        setTotalCount(result.meta?.count || latestAscending.length);
-        setLoadedPages((previous) => Math.max(previous, 1));
+        const scopeChanged = result.scopeKey !== scopeKey.current;
+        scopeKey.current = result.scopeKey;
+        setItems((previous) => (replace || scopeChanged ? latestAscending : mergeMessages(previous, latestAscending)));
+        setTotalCount(result.meta?.count ?? latestAscending.length);
+        setLoadedPages((previous) => (scopeChanged ? 1 : Math.max(previous, 1)));
         setError(null);
         if (scroll) {
           scrollToBottom('auto');
@@ -439,6 +444,12 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
         if (processKeyRef.current !== processKey) {
           return;
         }
+        if (workspaceEntity) {
+          scopeKey.current = undefined;
+          setItems([]);
+          setTotalCount(0);
+          setLoadedPages(0);
+        }
         setError(getErrorText(err, 'Не удалось загрузить обсуждение.'));
       } finally {
         if (!silent && processKeyRef.current === processKey) {
@@ -446,11 +457,12 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
         }
       }
     },
-    [fetchPage, processKey, scrollToBottom],
+    [fetchPage, processKey, scrollToBottom, workspaceEntity],
   );
 
   useEffect(() => {
     processKeyRef.current = processKey;
+    scopeKey.current = undefined;
     setItems([]);
     setTotalCount(0);
     setLoadedPages(0);
@@ -490,6 +502,10 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
       if (processKeyRef.current !== processKey) {
         return;
       }
+      if (result.scopeKey !== scopeKey.current) {
+        await loadLatest({ replace: true });
+        return;
+      }
       setItems((previous) => mergeMessages(sortMessages(result.data), previous));
       setTotalCount(result.meta?.count || totalCount);
       setLoadedPages(nextPage);
@@ -504,7 +520,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
         setLoadingPrevious(false);
       }
     }
-  }, [fetchPage, loadedPages, loadingPrevious, processKey, totalCount]);
+  }, [fetchPage, loadedPages, loadingPrevious, loadLatest, processKey, totalCount]);
 
   const uploadRequest = useCallback<NonNullable<UploadProps['customRequest']>>(
     async (options) => {
@@ -579,14 +595,19 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
     setSubmitting(true);
     try {
       const normalizedText = text.trim();
-      const processAssociationValue = getProcessAssociationValue(processKey);
-      const processForeignKeyValue = getProcessForeignKeyValue(processKey);
-      await createDiscussionComment(api, {
-        shipment: processAssociationValue,
-        shipment_id: processForeignKeyValue,
-        text: normalizedText || (uploadedAttachments.length ? ' ' : ''),
-        attachment: uploadedAttachments.map((file) => file.id),
-      });
+      const attachmentIds = uploadedAttachments.map((file) => file.id);
+      if (workspaceEntity === 'run') {
+        await workspaceApi.send(processKey, normalizedText, attachmentIds);
+      } else {
+        const processAssociationValue = getProcessAssociationValue(processKey);
+        const processForeignKeyValue = getProcessForeignKeyValue(processKey);
+        await createDiscussionComment(api, {
+          shipment: processAssociationValue,
+          shipment_id: processForeignKeyValue,
+          text: normalizedText || (attachmentIds.length ? ' ' : ''),
+          attachment: attachmentIds,
+        });
+      }
       if (processKeyRef.current !== processKey) {
         return;
       }
@@ -604,7 +625,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
         setSubmitting(false);
       }
     }
-  }, [api, canSubmit, loadLatest, processKey, text, uploadedAttachments]);
+  }, [api, canSubmit, loadLatest, processKey, text, uploadedAttachments, workspaceApi, workspaceEntity]);
 
   const groupedItems = useMemo(() => {
     const groups: { label: string; items: DiscussionMessage[] }[] = [];
@@ -620,7 +641,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
     return groups;
   }, [items]);
 
-  if (processTarget.status === 'loading') {
+  if (!workspaceEntity && processTarget.status === 'loading') {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
         <Spin indicator={<LoadingOutlined spin />} />
@@ -628,7 +649,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
     );
   }
 
-  if (processTarget.status !== 'ready') {
+  if (!workspaceEntity && processTarget.status !== 'ready') {
     return <Alert type="info" showIcon message="Сначала сохраните поставку, чтобы открыть обсуждение." />;
   }
 
@@ -663,7 +684,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
               const textContent = getRenderableText(item.text);
               return (
                 <div
-                  key={String(item.id)}
+                  key={item.messageKey ?? String(item.id)}
                   className={`process-discussion-item ${isOwn ? 'process-discussion-item-own' : ''}`}
                 >
                   <Avatar size={32}>{getInitials(authorName) || '?'}</Avatar>
@@ -671,6 +692,7 @@ function ProcessDiscussionBlockComponent({ processId, modelContext }: ProcessDis
                     <div className="process-discussion-meta">
                       <span className="process-discussion-author" title={authorName}>
                         {authorName}
+                        {item.source && ` · ${item.source}`}
                       </span>
                       <Tooltip title={dayjs(item.createdAt).format('DD.MM.YYYY HH:mm:ss')}>
                         <span className="process-discussion-time">{dayjs(item.createdAt).format('HH:mm')}</span>

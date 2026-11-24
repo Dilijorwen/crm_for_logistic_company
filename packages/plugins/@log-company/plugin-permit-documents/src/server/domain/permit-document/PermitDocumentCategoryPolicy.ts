@@ -8,9 +8,10 @@
  */
 
 import { toCalendarDate, type PermitDocumentStatus } from './PermitDocumentPolicy';
+import { isDocumentTypeAllowed, type PermitDocumentCategory } from '../../../contracts/permitDocumentTypes';
 
 export const PERMIT_DOCUMENT_CATEGORIES = ['ordinary', 'rented', 'voluntary'] as const;
-export type PermitDocumentCategory = (typeof PERMIT_DOCUMENT_CATEGORIES)[number];
+export type { PermitDocumentCategory };
 
 export class PermitDocumentCategoryError extends Error {
   constructor(
@@ -66,6 +67,9 @@ export function validatePermitDocumentCategory(input: {
   attachmentCount: number;
 }): void {
   if (input.category === 'rented') {
+    if (!isDocumentTypeAllowed(input.category, input.documentType)) {
+      throw new PermitDocumentCategoryError('RENTED_DOCUMENT_TYPE', 'Для арендованного документа выберите ДС или СС.');
+    }
     if (input.companyId != null && input.companyId !== '') {
       throw new PermitDocumentCategoryError(
         'RENTED_DOCUMENT_COMPANY',
@@ -87,7 +91,7 @@ export function validatePermitDocumentCategory(input: {
     );
   }
   if (input.category !== 'voluntary') return;
-  if (input.documentType !== 'certificate_of_conformity') {
+  if (!isDocumentTypeAllowed(input.category, input.documentType)) {
     throw new PermitDocumentCategoryError('VOLUNTARY_DOCUMENT_TYPE', 'Добровольный документ может быть только СС.');
   }
   if (input.relatedDocumentId != null && input.relatedDocumentId !== '') {

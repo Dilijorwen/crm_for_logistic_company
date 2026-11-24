@@ -8,6 +8,7 @@
  */
 
 import { assertDraftOwner, assertRecordMatchesScope } from '../domain/documents/DocumentScope';
+import { companyRequestFolderTypes, isCompanyRequestFolder } from '../../contracts/processDocuments';
 import type { CompanyDocumentTarget, DocumentScope, ScopedRecord } from '../domain/documents/DocumentScope';
 import { allowsFolderOperation } from '../domain/documents/FolderAccess';
 import { ProcessDocumentsError } from '../domain/documents/DocumentErrors';
@@ -33,13 +34,21 @@ export class DocumentScopeService {
     private readonly access: ProcessDocumentAccess,
   ) {}
 
-  async resolve(input: ResolveDocumentScopeInput): Promise<DocumentScope> {
+  async resolve(input: ResolveDocumentScopeInput, transaction?: TransactionContext): Promise<DocumentScope> {
     if (input.companyId || input.runId) {
       if (input.shipmentId || input.draftToken) {
         throw new ProcessDocumentsError('INVALID_DOCUMENT_SCOPE', 'Укажите один раздел для документов.');
       }
       if (input.runId && this.access.assertRunAccess) {
-        await this.access.assertRunAccess(input.runId, input.operation, input.actor, input.companyId ?? null);
+        if (transaction)
+          await this.access.assertRunAccess(
+            input.runId,
+            input.operation,
+            input.actor,
+            input.companyId ?? null,
+            transaction,
+          );
+        else await this.access.assertRunAccess(input.runId, input.operation, input.actor, input.companyId ?? null);
         return { mode: 'run', runId: input.runId };
       }
       if (!input.runId && input.companyId && this.access.assertCompanyAccess) {
@@ -48,16 +57,22 @@ export class DocumentScopeService {
           companyId: input.companyId,
           ...(input.companyArea ? { companyArea: input.companyArea } : {}),
         };
-        await this.access.assertCompanyAccess(scope, input.operation, input.actor);
+        if (transaction) await this.access.assertCompanyAccess(scope, input.operation, input.actor, transaction);
+        else await this.access.assertCompanyAccess(scope, input.operation, input.actor);
         return scope;
       }
       throw new ProcessDocumentsError('INVALID_DOCUMENT_SCOPE', 'Раздел документов недоступен.');
     }
     if (input.shipmentId) {
-      if (!(await this.repository.shipmentExists(input.shipmentId))) {
+      if (
+        !(await (transaction
+          ? this.repository.shipmentExists(input.shipmentId, transaction)
+          : this.repository.shipmentExists(input.shipmentId)))
+      ) {
         throw new ProcessDocumentsError('SHIPMENT_NOT_FOUND', 'Поставка не найдена.');
       }
-      await this.access.assertAccess(input.shipmentId, input.operation, input.actor);
+      if (transaction) await this.access.assertAccess(input.shipmentId, input.operation, input.actor, transaction);
+      else await this.access.assertAccess(input.shipmentId, input.operation, input.actor);
       return { mode: 'shipment', shipmentId: input.shipmentId };
     }
 
@@ -109,6 +124,7 @@ export class DocumentScopeService {
     if (actor.isRoot) return;
     const seen = new Set<string>();
     let current = folderId;
+    let childTitle: string | undefined;
     while (current) {
       if (seen.has(current)) throw new ProcessDocumentsError('FOLDER_CYCLE', 'Обнаружен цикл папок.');
       seen.add(current);
@@ -117,7 +133,35 @@ export class DocumentScopeService {
       if (!allowsFolderOperation(folder.grants, operation, actor)) {
         throw new ProcessDocumentsError('DOCUMENT_ACCESS_DENIED', 'Нет доступа к папке.');
       }
+      if (folder.parentFolderId === null && isCompanyRequestFolder(folder.title)) {
+        await this.assertCompanyFolderSection(scope, 'requests', operation, actor);
+        if (childTitle === companyRequestFolderTypes.our_companies) {
+          await this.assertCompanyFolderSection(scope, 'corporate', operation, actor);
+        }
+      }
+      childTitle = folder.title;
       current = folder.parentFolderId;
+    }
+  }
+
+  async allowsCompanyFolderSection(
+    scope: DocumentScope,
+    section: 'requests' | 'corporate',
+    operation: ProcessDocumentOperation,
+    actor: DocumentActor,
+  ): Promise<boolean> {
+    if (actor.isRoot || scope.mode !== 'company' || scope.companyArea !== 'company') return true;
+    return (await this.access.allowsCompanyFolderSection?.(section, scope.companyId, operation, actor)) ?? true;
+  }
+
+  async assertCompanyFolderSection(
+    scope: DocumentScope,
+    section: 'requests' | 'corporate',
+    operation: ProcessDocumentOperation,
+    actor: DocumentActor,
+  ): Promise<void> {
+    if (!(await this.allowsCompanyFolderSection(scope, section, operation, actor))) {
+      throw new ProcessDocumentsError('DOCUMENT_ACCESS_DENIED', 'Нет доступа к папке.');
     }
   }
 

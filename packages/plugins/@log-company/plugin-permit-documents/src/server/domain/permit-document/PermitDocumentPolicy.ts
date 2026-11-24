@@ -7,13 +7,9 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-export const PERMIT_DOCUMENT_TYPES = [
-  'declaration_of_conformity',
-  'certificate_of_conformity',
-  'state_registration_certificate',
-] as const;
+import { PERMIT_DOCUMENT_TYPES, type PermitDocumentType } from '../../../contracts/permitDocumentTypes';
 
-export type PermitDocumentType = (typeof PERMIT_DOCUMENT_TYPES)[number];
+export { PERMIT_DOCUMENT_TYPES, type PermitDocumentType };
 
 export const PERMIT_DOCUMENT_STATUSES = ['valid', 'suspended', 'terminated'] as const;
 export type PermitDocumentStatus = (typeof PERMIT_DOCUMENT_STATUSES)[number];

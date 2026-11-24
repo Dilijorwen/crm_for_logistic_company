@@ -34,6 +34,7 @@ import {
   LogisticsWorkspaceTabsBlockModel,
   LogisticsWorkspaceSectionPageModel,
 } from '../widgets/workspace-context';
+import { LogisticsWorkspaceHistoryBlockModel } from '../widgets/workspace-history';
 import { LogisticsWorkspaceShipmentsBlockModel } from '../widgets/workspace-shipments';
 import { LogisticsWorkspaceTableBlockModel } from '../widgets/workspace-table';
 import {
@@ -48,6 +49,7 @@ import {
   ShipmentSynchronizedEditFormModel,
   LogisticsWorkspaceCreateFormModel,
   LogisticsWorkspaceScopedSelectFieldModel,
+  LogisticsWorkspaceShipmentFieldsGridModel,
 } from '../features/synchronize-shipment-form';
 import {
   LogisticsWorkspaceShipmentFoldGridModel,
@@ -57,12 +59,12 @@ import {
 const NAMESPACE = '@log-company/plugin-process-governance';
 
 export class PluginProcessGovernanceClient extends Plugin {
-  async load(): Promise<void> {
-    this.app.addComponents({ FlowRoute: StableFlowRoute });
+  async afterAdd(): Promise<void> {
+    // FlowEngine caches missing classes as error models, so register custom models before load hooks run.
     this.flowEngine.registerModels({
-      EditFormModel: ShipmentSynchronizedEditFormModel,
       LogisticsWorkspaceCreateFormModel,
       LogisticsWorkspaceScopedSelectFieldModel,
+      LogisticsWorkspaceShipmentFieldsGridModel,
       LogisticsWorkspaceShipmentSubformModel,
       LogisticsWorkspaceShipmentFoldGridModel,
       LogisticsWorkspaceRunDocumentsModel,
@@ -80,6 +82,7 @@ export class PluginProcessGovernanceClient extends Plugin {
       LogisticsWorkspaceContextBlockModel,
       LogisticsWorkspaceSectionPageModel,
       LogisticsWorkspaceShipmentsBlockModel,
+      LogisticsWorkspaceHistoryBlockModel,
       LogisticsWorkspaceTableBlockModel,
       LogisticsWorkspaceShipmentEditFormModel,
       LogisticsWorkspaceShipmentSectionsGridModel,
@@ -89,6 +92,11 @@ export class PluginProcessGovernanceClient extends Plugin {
       LogisticsWorkspaceShipmentActionModel,
       LogisticsWorkspaceDeleteRunActionModel,
     });
+  }
+
+  async load(): Promise<void> {
+    this.app.addComponents({ FlowRoute: StableFlowRoute });
+    this.flowEngine.registerModels({ EditFormModel: ShipmentSynchronizedEditFormModel });
     const deleteMetadata = BulkDeleteActionModel.meta;
     BulkDeleteActionModel.define({
       ...deleteMetadata,

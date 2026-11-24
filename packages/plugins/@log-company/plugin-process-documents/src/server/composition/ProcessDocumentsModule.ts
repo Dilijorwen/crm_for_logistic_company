@@ -7,6 +7,9 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import { createHash } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import type { Plugin } from '@nocobase/server';
 import PluginFileManager from '@nocobase/plugin-file-manager/server';
 import type PluginFileStorage from '@log-company/plugin-file-storage';
@@ -23,8 +26,10 @@ import { DownloadProcessDocument } from '../application/DownloadProcessDocument'
 import { DocumentSectionAccess } from '../application/DocumentSectionAccess';
 import { GetProcessDocumentFolderDeleteSummary } from '../application/GetProcessDocumentFolderDeleteSummary';
 import { SetDocumentFolderAccess } from '../application/SetDocumentFolderAccess';
+import { RenameProcessDocumentEntry } from '../application/RenameProcessDocumentEntry';
 import { ListProcessDocuments } from '../application/ListProcessDocuments';
 import { UploadProcessDocuments } from '../application/UploadProcessDocuments';
+import { PublishFormDocuments } from '../application/PublishFormDocuments';
 import { ValidateDocumentFolderPlacement } from '../application/ValidateDocumentFolderPlacement';
 import { ValidateProcessDocumentPlacement } from '../application/ValidateProcessDocumentPlacement';
 import { NocoBaseApplicationLogger } from '../infrastructure/nocobase/NocoBaseApplicationLogger';
@@ -32,11 +37,14 @@ import { NocoBaseIdentifierGenerator } from '../infrastructure/nocobase/NocoBase
 import { NocoBaseProcessDocumentAccess } from '../infrastructure/nocobase/NocoBaseProcessDocumentAccess';
 import { NocoBaseDocumentSectionRules } from '../infrastructure/nocobase/NocoBaseDocumentSectionRules';
 import { NocoBaseRecordAttachmentRepository } from '../infrastructure/nocobase/NocoBaseRecordAttachmentRepository';
+import { NocoBaseFormDocumentOwners } from '../infrastructure/nocobase/NocoBaseFormDocumentOwners';
 import { NocoBaseProcessDocumentsRepository } from '../infrastructure/persistence/nocobase/NocoBaseProcessDocumentsRepository';
 import { CryptoStorageKeyGenerator } from '../infrastructure/storage/CryptoStorageKeyGenerator';
 import { MinioDocumentStorage } from '../infrastructure/storage/minio/MinioDocumentStorage';
 import { ProcessDocumentsHooks } from '../interfaces/hooks/ProcessDocumentsHooks';
 import { ProcessDocumentsController } from '../interfaces/http/ProcessDocumentsController';
+import { TemporaryDocumentDrafts } from '../infrastructure/storage/TemporaryDocumentDrafts';
+import { FormDocumentDraftsController } from '../interfaces/http/FormDocumentDraftsController';
 
 export class ProcessDocumentsModule {
   constructor(private readonly plugin: Plugin) {}
@@ -57,6 +65,7 @@ export class ProcessDocumentsModule {
     const actions = {
       list: new ListProcessDocuments(repository, scopeService),
       setFolderAccess: new SetDocumentFolderAccess(repository, scopeService),
+      renameEntry: new RenameProcessDocumentEntry(repository, scopeService),
       createFolder: new CreateProcessDocumentFolder(repository, scopeService, folderService),
       uploadFiles: new UploadProcessDocuments(
         repository,
@@ -110,6 +119,26 @@ export class ProcessDocumentsModule {
     };
 
     new ProcessDocumentsController(this.plugin, actions, logger, access, sectionAccess).register();
+    const applicationKey = createHash('sha256').update(this.plugin.app.name).digest('hex').slice(0, 16);
+    const temporaryDrafts = new TemporaryDocumentDrafts(
+      path.join(tmpdir(), `log-company-form-documents-${applicationKey}`),
+      (error) =>
+        logger.warn('Не удалось очистить временные файлы формы.', {
+          code: error instanceof Error ? error.name : 'UnknownError',
+        }),
+    );
+    await temporaryDrafts.start();
+    this.plugin.app.on('beforeStop', () => temporaryDrafts.stop());
+    new FormDocumentDraftsController(
+      this.plugin,
+      temporaryDrafts,
+      new PublishFormDocuments(
+        new NocoBaseFormDocumentOwners(this.plugin, fileManager, fileStorage, access),
+        repository,
+        folderService,
+        actions.uploadFiles,
+      ),
+    ).register();
     new ProcessDocumentsHooks(
       this.plugin,
       repository,

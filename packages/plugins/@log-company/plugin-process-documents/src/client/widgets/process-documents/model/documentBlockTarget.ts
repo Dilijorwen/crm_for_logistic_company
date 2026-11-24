@@ -25,7 +25,7 @@ export function documentBlockTarget(
     return { kind: 'shipment' as const, collection: 'shipments', recordId: explicitShipmentId ?? key('shipments') };
   }
   const recordId = key(collectionName);
-  if (recordId === undefined) return { kind: 'unsaved' as const };
+  if (recordId === undefined) return { kind: 'unsaved' as const, collection: collectionName };
   if (collectionName === 'our_companies') return { kind: 'company' as const, collection: collectionName, recordId };
   if (collectionName === 'transport_runs') return { kind: 'run' as const, collection: collectionName, recordId };
   return { kind: 'attachment' as const, collection: collectionName, recordId };

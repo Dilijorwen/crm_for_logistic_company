@@ -11,7 +11,7 @@ import { useEffect, useRef } from 'react';
 import { useField, useForm } from '@formily/react';
 import { onFieldValueChange, type Field } from '@formily/core';
 import { useCollectionRecord } from '@nocobase/client';
-import { categoryFieldState, categoryValue } from './categoryFields';
+import { categoryFieldState, categoryValue, documentTypeForCategory, documentTypeOptions } from './categoryFields';
 
 export function usePermitDocumentFieldProps() {
   const form = useForm();
@@ -22,7 +22,9 @@ export function usePermitDocumentFieldProps() {
     if (!form || !field || field.pattern === 'readPretty') return;
     const apply = () => {
       const category = categoryValue(form.values.category);
-      if (category === 'voluntary') form.setValuesIn('document_type', 'certificate_of_conformity');
+      const type: unknown = form.values.document_type;
+      const nextType = documentTypeForCategory(category, type);
+      if (type !== nextType) form.setValuesIn('document_type', nextType);
       if (category === 'rented') {
         form.setValuesIn('company', null);
         form.setValuesIn('company_id', null);
@@ -32,9 +34,11 @@ export function usePermitDocumentFieldProps() {
       }
       if (category === 'voluntary' && record?.isNew !== false) form.setValuesIn('related_document', null);
       form.query('*').forEach((item) => {
-        const state = categoryFieldState(category, String(item.path.segments.slice(-1)[0]), record?.isNew !== false);
+        const name = String(item.path.segments.slice(-1)[0]);
+        const state = categoryFieldState(category, name, record?.isNew !== false);
         if (!state || item.pattern === 'readPretty') return;
         item.setState({ visible: state.visible, required: state.required });
+        if (name === 'document_type' && 'setDataSource' in item) item.setDataSource(documentTypeOptions(category));
         item.setComponentProps({ disabled: state.disabled });
       });
     };

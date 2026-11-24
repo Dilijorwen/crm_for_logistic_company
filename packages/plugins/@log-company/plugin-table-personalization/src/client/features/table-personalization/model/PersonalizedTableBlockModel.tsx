@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { Space } from 'antd';
-import { TableBlockModel, TableColumnModel, type ResourceSettingsInitParams } from '@nocobase/client';
+import { TableBlockModel, TableColumnModel, TableSelectModel, type ResourceSettingsInitParams } from '@nocobase/client';
 import { type FlowModel, type FlowModelContext, type MultiRecordResource } from '@nocobase/flow-engine';
 import type { ColumnSettings, PersonalizableColumn, TableIdentity } from '../../../../shared/contracts';
 import { fixedGroup, record, MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH } from '../../../../shared/contracts';
@@ -21,225 +21,239 @@ import { PersonalizationController } from './PersonalizationController';
 import { PersonalCollectionColumns } from './PersonalCollectionColumns';
 import { tableIdentity } from '../../../shared/lib';
 
-export class PersonalizedTableBlockModel extends TableBlockModel {
-  private personalController?: PersonalizationController;
-  private personalizationView?: FlowModel['context']['view'];
-  private readonly personalColumns = new PersonalCollectionColumns(this);
+function withPersonalizedColumns(Base: typeof TableBlockModel) {
+  const isSelector = Base === TableSelectModel;
+  return class extends Base {
+    private personalController?: PersonalizationController;
+    private personalizationView?: FlowModel['context']['view'];
+    private readonly personalColumns = new PersonalCollectionColumns(this);
 
-  createResource(context: FlowModelContext, params: ResourceSettingsInitParams): MultiRecordResource {
-    const resource = super.createResource(context, params);
-    const initialize = context.initializeTableResource as
-      | ((current: MultiRecordResource, model: TableBlockModel) => void)
-      | undefined;
-    if (typeof initialize === 'function') initialize(resource, this);
-    return resource;
-  }
-
-  get personalization(): PersonalizationController {
-    if (!this.personalController) {
-      this.personalController = new PersonalizationController(
-        new TablePersonalizationApi(this.context.api),
-        (data, isCurrent) => this.personalColumns.synchronize(data, isCurrent),
-        () => this.personalColumns.clear(),
-      );
+    private canPersonalizeColumns(): boolean {
+      return !isSelector || this.props.personalizeColumns === true;
     }
-    return this.personalController;
-  }
 
-  getPersonalizationIdentity(): TableIdentity {
-    return tableIdentity(this);
-  }
-
-  getPersonalizationOwner(): string {
-    return JSON.stringify([record(this.context.user).id, this.context.api.auth.role, this.context.acl?.data]);
-  }
-
-  onMount(): void {
-    super.onMount();
-    this.personalization.activate(this.getPersonalizationIdentity(), this.getPersonalizationOwner());
-  }
-
-  onUnmount(): void {
-    this.closePersonalizationSettings();
-    this.personalController?.stop();
-    super.onUnmount();
-  }
-
-  async openPersonalizationSettings(): Promise<void> {
-    if (this.personalizationView || this.context.flowSettingsEnabled) return;
-    // The engine's view holder survives toolbar remounts caused by asynchronous column updates.
-    const view: FlowModel['context']['view'] & Promise<unknown> = this.context.viewer.dialog({
-      title: 'Колонки',
-      closable: true,
-      destroyOnClose: true,
-      styles: { body: { maxHeight: '65vh', overflowY: 'auto' } },
-      content: (currentView) => <ColumnSettingsDialog model={this} view={currentView} />,
-    });
-    this.personalizationView = view;
-    try {
-      await view;
-    } finally {
-      if (this.personalizationView === view) this.personalizationView = undefined;
+    createResource(context: FlowModelContext, params: ResourceSettingsInitParams): MultiRecordResource {
+      const resource = super.createResource(context, params);
+      const initialize = context.initializeTableResource as
+        | ((current: MultiRecordResource, model: TableBlockModel) => void)
+        | undefined;
+      if (!isSelector && typeof initialize === 'function') initialize(resource, this);
+      return resource;
     }
-  }
 
-  closePersonalizationSettings(): void {
-    this.personalizationView?.destroy?.();
-    this.personalizationView = undefined;
-  }
-
-  getColumns(): ReturnType<TableBlockModel['getColumns']> {
-    if (this.context.flowSettingsEnabled) return super.getColumns();
-    const controller = this.personalization;
-    // Subscribe during the first projection, before activation has loaded the current owner's preferences.
-    const data = controller.state.data;
-    const settings = controller.matches(this.getPersonalizationIdentity(), this.getPersonalizationOwner())
-      ? data?.settings || null
-      : null;
-    // Reset restores the current shared renderer, including the editor's order and native column props.
-    if (!settings) return super.getColumns();
-    const columns = this.mapSubModels('columns', (column) => {
-      const props = column.getColumnProps();
-      const isFieldColumn = column instanceof TableColumnModel && column.use === 'TableColumnModel';
-      return props
-        ? {
-            uid: column.uid,
-            props: isFieldColumn
-              ? { ...props, key: column.uid, hidden: Boolean(props.hidden || column.hidden || column.forbidden) }
-              : props,
-            canPersonalize: isFieldColumn && !column.hidden && !column.forbidden,
-          }
-        : null;
-    }).filter((column): column is NonNullable<typeof column> => !!column);
-    const additional = (data?.columns || []).flatMap((column) => {
-      if (
-        column.source !== 'collection' ||
-        this.mapSubModels('columns', (shared) => shared.fieldPath).includes(column.fieldPath) ||
-        !settings?.columnOrder.includes(column.uid) ||
-        settings.hiddenColumnUids.includes(column.uid)
-      )
-        return [];
-      const model = this.personalColumns.get(column.uid);
-      if (!model) return [];
-      const props = model.getColumnProps();
-      return props
-        ? [
-            {
-              uid: column.uid,
-              canPersonalize: true,
-              props: { ...props, key: column.uid, hidden: Boolean(model.hidden || model.forbidden) },
-            },
-          ]
-        : [];
-    });
-    const rendered = applyColumnLayout([...columns, ...additional], settings).map((column) => column.props);
-    return [
-      ...rendered.filter((column) => fixedGroup(column.fixed) !== 'right'),
-      { key: 'empty' },
-      ...rendered.filter((column) => fixedGroup(column.fixed) === 'right'),
-    ];
-  }
-
-  getPersonalizableColumns(): PersonalizableColumn[] {
-    const data = this.personalController?.state.data;
-    if (!data) return [];
-    const available = new Map(data.columns.map((column) => [column.uid, column]));
-    const configured = this.mapSubModels('columns', (column) => {
-      const saved = available.get(column.uid);
-      if (!saved || column.forbidden || !column.getColumnProps()) return null;
-      return {
-        ...saved,
-        title: typeof column.props.title === 'string' ? column.props.title : saved.title,
-        fixed: fixedGroup(column.props.fixed),
-      };
-    }).filter((column): column is PersonalizableColumn => !!column);
-    const sharedPaths = this.mapSubModels('columns', (column) => column.fieldPath);
-    const additional = data.columns
-      .filter((column) => column.source === 'collection' && !sharedPaths.includes(column.fieldPath))
-      .map((column) => ({ ...column, title: this.collection.getField(column.fieldPath)?.title || column.title }));
-    return [...configured, ...additional];
-  }
-
-  async captureColumnSettings(): Promise<ColumnSettings> {
-    const identity = this.getPersonalizationIdentity();
-    const owner = this.getPersonalizationOwner();
-    if (!this.personalization.matches(identity, owner)) await this.personalization.activate(identity, owner);
-    else await this.personalization.reload();
-    const state = this.personalization.state;
-    if (
-      !this.personalization.matches(identity, owner) ||
-      !state.data ||
-      state.error ||
-      state.widthError ||
-      state.isSaving
-    ) {
-      throw new Error('Не удалось получить актуальные настройки колонок. Повторите попытку');
-    }
-    const draft = normalizeDraft(state.data.settings, this.getPersonalizableColumns());
-    const columnWidths = { ...draft.columnWidths };
-    const allowed = state.data.resizableColumnUids || state.data.columns.map((column) => column.uid);
-    this.mapSubModels('columns', (column) => {
-      const width = column.getColumnProps()?.width;
-      if (
-        columnWidths[column.uid] === undefined &&
-        allowed.includes(column.uid) &&
-        typeof width === 'number' &&
-        Number.isInteger(width) &&
-        width >= MIN_COLUMN_WIDTH &&
-        width <= MAX_COLUMN_WIDTH
-      ) {
-        columnWidths[column.uid] = width;
+    get personalization(): PersonalizationController {
+      if (!this.personalController) {
+        this.personalController = new PersonalizationController(
+          new TablePersonalizationApi(this.context.api),
+          (data, isCurrent) => this.personalColumns.synchronize(data, isCurrent),
+          () => this.personalColumns.clear(),
+        );
       }
-    });
-    return { ...draft, columnWidths };
-  }
+      return this.personalController;
+    }
 
-  protected renderPersonalizationActions(): React.ReactNode {
-    return <ColumnSettingsButton key="personal-columns" model={this} />;
-  }
+    getPersonalizationIdentity(): TableIdentity {
+      return tableIdentity(this);
+    }
 
-  renderComponent(): ReturnType<TableBlockModel['renderComponent']> {
-    const rendered = super.renderComponent();
-    if (this.context.flowSettingsEnabled || rendered.type !== React.Fragment) return rendered;
+    getPersonalizationOwner(): string {
+      return JSON.stringify([record(this.context.user).id, this.context.api.auth.role, this.context.acl?.data]);
+    }
 
-    // NocoBase 2.0.60 exposes only a right-hand action slot. Extend its native left Space
-    // without replacing the table renderer or inserting an action into the saved schema.
-    const [provider, ...content] = React.Children.toArray(rendered.props.children);
-    if (!React.isValidElement<{ children?: React.ReactNode }>(provider)) return rendered;
-    const toolbar = provider.props.children;
-    if (!React.isValidElement<{ children?: React.ReactNode }>(toolbar)) return rendered;
-    const [leftActions, ...rightActions] = React.Children.toArray(toolbar.props.children);
-    if (!React.isValidElement<{ children?: React.ReactNode }>(leftActions) || leftActions.type !== Space)
-      return rendered;
+    onMount(): void {
+      super.onMount();
+      if (this.canPersonalizeColumns())
+        this.personalization.activate(this.getPersonalizationIdentity(), this.getPersonalizationOwner());
+    }
 
-    const personalizedActions = React.cloneElement(
-      leftActions,
-      undefined,
-      this.renderPersonalizationActions(),
-      leftActions.props.children,
-    );
-    const personalized = React.cloneElement(
-      rendered,
-      undefined,
-      React.cloneElement(
-        provider,
+    onUnmount(): void {
+      this.closePersonalizationSettings();
+      this.personalController?.stop();
+      super.onUnmount();
+    }
+
+    async openPersonalizationSettings(): Promise<void> {
+      if (!this.canPersonalizeColumns() || this.personalizationView || this.context.flowSettingsEnabled) return;
+      // The engine's view holder survives toolbar remounts caused by asynchronous column updates.
+      const view: FlowModel['context']['view'] & Promise<unknown> = this.context.viewer.dialog({
+        title: 'Колонки',
+        closable: true,
+        destroyOnClose: true,
+        styles: { body: { maxHeight: '65vh', overflowY: 'auto' } },
+        content: (currentView) => <ColumnSettingsDialog model={this} view={currentView} />,
+      });
+      this.personalizationView = view;
+      try {
+        await view;
+      } finally {
+        if (this.personalizationView === view) this.personalizationView = undefined;
+      }
+    }
+
+    closePersonalizationSettings(): void {
+      this.personalizationView?.destroy?.();
+      this.personalizationView = undefined;
+    }
+
+    getColumns(): ReturnType<TableBlockModel['getColumns']> {
+      if (!this.canPersonalizeColumns() || this.context.flowSettingsEnabled) return super.getColumns();
+      const controller = this.personalization;
+      // Subscribe during the first projection, before activation has loaded the current owner's preferences.
+      const data = controller.state.data;
+      const settings = controller.matches(this.getPersonalizationIdentity(), this.getPersonalizationOwner())
+        ? data?.settings || null
+        : null;
+      // Reset restores the current shared renderer, including the editor's order and native column props.
+      if (!settings) return super.getColumns();
+      const columns = this.mapSubModels('columns', (column) => {
+        const props = column.getColumnProps();
+        const isFieldColumn = column instanceof TableColumnModel && column.use === 'TableColumnModel';
+        return props
+          ? {
+              uid: column.uid,
+              props: isFieldColumn
+                ? { ...props, key: column.uid, hidden: Boolean(props.hidden || column.hidden || column.forbidden) }
+                : props,
+              canPersonalize: isFieldColumn && !column.hidden && !column.forbidden,
+            }
+          : null;
+      }).filter((column): column is NonNullable<typeof column> => !!column);
+      const additional = (data?.columns || []).flatMap((column) => {
+        if (
+          column.source !== 'collection' ||
+          this.mapSubModels('columns', (shared) => shared.fieldPath).includes(column.fieldPath) ||
+          !settings?.columnOrder.includes(column.uid) ||
+          settings.hiddenColumnUids.includes(column.uid)
+        )
+          return [];
+        const model = this.personalColumns.get(column.uid);
+        if (!model) return [];
+        const props = model.getColumnProps();
+        return props
+          ? [
+              {
+                uid: column.uid,
+                canPersonalize: true,
+                props: { ...props, key: column.uid, hidden: Boolean(model.hidden || model.forbidden) },
+              },
+            ]
+          : [];
+      });
+      const rendered = applyColumnLayout([...columns, ...additional], settings).map((column) => column.props);
+      return [
+        ...rendered.filter((column) => fixedGroup(column.fixed) !== 'right'),
+        { key: 'empty' },
+        ...rendered.filter((column) => fixedGroup(column.fixed) === 'right'),
+      ];
+    }
+
+    getPersonalizableColumns(): PersonalizableColumn[] {
+      const data = this.personalController?.state.data;
+      if (!data) return [];
+      const available = new Map(data.columns.map((column) => [column.uid, column]));
+      const configured = this.mapSubModels('columns', (column) => {
+        const saved = available.get(column.uid);
+        if (!saved || column.forbidden || !column.getColumnProps()) return null;
+        return {
+          ...saved,
+          title: typeof column.props.title === 'string' ? column.props.title : saved.title,
+          fixed: fixedGroup(column.props.fixed),
+        };
+      }).filter((column): column is PersonalizableColumn => !!column);
+      const sharedPaths = this.mapSubModels('columns', (column) => column.fieldPath);
+      const additional = data.columns
+        .filter((column) => column.source === 'collection' && !sharedPaths.includes(column.fieldPath))
+        .map((column) => ({ ...column, title: this.collection.getField(column.fieldPath)?.title || column.title }));
+      return [...configured, ...additional];
+    }
+
+    async captureColumnSettings(): Promise<ColumnSettings> {
+      const identity = this.getPersonalizationIdentity();
+      const owner = this.getPersonalizationOwner();
+      if (!this.personalization.matches(identity, owner)) await this.personalization.activate(identity, owner);
+      else await this.personalization.reload();
+      const state = this.personalization.state;
+      if (
+        !this.personalization.matches(identity, owner) ||
+        !state.data ||
+        state.error ||
+        state.widthError ||
+        state.isSaving
+      ) {
+        throw new Error('Не удалось получить актуальные настройки колонок. Повторите попытку');
+      }
+      const draft = normalizeDraft(state.data.settings, this.getPersonalizableColumns());
+      const columnWidths = { ...draft.columnWidths };
+      const allowed = state.data.resizableColumnUids || state.data.columns.map((column) => column.uid);
+      this.mapSubModels('columns', (column) => {
+        const width = column.getColumnProps()?.width;
+        if (
+          columnWidths[column.uid] === undefined &&
+          allowed.includes(column.uid) &&
+          typeof width === 'number' &&
+          Number.isInteger(width) &&
+          width >= MIN_COLUMN_WIDTH &&
+          width <= MAX_COLUMN_WIDTH
+        ) {
+          columnWidths[column.uid] = width;
+        }
+      });
+      return { ...draft, columnWidths };
+    }
+
+    protected renderPersonalizationActions(): React.ReactNode {
+      return <ColumnSettingsButton key="personal-columns" model={this} />;
+    }
+
+    renderComponent(): ReturnType<TableBlockModel['renderComponent']> {
+      const rendered = super.renderComponent();
+      if (!this.canPersonalizeColumns() || this.context.flowSettingsEnabled || rendered.type !== React.Fragment)
+        return rendered;
+
+      // NocoBase 2.0.60 exposes only a right-hand action slot. Extend its native left Space
+      // without replacing the table renderer or inserting an action into the saved schema.
+      const [provider, ...content] = React.Children.toArray(rendered.props.children);
+      if (!React.isValidElement<{ children?: React.ReactNode }>(provider)) return rendered;
+      const toolbar = provider.props.children;
+      if (!React.isValidElement<{ children?: React.ReactNode }>(toolbar)) return rendered;
+      const [leftActions, ...rightActions] = React.Children.toArray(toolbar.props.children);
+      if (!React.isValidElement<{ children?: React.ReactNode }>(leftActions) || leftActions.type !== Space)
+        return rendered;
+
+      const personalizedActions = React.cloneElement(
+        leftActions,
         undefined,
-        React.cloneElement(toolbar, undefined, personalizedActions, ...rightActions),
-      ),
-      ...content,
-    );
-    // A surrounding block can project native rows without replacing the table,
-    // its column models, personalization, templates or configured actions.
-    const decorate = this.context.decorateTableElement as
-      | ((element: React.ReactElement, model: TableBlockModel) => React.ReactElement)
-      | undefined;
-    return typeof decorate === 'function' ? decorate(personalized, this) : personalized;
-  }
+        this.renderPersonalizationActions(),
+        leftActions.props.children,
+      );
+      const personalized = React.cloneElement(
+        rendered,
+        undefined,
+        React.cloneElement(
+          provider,
+          undefined,
+          React.cloneElement(toolbar, undefined, personalizedActions, ...rightActions),
+        ),
+        ...content,
+      );
+      // A surrounding block can project native rows without replacing the table,
+      // its column models, personalization, templates or configured actions.
+      const decorate = this.context.decorateTableElement as
+        | ((element: React.ReactElement, model: TableBlockModel) => React.ReactElement)
+        | undefined;
+      return !isSelector && typeof decorate === 'function' ? decorate(personalized, this) : personalized;
+    }
+  };
 }
+
+export class PersonalizedTableBlockModel extends withPersonalizedColumns(TableBlockModel) {}
+export class PersonalizedTableSelectModel extends withPersonalizedColumns(TableSelectModel) {}
 
 // FlowModel metadata belongs to each constructor and is not inherited by replacement classes.
 const tableBlockMeta = TableBlockModel.meta;
-if (!tableBlockMeta) {
-  throw new Error('TableBlockModel metadata is not registered');
+const tableSelectMeta = TableSelectModel.meta;
+if (!tableBlockMeta || !tableSelectMeta) {
+  throw new Error('Table model metadata is not registered');
 }
 PersonalizedTableBlockModel.define(tableBlockMeta);
+PersonalizedTableSelectModel.define(tableSelectMeta);

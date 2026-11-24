@@ -7,14 +7,15 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { FilterActionModel, Plugin, TableBlockModel } from '@nocobase/client';
+import { FilterActionModel, Plugin, TableBlockModel, TableSelectModel } from '@nocobase/client';
 import type { ModelConstructor } from '@nocobase/flow-engine';
 import { TableTemplatesBlockModel } from '../widgets/table-templates';
-import { withColumnWidth } from '../features/table-personalization';
+import { PersonalizedTableSelectModel, withColumnWidth } from '../features/table-personalization';
 import { RESIZABLE_COLUMN_MODELS } from '../../shared/contracts';
 import { SavedFilterActionModel } from '../features/filter-templates';
 
 export class PluginTablePersonalizationClient extends Plugin {
+  private previousSelectModel?: ModelConstructor;
   private previousModel?: ModelConstructor;
   private previousFilterModel?: ModelConstructor;
   private readonly widthModels = new Map<string, { original: ModelConstructor; replacement: ModelConstructor }>();
@@ -24,6 +25,11 @@ export class PluginTablePersonalizationClient extends Plugin {
     if (current && current !== TableBlockModel && current !== TableTemplatesBlockModel) {
       throw new Error('TableBlockModel is already extended by another plugin.');
     }
+    const select = this.flowEngine.getModelClass('TableSelectModel');
+    if (select && select !== TableSelectModel && select !== PersonalizedTableSelectModel) {
+      throw new Error('TableSelectModel is already extended by another plugin.');
+    }
+    this.previousSelectModel = select;
     this.previousModel = current;
     const filter = this.flowEngine.getModelClass('FilterActionModel');
     if (filter && filter !== FilterActionModel && filter !== SavedFilterActionModel) {
@@ -31,7 +37,10 @@ export class PluginTablePersonalizationClient extends Plugin {
     }
     this.previousFilterModel = filter;
     this.flowEngine.registerModels({ FilterActionModel: SavedFilterActionModel });
-    this.flowEngine.registerModels({ TableBlockModel: TableTemplatesBlockModel });
+    this.flowEngine.registerModels({
+      TableBlockModel: TableTemplatesBlockModel,
+      TableSelectModel: PersonalizedTableSelectModel,
+    });
     for (const name of RESIZABLE_COLUMN_MODELS) {
       const original = this.flowEngine.getModelClass(name);
       if (!original) continue;
@@ -49,6 +58,12 @@ export class PluginTablePersonalizationClient extends Plugin {
       if (this.flowEngine.getModelClass(name) === replacement) this.flowEngine.registerModels({ [name]: original });
     }
     this.widthModels.clear();
+    if (
+      this.previousSelectModel &&
+      this.flowEngine.getModelClass('TableSelectModel') === PersonalizedTableSelectModel
+    ) {
+      this.flowEngine.registerModels({ TableSelectModel: this.previousSelectModel });
+    }
     if (this.previousModel && this.flowEngine.getModelClass('TableBlockModel') === TableTemplatesBlockModel) {
       this.flowEngine.registerModels({ TableBlockModel: this.previousModel });
     }

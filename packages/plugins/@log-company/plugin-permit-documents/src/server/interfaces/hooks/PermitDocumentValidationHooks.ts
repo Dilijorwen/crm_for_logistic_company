@@ -97,7 +97,9 @@ export class PermitDocumentValidationHooks {
         const companyId = this.identifier(
           Object.prototype.hasOwnProperty.call(values, 'company') ? values.company : model.get('company_id'),
         );
-        const relatedId = this.identifier(values.related_document ?? model.get('related_document_id'));
+        const relatedId = this.identifier(
+          'related_document' in values ? values.related_document : model.get('related_document_id'),
+        );
         await this.validateCategory(model, options, values, companyId, relatedId);
       } catch (error) {
         if (!(error instanceof PermitDocumentCategoryError)) throw error;

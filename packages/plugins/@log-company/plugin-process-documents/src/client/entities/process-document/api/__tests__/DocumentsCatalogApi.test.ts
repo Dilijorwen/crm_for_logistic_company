@@ -31,21 +31,37 @@ describe('Documents catalog', () => {
   });
 
   it('lists the same run in both companies and restricts its shipments to the current company', async () => {
-    const list = vi.fn().mockResolvedValue({ data: { data: [], meta: { count: 0 } } });
+    const list = vi.fn(async ({ filter }) => ({
+      data: {
+        data:
+          'shipments.company_id' in filter
+            ? [{ id: '99', run_number: 99 }]
+            : filter.company_id === '10'
+              ? [{ id: '101', shipment_number: 101 }]
+              : filter.company_id === '11'
+                ? [{ id: '100', shipment_number: 100 }]
+                : [],
+      },
+    }));
     const api = new DocumentsCatalogApi({ resource: () => ({ list }) } as unknown as APIClient);
 
-    for (const companyId of ['10', '11']) {
-      await api.list({ kind: 'runs', companyId }, 1);
-      await api.list({ kind: 'shipments', companyId, runId: '87' }, 1);
+    for (const [companyId, shipmentId] of [
+      ['10', '101'],
+      ['11', '100'],
+    ]) {
+      const run = await api.list({ kind: 'runs', companyId }, 1);
+      expect(run.rows.map(({ id }) => id)).toEqual(['99']);
+      const shipments = await api.list({ kind: 'shipments', companyId, runId: '99' }, 1);
+      expect(shipments.rows.map(({ id }) => id)).toEqual([shipmentId]);
     }
-    await api.list({ kind: 'shipments', runId: '87' }, 1);
+    await api.list({ kind: 'shipments', runId: '99' }, 1);
 
     expect(list.mock.calls.map(([params]) => params.filter)).toEqual([
       { 'shipments.company_id': '10' },
-      { company_id: '10', 'runs.id': '87' },
+      { company_id: '10', 'runs.id': '99' },
       { 'shipments.company_id': '11' },
-      { company_id: '11', 'runs.id': '87' },
-      { 'runs.id': '87' },
+      { company_id: '11', 'runs.id': '99' },
+      { 'runs.id': '99' },
     ]);
   });
 

@@ -8,6 +8,7 @@
  */
 
 import type { APIClient } from '@nocobase/client';
+import { PERMIT_DOCUMENT_FOLDERS_META } from '../../../../contracts/processDocuments';
 import { catalogIdentifier, type CatalogId } from './DocumentsCatalogApi';
 
 export interface RecordAttachmentField {
@@ -21,6 +22,10 @@ export interface RecordAttachment {
   id: CatalogId;
   title: string;
   url: string | undefined;
+  file_size?: number;
+  author?: string;
+  createdAt?: string;
+  folders?: string[];
 }
 
 function object(value: unknown): Record<string, unknown> {
@@ -49,7 +54,15 @@ export class RecordAttachmentsApi {
         ...this.headers,
         'X-With-ACL-Meta': true,
       })
-      .get({ filterByTk: this.recordId, appends: [this.fieldName] });
+      .get({
+        filterByTk: this.recordId,
+        appends: [
+          this.fieldName,
+          ...(this.collection === 'contracts'
+            ? [`${this.fieldName}.createdBy.nickname`, `${this.fieldName}.createdBy.username`]
+            : []),
+        ],
+      });
     const result = object(data);
     const record = object(result.data);
     if (!(this.fieldName in record)) throw new Error('Нет доступа к полю вложений этой записи.');
@@ -64,11 +77,28 @@ export class RecordAttachmentsApi {
       const filename = item.title ?? item.filename;
       const title = typeof filename === 'string' && filename ? filename : 'Документ';
       const extension = typeof item.extname === 'string' && /^\.[a-z0-9]+$/i.test(item.extname) ? item.extname : '';
+      const folders = object(item.meta)[PERMIT_DOCUMENT_FOLDERS_META];
+      const creator = object(item.createdBy);
+      const author = creator.nickname || creator.username;
+      const hasFolders =
+        this.collection === 'permit_documents' &&
+        this.fieldName === 'documents' &&
+        Array.isArray(folders) &&
+        folders.length > 0 &&
+        folders.length < 20 &&
+        folders.every(
+          (name): name is string =>
+            typeof name === 'string' && name.trim().length > 0 && name.length <= 200 && !name.includes('/'),
+        );
       return [
         {
           id,
           title: title.toLowerCase().endsWith(extension.toLowerCase()) ? title : title + extension,
           url: typeof item.url === 'string' ? item.url : undefined,
+          ...(typeof item.size === 'number' && { file_size: item.size }),
+          ...(typeof item.createdAt === 'string' && { createdAt: item.createdAt }),
+          ...(typeof author === 'string' && { author }),
+          ...(hasFolders && { folders }),
         },
       ];
     });
@@ -81,7 +111,10 @@ export class RecordAttachmentsApi {
 
   private async sectionPermissions() {
     const resource = `${this.collection}.${this.fieldName}`;
-    if (this.dataSourceKey !== 'main' || !['our_companies.documents', 'permit_documents.documents'].includes(resource))
+    if (
+      this.dataSourceKey !== 'main' ||
+      !['our_companies.documents', 'permit_documents.documents', 'contracts.documents'].includes(resource)
+    )
       return;
     const { data } = await this.api.request({
       url: 'processDocuments:attachmentPermissions',

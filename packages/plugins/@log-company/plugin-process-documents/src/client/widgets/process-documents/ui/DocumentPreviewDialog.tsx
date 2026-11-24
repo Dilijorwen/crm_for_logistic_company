@@ -25,7 +25,15 @@ export function downloadDocument(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
-export function DocumentPreviewDialog({ file, onClose }: { file: DocumentPreviewTarget; onClose(): void }) {
+export function DocumentPreviewDialog({
+  file,
+  onClose,
+  onRename,
+}: {
+  file: DocumentPreviewTarget;
+  onClose(): void;
+  onRename?(): void;
+}) {
   const [content, setContent] = useState<PreviewContent>();
   const [blob, setBlob] = useState<Blob>();
   const [error, setError] = useState(false);
@@ -72,6 +80,7 @@ export function DocumentPreviewDialog({ file, onClose }: { file: DocumentPreview
       onCancel={onClose}
       footer={
         <Space>
+          {onRename && <Button onClick={onRename}>Переименовать</Button>}
           <Button loading={downloading} onClick={download}>
             Скачать
           </Button>

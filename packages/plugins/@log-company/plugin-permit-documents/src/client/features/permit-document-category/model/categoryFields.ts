@@ -7,7 +7,28 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-export type DocumentCategory = 'ordinary' | 'rented' | 'voluntary';
+import {
+  DOCUMENT_TYPES_BY_CATEGORY,
+  isDocumentTypeAllowed,
+  type PermitDocumentCategory,
+  type PermitDocumentType,
+} from '../../../../contracts/permitDocumentTypes';
+
+const typeLabels: Record<PermitDocumentType, string> = {
+  declaration_of_conformity: 'ДС',
+  certificate_of_conformity: 'СС',
+  state_registration_certificate: 'СГР',
+};
+
+export function documentTypeOptions(category: PermitDocumentCategory) {
+  return DOCUMENT_TYPES_BY_CATEGORY[category].map((value) => ({ value, label: typeLabels[value] }));
+}
+
+export function documentTypeForCategory(category: PermitDocumentCategory, value: unknown): unknown {
+  if (category === 'voluntary') return DOCUMENT_TYPES_BY_CATEGORY.voluntary[0];
+  if (category === 'rented' && !isDocumentTypeAllowed(category, value)) return undefined;
+  return value;
+}
 
 const manualFields = ['valid_from', 'valid_until', 'product_information', 'manufacturer_name', 'manufacturer_address'];
 
@@ -29,13 +50,13 @@ const generatedFields = [
   'updatedAt',
 ];
 
-export function categoryFieldState(category: DocumentCategory, name: string, isNew: boolean) {
+export function categoryFieldState(category: PermitDocumentCategory, name: string, isNew: boolean) {
   const voluntary = category === 'voluntary';
   const rented = category === 'rented';
   if (generatedFields.includes(name)) return { visible: false, disabled: true, required: false };
   if (name === 'title' || name === 'category') return { visible: true, disabled: false, required: true };
   if (name === 'company') return { visible: !rented, disabled: false, required: voluntary };
-  if (name === 'related_document') return { visible: !voluntary && isNew, disabled: !isNew, required: false };
+  if (name === 'related_document') return { visible: !voluntary, disabled: voluntary, required: false };
   if (name === 'rental_from' || name === 'rental_until') return { visible: rented, disabled: false, required: rented };
   if (name === 'document_type') return { visible: true, disabled: voluntary, required: true };
   if (name === 'technical_regulations')
@@ -45,6 +66,6 @@ export function categoryFieldState(category: DocumentCategory, name: string, isN
   return undefined;
 }
 
-export function categoryValue(value: unknown): DocumentCategory {
+export function categoryValue(value: unknown): PermitDocumentCategory {
   return value === 'rented' || value === 'voluntary' ? value : 'ordinary';
 }

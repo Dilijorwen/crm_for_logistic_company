@@ -29,7 +29,8 @@ async function createScenario() {
     fields: [{ name: 'id', type: 'string', interface: 'input' }],
   });
   engine.registerModels({ DataBlockModel, EditFormModel, FormGridModel });
-  await new PluginProcessGovernanceClient({}, app).load();
+  await app.pm.add(PluginProcessGovernanceClient);
+  await app.pm.load();
   return engine;
 }
 

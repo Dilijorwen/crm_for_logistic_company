@@ -9,6 +9,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { allowsSectionOperation } from '../DocumentAccessRules';
+import { allowsFolderOperation } from '../FolderAccess';
 
 const actor = { isRoot: false, roles: ['declarant'], userId: '12' };
 
@@ -36,4 +37,23 @@ describe('Права раздела документов', () => {
       allowsSectionOperation(common, [{ kind: 'user', subject: '12', rights: { write: false } }], 'write', multiRole),
     ).toBe(false);
   });
+});
+
+it('allows a role to rename without granting upload rights, and respects an explicit rename denial', () => {
+  const actor = { isRoot: false, roles: ['manager'], userId: '23' };
+  const shared = [{ kind: 'role' as const, subject: 'manager', rights: { write: false, rename: true } }];
+  expect(allowsSectionOperation(shared, [], 'rename', actor)).toBe(true);
+  expect(allowsSectionOperation(shared, [], 'write', actor)).toBe(false);
+  expect(
+    allowsSectionOperation(shared, [{ kind: 'user', subject: '23', rights: { rename: false } }], 'rename', actor),
+  ).toBe(false);
+  expect(
+    allowsSectionOperation(shared, [{ kind: 'user', subject: '23', rights: { read: false } }], 'rename', actor),
+  ).toBe(false);
+});
+
+it('retains the existing edit capability for a legacy folder writer', () => {
+  const actor = { isRoot: false, roles: ['manager'], userId: '23' };
+  expect(allowsFolderOperation([{ kind: 'role', subject: 'manager', level: 'write' }], 'rename', actor)).toBe(true);
+  expect(allowsFolderOperation([{ kind: 'role', subject: 'manager', level: 'read' }], 'rename', actor)).toBe(false);
 });

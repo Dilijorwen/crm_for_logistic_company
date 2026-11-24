@@ -27,10 +27,15 @@ describe('related permit selection', () => {
     expect(result.current.allowCreate).toBe(false);
   });
 
-  it('keeps the selection disabled when editing an existing document', () => {
+  it('permits editing a pair and limits the search to other available documents and its current partner', () => {
     state.isNew = false;
     state.record = { id: '123' };
     const { result } = renderHook(() => useRelatedPermitDocumentProps());
-    expect(result.current.disabled).toBe(true);
+    expect(result.current.disabled).toBe(false);
+    expect(result.current.service.params.filter).toMatchObject({
+      id: { $ne: '123' },
+      $or: [{ related_document_id: { $is: null } }, { related_document_id: '123' }],
+      category: { $ne: 'voluntary' },
+    });
   });
 });

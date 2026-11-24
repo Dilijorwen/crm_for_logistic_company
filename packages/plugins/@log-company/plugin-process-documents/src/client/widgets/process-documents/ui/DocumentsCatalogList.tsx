@@ -8,21 +8,64 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Alert, Button, Empty, List, Pagination, Space } from 'antd';
-import { FolderOutlined } from '@ant-design/icons';
+import { Alert, Button, Pagination, Space } from 'antd';
 import { catalogPageSize, getDocumentErrorText } from '../../../entities/process-document';
 import type { CatalogItem, CatalogQuery, DocumentsCatalogApi } from '../../../entities/process-document';
+import { DocumentsList } from './DocumentsList';
+import { blockClass, useDocumentsTheme } from './styles';
+
+export function CatalogRows({
+  rows,
+  open,
+  fileList,
+  loading,
+  download,
+}: {
+  rows: CatalogItem[];
+  open: (item: CatalogItem) => void;
+  fileList?: boolean;
+  loading?: boolean;
+  download?: (item: CatalogItem) => void;
+}) {
+  const style = useDocumentsTheme();
+  return (
+    <div className={blockClass} style={style}>
+      <DocumentsList
+        compactActions
+        files={fileList ? rows : []}
+        loading={loading}
+        previewFile={open}
+        downloadFile={download}
+        folderNavigation={
+          fileList
+            ? undefined
+            : {
+                folders: rows,
+                folderId: null,
+                breadcrumbs: [],
+                setFolderId: (id) => {
+                  const row = rows.find((item) => item.id === id);
+                  if (row) open(row);
+                },
+              }
+        }
+      />
+    </div>
+  );
+}
 
 export function DocumentsCatalogList({
   api,
   query,
   open,
   fileList = false,
+  download,
 }: {
   api: DocumentsCatalogApi;
   query: CatalogQuery;
   open: (item: CatalogItem) => void;
   fileList?: boolean;
+  download?: (item: CatalogItem) => void;
 }) {
   const [page, setPage] = useState(1);
   const [attempt, setAttempt] = useState(0);
@@ -59,25 +102,7 @@ export function DocumentsCatalogList({
 
   return (
     <Space direction="vertical" style={{ width: '100%' }}>
-      <List
-        size="small"
-        loading={!result}
-        dataSource={result?.rows ?? []}
-        rowKey={(item) => item.id}
-        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Папка пуста" /> }}
-        renderItem={(item) => (
-          <List.Item>
-            <Button
-              type="text"
-              icon={fileList ? undefined : <FolderOutlined />}
-              style={{ height: 'auto', whiteSpace: 'normal', overflowWrap: 'anywhere', textAlign: 'left' }}
-              onClick={() => open(item)}
-            >
-              {item.title}
-            </Button>
-          </List.Item>
-        )}
-      />
+      <CatalogRows rows={result?.rows ?? []} open={open} fileList={fileList} loading={!result} download={download} />
       {result && result.total > catalogPageSize ? (
         <Pagination
           size="small"

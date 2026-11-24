@@ -11,11 +11,21 @@ import {
   assertCanPairPermitDocument,
   PermitDocumentNumberingError,
 } from '../domain/permit-document/PermitDocumentNumbering';
+import type { PermitDocumentCategory } from '../../contracts/permitDocumentTypes';
 import type {
+  NumberedPermitDocument,
   PermitDocumentNumberingRepository,
   PermitDocumentPairAccess,
   PermitNumberingTransaction,
 } from './ports/PermitDocumentNumberingRepository';
+
+interface NumberAssignment {
+  documentId: string | null;
+  category?: PermitDocumentCategory;
+  relatedDocumentId: string | null;
+  transaction: PermitNumberingTransaction;
+  context?: unknown;
+}
 
 export class AssignPermitDocumentNumber {
   constructor(
@@ -23,14 +33,23 @@ export class AssignPermitDocumentNumber {
     private readonly access: PermitDocumentPairAccess,
   ) {}
 
-  async execute(input: {
-    documentId: string | null;
-    category?: 'ordinary' | 'rented' | 'voluntary';
-    relatedDocumentId: string | null;
-    transaction: PermitNumberingTransaction;
-    context?: unknown;
-  }): Promise<string> {
+  async execute(input: NumberAssignment): Promise<string> {
     await this.repository.lock(input.transaction);
+    return this.resolveNumber(input);
+  }
+
+  async changePair(current: NumberedPermitDocument, input: Omit<NumberAssignment, 'documentId'>): Promise<string> {
+    const { relatedDocumentId, transaction, context } = input;
+    const previousId = current.relatedDocumentId;
+    await this.access.assertCanLink(current.id, context, transaction);
+    if (previousId) await this.access.assertCanLink(previousId, context, transaction);
+    const number = await this.resolveNumber({ ...input, documentId: current.id });
+    if (previousId) await this.repository.clearPair(current.id, previousId, transaction);
+    if (relatedDocumentId) await this.repository.completePair(current.id, relatedDocumentId, transaction);
+    return number;
+  }
+
+  private async resolveNumber(input: NumberAssignment): Promise<string> {
     if (input.relatedDocumentId === null) {
       return this.repository.nextFreeNumber(input.transaction);
     }

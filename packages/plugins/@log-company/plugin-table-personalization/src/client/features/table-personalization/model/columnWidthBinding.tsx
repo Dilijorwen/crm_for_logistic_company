@@ -42,7 +42,8 @@ export function tableOwner(table: FlowModel): string {
 }
 
 export function getWidthController(table: FlowModel): PersonalizationController {
-  const shared = Reflect.get(table, 'personalization');
+  const usesColumnSettings = table.use !== 'TableSelectModel' || table.props.personalizeColumns === true;
+  const shared = usesColumnSettings ? Reflect.get(table, 'personalization') : undefined;
   if (shared instanceof PersonalizationController) return shared;
   let entry = tableControllers.get(table);
   if (!entry) {

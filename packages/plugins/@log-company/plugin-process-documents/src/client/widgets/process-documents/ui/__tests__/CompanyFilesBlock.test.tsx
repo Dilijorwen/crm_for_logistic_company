@@ -17,8 +17,9 @@ import { DocumentsCatalogApi } from '../../../../entities/process-document';
 import { CompanyFilesBlock } from '../CompanyFilesBlock';
 
 const client = vi.hoisted(() => ({ request: vi.fn() }));
-vi.mock('@nocobase/client', () => ({ useAPIClient: () => client }));
-vi.mock('../DocumentsCatalogList', () => ({
+vi.mock('@nocobase/client', () => ({ useAPIClient: () => client, css: () => '' }));
+vi.mock('../DocumentsCatalogList', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../DocumentsCatalogList')>()),
   DocumentsCatalogList: ({
     query,
     open,
@@ -41,23 +42,30 @@ vi.mock('../DocumentsCatalogList', () => ({
 vi.mock('../ScopedDocuments', () => ({
   ScopedDocuments: ({
     children,
+    extraFolders,
     requestScope,
     readOnly,
   }: {
     children?: React.ReactNode;
+    extraFolders?: Array<{ id: string; title: string; open(): void }>;
     requestScope: DocumentRequestScope;
     readOnly: boolean;
   }) => (
     <>
       <output>{JSON.stringify(requestScope)}</output>
       {!readOnly && <button type="button">Загрузить</button>}
+      {extraFolders?.map((folder) => (
+        <button key={folder.id} type="button" onClick={folder.open}>
+          {folder.title}
+        </button>
+      ))}
       {children}
     </>
   ),
 }));
 
 describe('Действия с документами из общего файлового менеджера', () => {
-  it.each([false, true])('учитывает настройку блока «Только просмотр» (%s) для рейса и поставки', async (readOnly) => {
+  it.each([false, true])('открывает рейс и поставку для просмотра (%s)', async (readOnly) => {
     client.request.mockResolvedValue({
       data: { data: { sections: { company: true, corporate: true, permits: true, ved: true } } },
     });
@@ -77,11 +85,11 @@ describe('Действия с документами из общего файл�
     fireEvent.click(screen.getByRole('button', { name: 'Ноябрь' }));
     fireEvent.click(screen.getByRole('button', { name: 'Рейс №87 - А123ВС' }));
     expect(JSON.parse(screen.getByRole('status').textContent || '')).toEqual({ companyId: '10', runId: '87' });
-    expect(Boolean(screen.queryByRole('button', { name: 'Загрузить' }))).toBe(!readOnly);
+    expect(screen.queryByRole('button', { name: 'Загрузить' })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Поставка №1042' }));
     expect(screen.getByRole('status')).toHaveTextContent('{"shipmentId":"42"}');
-    expect(Boolean(screen.queryByRole('button', { name: 'Загрузить' }))).toBe(!readOnly);
+    expect(screen.queryByRole('button', { name: 'Загрузить' })).toBeNull();
   });
 
   it('показывает загрузку сразу в компании и скрывает разделы без права просмотра', async () => {
@@ -90,8 +98,19 @@ describe('Действия с документами из общего файл�
     });
     render(<CompanyFilesBlock root={{ type: 'company', company: { id: '10', title: 'Компания' } }} />);
     expect(await screen.findByRole('button', { name: 'Загрузить' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Учредительные документы' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Учредительные документы' })).toBeNull();
+    expect(screen.queryByText('Документы из карточки компании')).toBeNull();
     expect(screen.queryByRole('button', { name: 'ВЭД' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Разрешительные документы' })).toBeNull();
+  });
+
+  it.each([false, true])('открывает разрешительные обычным файловым блоком (%s)', async (readOnly) => {
+    vi.spyOn(DocumentsCatalogApi.prototype, 'folders').mockResolvedValueOnce([{ id: 'active', title: 'Действителен' }]);
+    render(
+      <CompanyFilesBlock root={{ type: 'permits', company: { id: '10', title: 'Компания' } }} readOnly={readOnly} />,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('{"companyId":"10","companyArea":"permits"}');
+    expect(await screen.findByRole('button', { name: 'Действителен' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Загрузить' })).toBeNull();
   });
 });

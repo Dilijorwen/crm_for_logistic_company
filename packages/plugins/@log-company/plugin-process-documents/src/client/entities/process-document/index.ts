@@ -27,3 +27,5 @@ export { runCatalogTitle } from './api/catalogFolders';
 export type { CatalogFolder, CatalogId, CatalogItem, CatalogQuery } from './api/DocumentsCatalogApi';
 export { RecordAttachmentsApi } from './api/RecordAttachmentsApi';
 export type { RecordAttachment, RecordAttachmentField } from './api/RecordAttachmentsApi';
+export { FormDocumentDraftsApi } from './api/FormDocumentDraftsApi';
+export type { FormDocumentBatch, SelectedDocument } from './api/FormDocumentDraftsApi';

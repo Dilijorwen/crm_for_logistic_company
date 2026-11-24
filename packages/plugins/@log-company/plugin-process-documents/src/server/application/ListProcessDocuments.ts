@@ -15,6 +15,13 @@ import type {
 import { allowsFolderOperation } from '../domain/documents/FolderAccess';
 import { ProcessDocumentsError } from '../domain/documents/DocumentErrors';
 import { DocumentScopeService } from './DocumentScopeService';
+import {
+  companyRequestFolderTitle,
+  companyRequestFolderTypes,
+  isCompanyRequestFolder,
+  type CompanyRequestFolderName,
+  type DocumentRight,
+} from '../../contracts/processDocuments';
 
 import type { CompanyDocumentTarget } from '../domain/documents/DocumentScope';
 
@@ -45,7 +52,7 @@ export class ListProcessDocuments {
     }
 
     await this.scopeService.assertFolderAccess(folderId, scope, 'read', input.actor);
-    const can = async (operation: 'write' | 'delete') => {
+    const can = async (operation: 'write' | 'delete' | 'rename') => {
       try {
         await this.scopeService.resolve({ ...input, operation });
         await this.scopeService.assertFolderAccess(folderId, scope, operation, input.actor);
@@ -59,22 +66,80 @@ export class ListProcessDocuments {
         throw error;
       }
     };
-    const [folders, files, breadcrumbs, canWrite, canDelete] = await Promise.all([
+    const [folders, files, breadcrumbs, canWrite, canDelete, canRename] = await Promise.all([
       this.repository.listFolders(scope, folderId),
       this.repository.listDocuments(scope, folderId),
       this.scopeService.getBreadcrumbs(folderId, scope),
       can('write'),
       can('delete'),
+      can('rename'),
     ]);
+    let emptyRequestFolders: CompanyRequestFolderName[] = [];
+    const companyFolders = scope.mode === 'company' && scope.companyArea === 'company';
+    const isRequestFolder = currentFolder?.parentFolderId === null && isCompanyRequestFolder(currentFolder.title);
+    const virtualFolderWrite: Partial<Record<CompanyRequestFolderName, boolean>> = {};
+    const sectionRights = new Map<string, Promise<boolean>>();
+    const allows = (section: 'requests' | 'corporate', operation: DocumentRight) => {
+      const key = `${section}:${operation}`;
+      const cached = sectionRights.get(key);
+      if (cached) return cached;
+      const allowed = this.scopeService.allowsCompanyFolderSection(scope, section, operation, input.actor);
+      sectionRights.set(key, allowed);
+      return allowed;
+    };
+    if (companyFolders) {
+      const corporate = companyRequestFolderTypes.our_companies;
+      if (!folderId && !folders.some(({ title }) => isCompanyRequestFolder(title))) {
+        if (await allows('requests', 'read')) {
+          emptyRequestFolders = [companyRequestFolderTitle];
+          virtualFolderWrite[companyRequestFolderTitle] = canWrite && (await allows('requests', 'write'));
+          if (await allows('corporate', 'read')) {
+            virtualFolderWrite[corporate] =
+              !!virtualFolderWrite[companyRequestFolderTitle] && (await allows('corporate', 'write'));
+          }
+        }
+      } else if (
+        isRequestFolder &&
+        !folders.some(({ title }) => title === corporate) &&
+        (await allows('corporate', 'read'))
+      ) {
+        emptyRequestFolders = [corporate];
+        virtualFolderWrite[corporate] = canWrite && (await allows('corporate', 'write'));
+      }
+    }
+    const visibleFolders = await Promise.all(
+      folders.map(async (folder) => {
+        const section = !companyFolders
+          ? undefined
+          : !folderId && isCompanyRequestFolder(folder.title)
+            ? 'requests'
+            : isRequestFolder && folder.title === companyRequestFolderTypes.our_companies
+              ? 'corporate'
+              : undefined;
+        const allowed = (right: DocumentRight) =>
+          allowsFolderOperation(folder.grants, right, input.actor) && (!section || allows(section, right));
+        if (!(await allowed('read'))) return [];
+        return [
+          {
+            ...folder,
+            canRename: !section && canRename && (await allowed('rename')),
+            canDelete: canDelete && (await allowed('delete')),
+          },
+        ];
+      }),
+    );
     return {
       currentFolder,
       breadcrumbs,
-      folders: folders.filter((folder) => allowsFolderOperation(folder.grants, 'read', input.actor)),
+      folders: visibleFolders.flat(),
       files,
+      ...(emptyRequestFolders.length && { emptyRequestFolders }),
+      ...(companyFolders && { virtualFolderWrite }),
       permissions: {
         canRead: true,
         canWrite,
         canDelete,
+        canRename,
         canManageAccess: input.actor.isRoot && scope.mode !== 'draft',
       },
     };

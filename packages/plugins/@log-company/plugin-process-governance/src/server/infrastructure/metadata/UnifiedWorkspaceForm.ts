@@ -46,6 +46,7 @@ export function configureUnifiedRunForm(form: WorkspaceFlowTree, isNew: boolean)
       ];
   const shipmentGrid = workspaceSourceForm(`${shipmentUid}details`, 'shipments', names).subModels
     ?.grid as WorkspaceFlowTree;
+  shipmentGrid.use = 'LogisticsWorkspaceShipmentFieldsGridModel';
   const fields = shipmentGrid.subModels?.items as WorkspaceFlowTree[];
   fields.forEach((item, index) => {
     item.stepParams = {

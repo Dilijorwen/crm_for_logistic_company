@@ -20,6 +20,7 @@ export interface PermitDocumentNumberingRepository {
   lock(transaction: PermitNumberingTransaction): Promise<void>;
   findById(id: string, transaction: PermitNumberingTransaction): Promise<NumberedPermitDocument | null>;
   nextFreeNumber(transaction: PermitNumberingTransaction): Promise<string>;
+  clearPair(documentId: string, relatedDocumentId: string, transaction: PermitNumberingTransaction): Promise<void>;
   completePair(documentId: string, relatedDocumentId: string, transaction: PermitNumberingTransaction): Promise<void>;
 }
 
