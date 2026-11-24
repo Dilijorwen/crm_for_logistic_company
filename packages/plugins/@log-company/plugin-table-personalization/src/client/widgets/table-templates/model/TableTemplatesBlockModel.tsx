@@ -97,7 +97,7 @@ export class TableTemplatesBlockModel extends PersonalizedTableBlockModel implem
     super.onUnmount();
   }
 
-  protected renderPersonalizationActions(): React.ReactNode {
+  renderPersonalizationActions(): React.ReactNode {
     return [super.renderPersonalizationActions(), <TableTemplatesButton key="table-templates" model={this} />];
   }
 }

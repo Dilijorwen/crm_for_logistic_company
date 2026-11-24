@@ -21,7 +21,18 @@ import { PersonalizationController } from './PersonalizationController';
 import { PersonalCollectionColumns } from './PersonalCollectionColumns';
 import { tableIdentity } from '../../../shared/lib';
 
-function withPersonalizedColumns(Base: typeof TableBlockModel) {
+declare class PersonalizedTableBase extends TableBlockModel {
+  readonly personalization: PersonalizationController;
+  getPersonalizationIdentity(): TableIdentity;
+  getPersonalizationOwner(): string;
+  openPersonalizationSettings(): Promise<void>;
+  closePersonalizationSettings(): void;
+  getPersonalizableColumns(): PersonalizableColumn[];
+  captureColumnSettings(): Promise<ColumnSettings>;
+  renderPersonalizationActions(): React.ReactNode;
+}
+
+function withPersonalizedColumns(Base: typeof TableBlockModel): typeof PersonalizedTableBase {
   const isSelector = Base === TableSelectModel;
   return class extends Base {
     private personalController?: PersonalizationController;
@@ -201,7 +212,7 @@ function withPersonalizedColumns(Base: typeof TableBlockModel) {
       return { ...draft, columnWidths };
     }
 
-    protected renderPersonalizationActions(): React.ReactNode {
+    renderPersonalizationActions(): React.ReactNode {
       return <ColumnSettingsButton key="personal-columns" model={this} />;
     }
 
