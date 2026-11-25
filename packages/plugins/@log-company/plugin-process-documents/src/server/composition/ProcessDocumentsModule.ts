@@ -25,8 +25,11 @@ import { DocumentScopeService } from '../application/DocumentScopeService';
 import { DownloadProcessDocument } from '../application/DownloadProcessDocument';
 import { DocumentSectionAccess } from '../application/DocumentSectionAccess';
 import { GetProcessDocumentFolderDeleteSummary } from '../application/GetProcessDocumentFolderDeleteSummary';
+import { GetDocumentFolderConstraints } from '../application/GetDocumentFolderConstraints';
 import { SetDocumentFolderAccess } from '../application/SetDocumentFolderAccess';
 import { RenameProcessDocumentEntry } from '../application/RenameProcessDocumentEntry';
+import { SearchCatalogDocuments } from '../application/SearchCatalogDocuments';
+import { NocoBaseCatalogSearch } from '../infrastructure/nocobase/NocoBaseCatalogSearch';
 import { ListProcessDocuments } from '../application/ListProcessDocuments';
 import { UploadProcessDocuments } from '../application/UploadProcessDocuments';
 import { PublishFormDocuments } from '../application/PublishFormDocuments';
@@ -64,7 +67,13 @@ export class ProcessDocumentsModule {
 
     const actions = {
       list: new ListProcessDocuments(repository, scopeService),
+      search: new SearchCatalogDocuments(
+        (actor, request) => new NocoBaseCatalogSearch(this.plugin.db, scopeService, access, actor, request),
+      ),
       setFolderAccess: new SetDocumentFolderAccess(repository, scopeService),
+      getFolderConstraints: new GetDocumentFolderConstraints(scopeService, sectionAccess, (scope) =>
+        access.documentCompanies(scope),
+      ),
       renameEntry: new RenameProcessDocumentEntry(repository, scopeService),
       createFolder: new CreateProcessDocumentFolder(repository, scopeService, folderService),
       uploadFiles: new UploadProcessDocuments(
@@ -138,6 +147,7 @@ export class ProcessDocumentsModule {
         folderService,
         actions.uploadFiles,
       ),
+      scopeService,
     ).register();
     new ProcessDocumentsHooks(
       this.plugin,
@@ -147,6 +157,7 @@ export class ProcessDocumentsModule {
       deleteProcessDocuments,
       new ValidateDocumentFolderPlacement(repository, scopeService),
       new ValidateProcessDocumentPlacement(scopeService),
+      folderService,
     ).register();
   }
 }

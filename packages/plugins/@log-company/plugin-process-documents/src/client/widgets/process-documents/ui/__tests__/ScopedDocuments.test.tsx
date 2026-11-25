@@ -18,6 +18,7 @@ import { CompanyFilesBlock } from '../CompanyFilesBlock';
 import { DocumentCatalogContext } from '../DocumentCatalogContext';
 import { DocumentSectionAccessDialog } from '../DocumentSectionAccessDialog';
 import { ProcessDocumentsApi } from '../../../../entities/process-document';
+import type { DocumentAccessRule } from '../../../../../contracts/processDocuments';
 
 const { request, list } = vi.hoisted(() => ({ request: vi.fn(), list: vi.fn() }));
 const client = { request, resource: () => ({ list }) };
@@ -40,6 +41,7 @@ describe('Доступ к открытой папке', () => {
   function loadDocuments(canManageAccess: boolean, canWrite = true) {
     request.mockImplementation(async ({ url, data }) => {
       if (url === 'processDocuments:setFolderAccess') return { data: true };
+      if (url === 'processDocuments:getFolderConstraints') return { data: { constraints: [] } };
       const inFolder = data.folderId === folder.id;
       return {
         data: {
@@ -82,7 +84,8 @@ describe('Доступ к открытой папке', () => {
     expect(await within(actions).findByRole('button', { name: /Загрузить/ })).toBeVisible();
     expect(within(actions).getByRole('button', { name: 'Новая папка' })).toBeVisible();
     expect(within(actions).queryByRole('button', { name: 'Действия с текущей папкой' })).toBeNull();
-    expect(within(actions).getAllByRole('button')).toHaveLength(3);
+    expect(within(actions).getByRole('button', { name: 'Поиск по файлам' })).toBeVisible();
+    expect(within(actions).getAllByRole('button')).toHaveLength(4);
     const path = screen.getByRole('navigation', { name: 'Путь к документам' });
     expect(actions.parentElement).toBe(path.parentElement);
     fireEvent.click(screen.getByRole('button', { name: folder.title }));
@@ -136,6 +139,31 @@ describe('Доступ к открытой папке', () => {
     );
   });
 
+  it('сохраняет явное разрешение удаления ВЭД для менеджера и показывает его после открытия окна', async () => {
+    let rules: DocumentAccessRule[] = [{ kind: 'role', subject: 'manager', rights: { rename: false } }];
+    list.mockResolvedValue({ data: { data: [{ name: 'manager', title: 'Менеджер' }] } });
+    request.mockImplementation(async ({ url, data }) => {
+      if (url === 'processDocuments:setSectionAccess') {
+        rules = data.rules;
+        return { data: true };
+      }
+      return { data: { rules, inherited: [] } };
+    });
+
+    const api = new ProcessDocumentsApi(client);
+    const handlers = { onClose: vi.fn(), onSaved: vi.fn() };
+    const { unmount } = render(<DocumentSectionAccessDialog api={api} {...handlers} />);
+    const checkbox = await screen.findByRole('checkbox', { name: 'Менеджер · Удаление' });
+    expect(checkbox).not.toBeChecked();
+    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить права' }));
+    await waitFor(() => expect(handlers.onSaved).toHaveBeenCalledOnce());
+    expect(rules).toEqual([{ kind: 'role', subject: 'manager', rights: { rename: false, delete: true } }]);
+    unmount();
+    render(<DocumentSectionAccessDialog api={api} {...handlers} />);
+    expect(await screen.findByRole('checkbox', { name: 'Менеджер · Удаление' })).toBeChecked();
+  });
+
   it('отправляет вложенный файл и пустую папку перетаскиванием в одном запросе', async () => {
     loadDocuments(false);
     renderCatalog();
@@ -171,6 +199,94 @@ describe('Доступ к открытой папке', () => {
     expect(screen.queryByRole('button', { name: 'Загрузить' })).toBeNull();
     expect(request.mock.calls.some(([config]) => config.url === 'processDocuments:uploadFiles')).toBe(false);
   });
+
+  it.each([
+    { destination: 'list', folderId: null, canWrite: true },
+    { destination: 'folder', folderId: folder.id, canWrite: true },
+    { destination: 'folder', folderId: folder.id, canWrite: false },
+  ])(
+    'различает сброс в список поставки и на папку ($destination, право $canWrite)',
+    async ({ destination, folderId, canWrite }) => {
+      request.mockResolvedValue({
+        data: {
+          breadcrumbs: [],
+          folders: [{ ...folder, canWrite }],
+          files: [],
+          permissions: { canWrite: true, canDelete: false },
+        },
+      });
+      render(<ScopedDocuments requestScope={{ shipmentId: '38' }} />);
+      const row = await screen.findByRole('button', { name: folder.title });
+      const target = destination === 'folder' ? row : screen.getByRole('region', { name: 'Список документов' });
+      const file = new File(['копия'], 'Акт.txt');
+      fireEvent.drop(target, { dataTransfer: { types: ['Files'], files: [file], items: [] } });
+      const uploads = () => request.mock.calls.filter(([config]) => config.url === 'processDocuments:uploadFiles');
+      if (!canWrite) {
+        expect(uploads()).toHaveLength(0);
+        return;
+      }
+      await waitFor(() => {
+        expect(uploads()).toHaveLength(1);
+        expect(uploads()[0][0].data.get('folderId')).toBe(folderId);
+        expect(uploads()[0][0].data.get('shipmentId')).toBe('38');
+      });
+    },
+  );
+
+  it.each([
+    { type: 'run', canDelete: true, readOnly: false, showsDelete: true },
+    { type: 'shipment', canDelete: true, readOnly: false, showsDelete: true },
+    { type: 'shipment', canDelete: false, readOnly: false, showsDelete: false },
+    { type: 'run', canDelete: true, readOnly: true, showsDelete: true },
+    { type: 'shipment', canDelete: false, readOnly: true, showsDelete: false },
+  ])(
+    'учитывает права удаления в каталоге ВЭД ($type, право $canDelete, просмотр $readOnly)',
+    async ({ type, canDelete, readOnly, showsDelete }) => {
+      const file = { id: '18', title: 'Инвойс.pdf' };
+      let files = [file];
+      request.mockImplementation(async ({ url }) => {
+        if (url === 'processDocuments:deleteFile') {
+          files = [];
+          return { data: true };
+        }
+        return {
+          data: {
+            breadcrumbs: [],
+            folders: [],
+            files,
+            permissions: { canWrite: type === 'run', canDelete, canRename: true },
+          },
+        };
+      });
+      const root =
+        type === 'run'
+          ? ({ type: 'run', run: { id: '87', title: 'Рейс №87' } } as const)
+          : ({ type: 'shipment', shipment: { id: '42', title: 'Поставка №42' } } as const);
+      render(<CompanyFilesBlock root={root} readOnly={readOnly} />);
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Действия: Инвойс.pdf' }));
+      await screen.findByRole('menuitem', { name: 'Скачать' });
+      expect(screen.queryByRole('button', { name: /Загрузить/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('menuitem', { name: 'Переименовать' })).not.toBeInTheDocument();
+      if (!showsDelete) {
+        expect(screen.queryByRole('menuitem', { name: 'Удалить' })).not.toBeInTheDocument();
+        return;
+      }
+
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Удалить' }));
+      const confirmation = await screen.findByRole('dialog');
+      await waitFor(() => expect(within(confirmation).getByText('Удалить файл «Инвойс.pdf»?')).toBeVisible());
+      expect(request).not.toHaveBeenCalledWith(expect.objectContaining({ url: 'processDocuments:deleteFile' }));
+      fireEvent.click(within(confirmation).getByRole('button', { name: 'Удалить' }));
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Инвойс.pdf' })).not.toBeInTheDocument());
+      expect(request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: 'processDocuments:deleteFile',
+          data: expect.objectContaining({ documentId: file.id }),
+        }),
+      );
+    },
+  );
 
   it('открывает пустую ветку «По запросу» из папки компании до загрузки файлов', async () => {
     request.mockResolvedValue({
@@ -223,7 +339,7 @@ describe('Доступ к открытой папке', () => {
     loadDocuments(true);
     render(<ScopedDocuments requestScope={scope} />);
 
-    fireEvent.click(await screen.findByRole('button', { name: /Декларантам/ }));
+    fireEvent.click(await screen.findByRole('button', { name: folder.title }));
     fireEvent.click(await screen.findByRole('button', { name: /Доступ к папке/ }));
     await screen.findByRole('dialog', { name: /Права папки «Декларантам»/ });
     fireEvent.click(await screen.findByRole('checkbox', { name: 'Декларанты · Загрузка' }));
@@ -246,6 +362,23 @@ describe('Доступ к открытой папке', () => {
     render(<ScopedDocuments requestScope={scope} />);
     await screen.findByText('У вас нет права загружать документы в разделе ВЭД.');
     expect(screen.getByRole('button', { name: /Загрузить/ })).toBeDisabled();
+  });
+
+  it('не показывает кнопку удаления у папки с отдельным запретом', async () => {
+    request.mockResolvedValue({
+      data: {
+        breadcrumbs: [],
+        folders: [
+          { ...folder, canDelete: false },
+          { id: '56', title: 'Доступная папка', canDelete: true },
+        ],
+        files: [],
+        permissions: { canWrite: false, canDelete: true },
+      },
+    });
+    render(<ScopedDocuments requestScope={scope} />);
+    expect(await screen.findByRole('button', { name: 'Удалить папку «Доступная папка»' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: `Удалить папку «${folder.title}»` })).not.toBeInTheDocument();
   });
 
   it.each([

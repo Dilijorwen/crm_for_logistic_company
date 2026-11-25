@@ -20,7 +20,11 @@ export interface ProcessDocumentAccess {
     operation: ProcessDocumentOperation,
     actor: DocumentActor,
   ): Promise<boolean>;
-  assertDraftAccess?(operation: ProcessDocumentOperation, actor: DocumentActor): Promise<void>;
+  assertDraftAccess?(
+    operation: ProcessDocumentOperation,
+    actor: DocumentActor,
+    companyId?: string | null,
+  ): Promise<void>;
   assertRunAccess?(
     runId: string,
     operation: ProcessDocumentOperation,

@@ -32,7 +32,7 @@ import { DocumentActionsButton } from './DocumentActionsButton';
 export const FormDocumentListContext = createContext<{
   controls: React.ReactNode;
   hasDraftFiles: boolean;
-  onDrop?: (transfer: DataTransfer) => Promise<void>;
+  onDrop?: (transfer: DataTransfer, folderId?: FolderItem['id'] | null) => Promise<void>;
 } | null>(null);
 
 export function EmptyFormDocumentList() {
@@ -80,11 +80,18 @@ interface DocumentsListProps<FileItem extends ProcessDocumentDto> {
   previewFile?: (file: FileItem) => void;
   renameFile?: (file: FileItem) => void;
   compactActions?: boolean;
-  onDrop?: (transfer: DataTransfer) => Promise<void>;
+  onDrop?: (transfer: DataTransfer, folder?: FolderItem) => Promise<void>;
+  draftFolderId?: FolderItem['id'] | null;
+  allowDraftDrop?: boolean;
   hasOtherEntries?: boolean;
   extraFolders?: Array<{ id: string; title: string; open(): void; editAccess?(): void }>;
   showParentRow?: boolean;
   emptyDescription?: string;
+  fileLocations?: {
+    label: (file: FileItem) => string;
+    open: (file: FileItem) => void;
+  };
+  fileKey?: (file: FileItem) => string;
 }
 
 export function DocumentsList<FileItem extends ProcessDocumentDto>({
@@ -98,10 +105,14 @@ export function DocumentsList<FileItem extends ProcessDocumentDto>({
   renameFile,
   compactActions = false,
   onDrop,
+  draftFolderId,
+  allowDraftDrop = true,
   hasOtherEntries,
   extraFolders = [],
   showParentRow = false,
   emptyDescription = 'Папка пуста',
+  fileLocations,
+  fileKey,
 }: DocumentsListProps<FileItem>) {
   const folders = folderNavigation?.folders ?? [];
   const { folderId, breadcrumbs, editAccess, setFolderId, deleteFolder, renameFolder } = folderNavigation ?? {};
@@ -111,7 +122,17 @@ export function DocumentsList<FileItem extends ProcessDocumentDto>({
   ];
   const draft = useContext(FormDocumentListContext);
   const [isDragging, setDragging] = useState(false);
-  const dropFiles = onDrop ?? draft?.onDrop;
+  const [dropRow, setDropRow] = useState<string>();
+  const draftDrop = allowDraftDrop ? draft?.onDrop : undefined;
+  const handleDrop = onDrop ?? (draftDrop && ((transfer, folder) => draftDrop(transfer, folder?.id ?? draftFolderId)));
+
+  function destination(target: EventTarget): FolderItem | null | undefined {
+    const row = target instanceof Element ? target.closest<HTMLElement>('[data-document-drop-row]') : null;
+    if (!row) return undefined;
+    if (!onDrop && draftFolderId === undefined) return undefined;
+    const entry = rows[Number(row.dataset.documentDropRow)];
+    return entry && !entry.system && entry.folder.canWrite !== false ? entry.folder : null;
+  }
 
   function withActions(
     key: string,
@@ -119,11 +140,16 @@ export function DocumentsList<FileItem extends ProcessDocumentDto>({
     items: MenuProps['items'],
     cells: React.ReactNode,
     inlineActions?: React.ReactNode,
+    folderIndex?: number,
   ) {
     const menu: MenuProps = { items };
     const hasMenu = !inlineActions && !!items?.length;
     const row = (
-      <div key={key} className="process-documents-row">
+      <div
+        key={key}
+        className={`process-documents-row${dropRow === key ? ' process-documents-row-drop-target' : ''}`}
+        data-document-drop-row={folderIndex}
+      >
         {cells}
         <span className="process-documents-actions">
           {hasMenu ? <DocumentActionsButton menu={menu} label={`Действия: ${title}`} /> : inlineActions}
@@ -141,36 +167,39 @@ export function DocumentsList<FileItem extends ProcessDocumentDto>({
 
   return (
     <section
-      className={`process-documents-list${isDragging ? ' process-documents-list-dragging' : ''}`}
+      className={`process-documents-list${fileLocations ? ' process-documents-list-search' : ''}${
+        isDragging ? ' process-documents-list-dragging' : ''
+      }`}
       aria-label="Список документов"
-      onDragOver={
-        compactActions || dropFiles
-          ? (event) => {
-              if (!event.dataTransfer.types.includes('Files')) return;
-              event.preventDefault();
-              event.dataTransfer.dropEffect = dropFiles ? 'copy' : 'none';
-              setDragging(!!dropFiles);
-            }
-          : undefined
-      }
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes('Files')) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const folder = destination(event.target);
+        const allowed = !!handleDrop && folder !== null;
+        event.dataTransfer.dropEffect = allowed ? 'copy' : 'none';
+        setDragging(allowed && folder === undefined);
+        setDropRow(allowed && folder ? `folder-${folder.id}` : undefined);
+      }}
       onDragLeave={
-        isDragging
+        isDragging || dropRow
           ? (event) => {
-              if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)))
+              if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))) {
                 setDragging(false);
+                setDropRow(undefined);
+              }
             }
           : undefined
       }
-      onDrop={
-        compactActions || dropFiles
-          ? (event) => {
-              if (!event.dataTransfer.types.includes('Files') && !event.dataTransfer.files.length) return;
-              event.preventDefault();
-              setDragging(false);
-              return dropFiles?.(event.dataTransfer);
-            }
-          : undefined
-      }
+      onDrop={(event) => {
+        if (!event.dataTransfer.types.includes('Files') && !event.dataTransfer.files.length) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setDragging(false);
+        setDropRow(undefined);
+        const folder = destination(event.target);
+        if (folder !== null) return handleDrop?.(event.dataTransfer, folder);
+      }}
     >
       {draft && <div className="process-documents-form-controls">{draft.controls}</div>}
       {loading && !rows.length && !files.length ? (
@@ -181,6 +210,7 @@ export function DocumentsList<FileItem extends ProcessDocumentDto>({
       {rows.length || files.length ? (
         <div className="process-documents-row process-documents-columns" aria-hidden="true">
           <span>Имя</span>
+          {fileLocations && <span>Папка</span>}
           <span className="process-documents-meta">Тип</span>
           <span className="process-documents-meta">Размер</span>
           <span className="process-documents-meta">Дата создания</span>
@@ -203,7 +233,7 @@ export function DocumentsList<FileItem extends ProcessDocumentDto>({
           </button>
         </div>
       )}
-      {rows.map(({ folder, system, open, editAccess: editVirtualAccess }) => {
+      {rows.map(({ folder, system, open, editAccess: editVirtualAccess }, index) => {
         const items: MenuProps['items'] = [];
         if (!system && renameFolder && folder.canRename !== false)
           items.push({
@@ -262,13 +292,20 @@ export function DocumentsList<FileItem extends ProcessDocumentDto>({
                   />
                 </Tooltip>
               ) : null}
-              {deleteFolder && !system ? (
+              {deleteFolder && !system && folder.canDelete !== false ? (
                 <Tooltip title="Удалить папку">
-                  <Button size="small" danger icon={<DeleteOutlined />} onClick={() => deleteFolder(folder)} />
+                  <Button
+                    aria-label={`Удалить папку «${folder.title}»`}
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={() => deleteFolder(folder)}
+                  />
                 </Tooltip>
               ) : null}
             </>
           ),
+          index,
         );
       })}
       {files.map((file) => {
@@ -279,6 +316,13 @@ export function DocumentsList<FileItem extends ProcessDocumentDto>({
             label: 'Открыть',
             icon: <FileOutlined aria-hidden="true" />,
             onClick: () => previewFile(file),
+          });
+        if (fileLocations)
+          items.push({
+            key: 'location',
+            label: 'Перейти в папку',
+            icon: <FolderOutlined aria-hidden="true" />,
+            onClick: () => fileLocations.open(file),
           });
         if (downloadFile)
           items.push({
@@ -304,7 +348,7 @@ export function DocumentsList<FileItem extends ProcessDocumentDto>({
             onClick: () => deleteFile(file),
           });
         return withActions(
-          `file-${file.id}`,
+          `file-${fileKey?.(file) ?? file.id}`,
           file.title,
           items,
           <>
@@ -314,6 +358,11 @@ export function DocumentsList<FileItem extends ProcessDocumentDto>({
                 {file.title}
               </span>
             </button>
+            {fileLocations && (
+              <Button type="link" className="process-documents-file-location" onClick={() => fileLocations.open(file)}>
+                {fileLocations.label(file)}
+              </Button>
+            )}
             <span className="process-documents-meta">
               {file.title.match(/\.([^./]+)$/)?.[1].toUpperCase() ?? 'Файл'}
             </span>

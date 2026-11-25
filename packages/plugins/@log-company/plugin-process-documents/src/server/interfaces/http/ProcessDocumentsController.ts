@@ -7,6 +7,7 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import type { GetDocumentFolderConstraints } from '../../application/GetDocumentFolderConstraints';
 import fs from 'fs/promises';
 import os from 'os';
 import path from 'path';
@@ -23,7 +24,7 @@ import {
 } from '@log-company/plugin-file-storage';
 import { SetDocumentFolderAccess } from '../../application/SetDocumentFolderAccess';
 import type { RenameProcessDocumentEntry } from '../../application/RenameProcessDocumentEntry';
-import { documentRights, documentSections, MAX_DOCUMENT_UPLOAD_ENTRIES } from '../../../contracts/processDocuments';
+import { documentRights, documentSections } from '../../../contracts/processDocuments';
 import type { DocumentAccessRule, DocumentSection, FolderAccess } from '../../../contracts/processDocuments';
 import type { DocumentSectionAccess } from '../../application/DocumentSectionAccess';
 import type { NocoBaseProcessDocumentAccess } from '../../infrastructure/nocobase/NocoBaseProcessDocumentAccess';
@@ -35,6 +36,7 @@ import { DeleteProcessDocumentFolder } from '../../application/DeleteProcessDocu
 import { DeleteRecordAttachment } from '../../application/DeleteRecordAttachment';
 import { DownloadProcessDocument } from '../../application/DownloadProcessDocument';
 import { GetProcessDocumentFolderDeleteSummary } from '../../application/GetProcessDocumentFolderDeleteSummary';
+import { parseCatalogSearch, type SearchCatalogDocuments } from '../../application/SearchCatalogDocuments';
 import { ListProcessDocuments } from '../../application/ListProcessDocuments';
 import { UploadProcessDocuments } from '../../application/UploadProcessDocuments';
 import type { UploadedDocumentFile } from '../../application/UploadProcessDocuments';
@@ -51,7 +53,7 @@ import { normalizeNullableIdentifier, parseDraftToken, parseIdentifier } from '.
 import { isCompanyDocumentArea, PROCESS_DOCUMENTS_DRAFT_FIELD } from '../../../contracts/processDocuments';
 import type { DocumentsListResponse } from '../../../contracts/processDocuments';
 
-import { decodeUploadedName } from './UploadedDocumentName';
+import { decodeUploadedName, parseUploadedEmptyFolders } from './UploadedDocumentName';
 
 const RESOURCE = 'processDocuments';
 
@@ -66,6 +68,7 @@ type UploadContext = Context & { files?: UploadedFile[] };
 
 export interface ProcessDocumentsActions {
   list: ListProcessDocuments;
+  search: SearchCatalogDocuments;
   createFolder: CreateProcessDocumentFolder;
   uploadFiles: UploadProcessDocuments;
   download: DownloadProcessDocument;
@@ -75,6 +78,7 @@ export interface ProcessDocumentsActions {
   deleteFolder: DeleteProcessDocumentFolder;
   attachDraftDocuments: AttachDraftDocumentsToProcess;
   setFolderAccess: SetDocumentFolderAccess;
+  getFolderConstraints: GetDocumentFolderConstraints;
   renameEntry: RenameProcessDocumentEntry;
 }
 
@@ -98,6 +102,7 @@ export class ProcessDocumentsController {
       name: RESOURCE,
       actions: {
         list: this.list,
+        search: this.search,
         createFolder: this.createFolder,
         uploadFiles: this.uploadFiles,
         download: this.download,
@@ -106,6 +111,7 @@ export class ProcessDocumentsController {
         folderDeleteSummary: this.folderDeleteSummary,
         deleteFolder: this.deleteFolder,
         setFolderAccess: this.setFolderAccess,
+        getFolderConstraints: this.getFolderConstraints,
         renameEntry: this.renameEntry,
         sectionPermissions: this.sectionPermissions,
         attachmentPermissions: this.attachmentPermissions,
@@ -115,6 +121,7 @@ export class ProcessDocumentsController {
     });
     for (const action of [
       'list',
+      'search',
       'createFolder',
       'uploadFiles',
       'download',
@@ -123,6 +130,7 @@ export class ProcessDocumentsController {
       'folderDeleteSummary',
       'deleteFolder',
       'setFolderAccess',
+      'getFolderConstraints',
       'renameEntry',
       'sectionPermissions',
       'attachmentPermissions',
@@ -161,6 +169,14 @@ export class ProcessDocumentsController {
     );
   }
 
+  private readonly search = async (context: Context, next: Next): Promise<void> => {
+    await this.handle(context, async () => {
+      const request = parseCatalogSearch(this.actionValues(context));
+      context.body = await this.actions.search.execute(request, this.actor(context));
+      await next();
+    });
+  };
+
   private readonly list = async (context: Context, next: Next): Promise<void> => {
     await this.handle(context, async () => {
       const values = this.actionValues(context);
@@ -178,6 +194,7 @@ export class ProcessDocumentsController {
           : null,
         folders: result.folders.map((folder) => ({
           ...this.serializeFolder(folder, result.permissions.canManageAccess),
+          canWrite: folder.canWrite,
           canRename: folder.canRename,
           canDelete: folder.canDelete,
         })),
@@ -250,7 +267,7 @@ export class ProcessDocumentsController {
           draftToken: this.draftToken(values),
           folderId: normalizeNullableIdentifier(values.folderId),
           files: verifiedFiles,
-          emptyFolders: this.parseEmptyFolders(values.emptyFolders),
+          emptyFolders: parseUploadedEmptyFolders(values.emptyFolders),
           actor: this.actor(context),
         });
         context.body = {
@@ -333,6 +350,19 @@ export class ProcessDocumentsController {
         actor: this.actor(context),
       });
       context.body = true;
+      await next();
+    });
+  };
+
+  private readonly getFolderConstraints = async (context: Context, next: Next): Promise<void> => {
+    await this.handle(context, async () => {
+      this.assertSettingsAccess(context);
+      const values = this.actionValues(context);
+      const folderId = this.requiredIdentifier(values.folderId, 'FOLDER_NOT_FOUND', 'Папка не найдена.');
+      const companyId = this.ownerId(values.companyId);
+      context.body = {
+        constraints: await this.actions.getFolderConstraints.execute(folderId, companyId, this.actor(context)),
+      };
       await next();
     });
   };
@@ -523,25 +553,6 @@ export class ProcessDocumentsController {
 
   private draftToken(values: Record<string, unknown>): string | null {
     return parseDraftToken(values.draftToken ?? values.draft_token ?? values[PROCESS_DOCUMENTS_DRAFT_FIELD]);
-  }
-
-  private parseEmptyFolders(value: unknown): string[] | undefined {
-    if (value === undefined) return;
-    if (typeof value === 'string') {
-      let paths: unknown;
-      try {
-        paths = JSON.parse(value);
-      } catch {
-        throw new ProcessDocumentsError('INVALID_UPLOAD', 'Неверный список пустых папок.');
-      }
-      if (
-        Array.isArray(paths) &&
-        paths.length <= MAX_DOCUMENT_UPLOAD_ENTRIES &&
-        paths.every((path) => typeof path === 'string')
-      )
-        return paths;
-    }
-    throw new ProcessDocumentsError('INVALID_UPLOAD', 'Неверный список пустых папок.');
   }
 
   private requiredIdentifier(value: unknown, code: ProcessDocumentsErrorCode, message: string): string {

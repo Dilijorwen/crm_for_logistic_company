@@ -17,7 +17,18 @@ import {
 } from '@log-company/plugin-process-governance/client';
 import { documentRecordId, isDocumentFormResource } from '../../../../contracts/processDocuments';
 import { ProcessDocumentsBlock } from '../ui/ProcessDocumentsBlock';
-import type { DocumentFormBinding } from '../ui/FormFolderUpload';
+import {
+  WorkspaceShipmentDraftUpload,
+  type DocumentFormBinding,
+  type ShipmentDocumentDraftBinding,
+} from '../ui/FormFolderUpload';
+
+function tabUid(model: FlowModel): unknown {
+  for (let parent = model.parent; parent; parent = parent.parent) {
+    if (parent.subKey === 'tabs' && parent.uid) return parent.uid;
+  }
+  return model.context.view?.inputArgs?.tabUid;
+}
 
 export class ProcessDocumentsBlockModel extends BlockModel {
   renderComponent() {
@@ -28,6 +39,11 @@ export class ProcessDocumentsBlockModel extends BlockModel {
         ? inputArgs.dataSourceKey
         : this.context.collection?.dataSourceKey ?? 'main';
     const configuredMode = this.props?.folderMode;
+    const draft =
+      view?.type === 'block'
+        ? (inputArgs?.workspaceShipmentDraft as ShipmentDocumentDraftBinding | undefined)
+        : undefined;
+    if (draft) return <WorkspaceShipmentDraftUpload binding={draft} />;
     const scopedShipmentId = view?.type === 'block' ? documentRecordId(inputArgs?.workspaceShipmentId) : undefined;
     if (scopedShipmentId) {
       return (
@@ -44,18 +60,21 @@ export class ProcessDocumentsBlockModel extends BlockModel {
     // The popup is opened on a grouped table row, while its native form saves the run itself.
     const runForm =
       runId && getCollectionName(context.collection) === 'logistics_work_items'
-        ? this.findForm('transport_runs')
+        ? this.findForm('transport_runs', runId)
         : undefined;
     const recordContext = runForm ? { ...context, collection: 'transport_runs', filterByTk: runId } : context;
     const collectionName = getCollectionName(recordContext.collection);
-    const binding = runForm ?? (isDocumentFormResource(collectionName) ? this.findForm(collectionName) : undefined);
+    const popupMode =
+      typeof collectionName === 'string' ? getFlowModelPopupCollectionMode(this, collectionName) : undefined;
+    const recordId =
+      popupMode === 'create' ? undefined : documentRecordId(recordContext.filterByTk ?? recordContext.record?.id);
+    const findForm = isDocumentFormResource(collectionName) ? () => this.findForm(collectionName, recordId) : undefined;
+    const binding = runForm ?? findForm?.();
     const mode =
       configuredMode === 'view' || configuredMode === 'upload' ? configuredMode : binding ? 'upload' : undefined;
     const isNew =
       binding?.resource.isNewRecord ??
-      (typeof collectionName === 'string' &&
-        (collectionName !== 'shipments' || mode !== undefined) &&
-        getFlowModelPopupCollectionMode(this, collectionName) === 'create');
+      ((collectionName !== 'shipments' || mode !== undefined) && popupMode === 'create');
     return (
       <ProcessDocumentsBlock
         modelContext={isNew ? { ...recordContext, record: null, filterByTk: undefined } : recordContext}
@@ -63,19 +82,22 @@ export class ProcessDocumentsBlockModel extends BlockModel {
         getCollection={this.getCollection}
         canUpdateField={this.canUpdateField}
         folderMode={mode}
-        findForm={isDocumentFormResource(collectionName) ? () => this.findForm(collectionName) : undefined}
+        findForm={findForm}
       />
     );
   }
 
-  private findForm(collectionName: string): DocumentFormBinding | undefined {
+  private findForm(collectionName: string, recordId?: string): DocumentFormBinding | undefined {
     function bind(model: FlowModel): DocumentFormBinding | undefined {
       if (!(model instanceof CreateFormModel || model instanceof EditFormModel)) return;
       const resource = model.context.resource;
       if (
         resource instanceof SingleRecordResource &&
         resource.getResourceName() === collectionName &&
-        (resource.getDataSourceKey() || 'main') === 'main'
+        (resource.getDataSourceKey() || 'main') === 'main' &&
+        (!recordId ||
+          (!resource.isNewRecord &&
+            documentRecordId(resource.getMeta('currentFilterByTk') ?? resource.getFilterByTk()) === recordId))
       ) {
         return { model, resource };
       }
@@ -87,12 +109,25 @@ export class ProcessDocumentsBlockModel extends BlockModel {
     }
     const view = this.context.view;
     if (!view) return;
+    const ownTab = tabUid(this);
+    const ownGrid = this.parent?.uid ?? this.parentId;
+    const viewUid: unknown = view.inputArgs?.viewUid;
     const matches: DocumentFormBinding[] = [];
+    // The engine only enumerates models in this window. A tab or grid may wrap its view in a new object.
     this.flowEngine.forEachModel((model) => {
       const form = bind(model);
       if (!form) return;
       const formView = model.context.view;
-      if (formView === view || (view.inputArgs && formView?.inputArgs === view.inputArgs)) matches.push(form);
+      const formTab = tabUid(model);
+      const formViewUid: unknown = formView?.inputArgs?.viewUid;
+      if (ownTab && formTab && ownTab !== formTab) return;
+      if (viewUid && formViewUid && viewUid !== formViewUid) return;
+      const sameView = formView === view || (view.inputArgs && formView?.inputArgs === view.inputArgs);
+      const sameLocation =
+        (ownTab && ownTab === formTab) ||
+        (ownGrid && ownGrid === (model.parent?.uid ?? model.parentId)) ||
+        (!ownTab && !formTab && typeof viewUid === 'string' && viewUid !== '' && viewUid === formViewUid);
+      if (sameView || (recordId && sameLocation)) matches.push(form);
     });
     return matches.length === 1 ? matches[0] : undefined;
   }

@@ -94,8 +94,26 @@ export const blockClass = css`
     transition: background-color 0.15s ease;
   }
 
+  .process-documents-list-search .process-documents-row {
+    grid-template-columns: minmax(100px, 1fr) minmax(140px, 1.6fr) 44px 65px 116px 94px 30px;
+  }
+
+  .process-documents-file-location.ant-btn {
+    justify-content: flex-start;
+    padding: 0;
+    height: auto;
+    white-space: normal;
+    text-align: start;
+    overflow-wrap: anywhere;
+  }
+
   .process-documents-row:hover {
     background: var(--process-documents-row-hover);
+  }
+
+  .process-documents-row.process-documents-row-drop-target {
+    background: var(--process-documents-row-hover);
+    box-shadow: inset 0 0 0 1px var(--process-documents-primary);
   }
 
   .process-documents-columns {
@@ -153,6 +171,17 @@ export const blockClass = css`
     display: flex;
     justify-content: flex-end;
     gap: 4px;
+  }
+
+  @container (max-width: 760px) {
+    .process-documents-list-search .process-documents-row {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+      gap: 8px;
+    }
+
+    .process-documents-list-search .process-documents-meta {
+      display: none;
+    }
   }
 
   @container (max-width: 640px) {

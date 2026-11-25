@@ -50,7 +50,10 @@ function dependencies() {
     withTransaction: async <T>(work: (transaction: TransactionContext) => Promise<T>) => work({}),
     shipmentExists: async () => true,
     listDocumentTitles: async () => [],
-    listFolderTitles: async () => [],
+    listFolderTitles: async (_scope: unknown, parentFolderId: string | null) =>
+      folders.filter((folder) => folder.parentFolderId === parentFolderId).map((folder) => folder.title),
+    listFolders: async (_scope: unknown, parentFolderId: string | null) =>
+      folders.filter((folder) => folder.parentFolderId === parentFolderId),
     findFolderById: async (id: string) => folders.find((folder) => folder.id === id) ?? null,
     createFolder: async (input: CreateFolderRecordInput) => {
       const folder = {
@@ -90,13 +93,14 @@ function dependencies() {
   let nextId = 0;
   const identifiers = { generate: () => `document-${++nextId}` };
   const scopeService = new DocumentScopeService(repository, { assertAccess: async () => undefined });
+  const folderService = new DocumentFolderService(repository, scopeService, identifiers);
   const upload = new UploadProcessDocuments(
     repository,
     storage,
     { generate: (ownerPath, filename) => `${ownerPath}/generated-${filename}` },
     identifiers,
     scopeService,
-    new DocumentFolderService(repository, scopeService, identifiers),
+    folderService,
     logger,
   );
   return {
@@ -104,11 +108,29 @@ function dependencies() {
     storedKeys,
     createDocument,
     upload,
+    folderService,
     cleanup: new DeleteProcessDocumentsForProcess(repository, storage, logger),
   };
 }
 
 describe('document storage lifecycle', () => {
+  it('использует готовую папку отдела, если её перетащили при создании поставки', async () => {
+    const deps = dependencies();
+    const shipmentId = '1043';
+    await deps.folderService.ensureShipmentDepartmentFolders(shipmentId, actor.userId);
+    const folders = await deps.repository.listFolders({ mode: 'shipment', shipmentId }, null);
+    const cargo = folders.find(({ title }) => title === 'Карго');
+    expect(cargo).toBeDefined();
+    const result = await deps.upload.execute({
+      shipmentId,
+      draftToken: null,
+      folderId: null,
+      actor: { ...actor, creatingOwner: { resource: 'shipments', recordId: shipmentId } },
+      files: [{ path: '/tmp/act.pdf', originalName: 'Карго/Акт.pdf', mimeType: 'application/pdf', size: 10 }],
+    });
+    expect(result.folders).toEqual([]);
+    expect(result.files).toMatchObject([{ title: 'Акт.pdf', folderId: cargo?.id }]);
+  });
   it('сохраняет пустые папки и файлы перетаскивания в общей структуре', async () => {
     const deps = dependencies();
     const input = {

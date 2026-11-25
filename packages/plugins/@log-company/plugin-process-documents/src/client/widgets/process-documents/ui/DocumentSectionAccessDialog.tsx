@@ -10,6 +10,7 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Button, Modal, Select, Space, Spin, Typography } from 'antd';
 import {
+  defaultDocumentSectionRights,
   isCompanyRequestFolder,
   type DocumentAccessRule,
   type DocumentFolderDto,
@@ -165,7 +166,11 @@ export function DocumentSectionAccessDialog({
             key={target}
             rules={draft ?? access.rules}
             inherited={access.inherited}
-            defaultAllow={!Array.isArray(folder?.grants) && folder?.grants?.defaultAllow !== false}
+            defaultAllow={
+              section
+                ? defaultDocumentSectionRights(section)
+                : !Array.isArray(folder?.grants) && folder?.grants?.defaultAllow !== false
+            }
             disabled={saving}
             onChange={setDraft}
           />

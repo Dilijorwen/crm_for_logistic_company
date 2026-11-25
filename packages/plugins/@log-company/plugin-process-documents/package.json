@@ -2,7 +2,7 @@
   "name": "@log-company/plugin-process-documents",
   "displayName": "Документы поставок",
   "description": "Папки и файлы поставок с хранением в MinIO.",
-  "version": "2.0.90",
+  "version": "2.0.108",
   "main": "dist/server/index.js",
   "devDependencies": {
     "fflate": "^0.8.2",

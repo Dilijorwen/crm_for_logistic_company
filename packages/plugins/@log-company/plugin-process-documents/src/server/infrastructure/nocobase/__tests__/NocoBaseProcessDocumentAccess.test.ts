@@ -9,6 +9,7 @@
 
 import type { Plugin } from '@nocobase/server';
 import { describe, expect, it, vi } from 'vitest';
+import type { DocumentAccessRule } from '../../../../contracts/processDocuments';
 import { NocoBaseProcessDocumentAccess } from '../NocoBaseProcessDocumentAccess';
 import { DocumentSectionAccess } from '../../../application/DocumentSectionAccess';
 
@@ -137,5 +138,105 @@ describe('Access to shared run documents', () => {
     });
     can.mockImplementation(() => ({ params: { whitelist: ['documents'] } }));
     await expect(access.assertPermitUpload('50', actor, {})).resolves.toBeUndefined();
+  });
+});
+
+describe('Удаление документов ВЭД', () => {
+  function fixture(rules: Record<string, DocumentAccessRule[]> = {}) {
+    const records = {
+      our_companies: { id: '11' },
+      shipments: { get: () => '10' },
+      transport_runs: { get: () => [{ company_id: '10' }, { company_id: '11' }] },
+    };
+    const plugin = {
+      db: {
+        getRepository: (name: keyof typeof records) => ({
+          findOne: async ({ filter }: { filter?: { $and?: unknown } }) => (filter?.$and ? null : records[name]),
+        }),
+      },
+    } as unknown as Plugin;
+    const sections = new DocumentSectionAccess({
+      read: async (section, company) => (section === 'ved' ? rules[company ?? 'common'] ?? [] : []),
+      save: async () => undefined,
+    });
+    const can = vi.fn(({ action }: { resource: string; action: string }) =>
+      action === 'get' ? { params: {} as { filter?: Record<string, string> } } : null,
+    );
+    const actor = {
+      userId: '7',
+      isRoot: false,
+      roles: ['manager'],
+      authorizationContext: { can, get: () => undefined, state: {} },
+    };
+    return { access: new NocoBaseProcessDocumentAccess(plugin, sections), can, actor };
+  }
+
+  const allowDelete: DocumentAccessRule = { kind: 'role', subject: 'manager', rights: { delete: true } };
+
+  it('позволяет удалять документы поставки и рейса без изменения или удаления самих записей', async () => {
+    const { access, actor } = fixture({ common: [allowDelete] });
+    await expect(access.assertAccess('42', 'delete', actor)).resolves.toBeUndefined();
+    await expect(access.assertRunAccess('87', 'delete', actor, null)).resolves.toBeUndefined();
+  });
+
+  it('не разрешает удаление по умолчанию даже при полном доступе к записям ВЭД', async () => {
+    const { access, actor, can } = fixture();
+    can.mockReturnValue({ params: {} });
+    await expect(access.assertAccess('42', 'delete', actor)).rejects.toMatchObject({ code: 'DOCUMENT_ACCESS_DENIED' });
+    await expect(access.assertRunAccess('87', 'delete', actor, null)).rejects.toMatchObject({
+      code: 'DOCUMENT_ACCESS_DENIED',
+    });
+  });
+
+  it('учитывает запрет компании для поставки и общего комплекта рейса', async () => {
+    const { access, actor, can } = fixture({
+      common: [allowDelete],
+      '10': [{ kind: 'user', subject: '7', rights: { delete: false } }],
+    });
+    await expect(access.assertAccess('42', 'delete', actor)).rejects.toMatchObject({ code: 'DOCUMENT_ACCESS_DENIED' });
+    await expect(access.assertRunAccess('87', 'delete', actor, '11')).rejects.toMatchObject({
+      code: 'DOCUMENT_ACCESS_DENIED',
+    });
+    expect(can).toHaveBeenCalledWith({ resource: 'transport_runs', action: 'get' });
+  });
+
+  it('не разрешает удалять документы записи без права просмотра', async () => {
+    const { access, actor, can } = fixture({ common: [allowDelete] });
+    can.mockImplementation(({ action }) => (action === 'get' ? null : { params: {} }));
+    await expect(access.assertAccess('42', 'delete', actor)).rejects.toMatchObject({ code: 'SHIPMENT_ACCESS_DENIED' });
+    await expect(access.assertRunAccess('87', 'delete', actor, null)).rejects.toMatchObject({
+      code: 'DOCUMENT_ACCESS_DENIED',
+    });
+  });
+
+  it('проверяет область просмотра конкретной записи даже при разрешении ВЭД', async () => {
+    const { access, actor, can } = fixture({ common: [allowDelete] });
+    can.mockReturnValue({ params: { filter: { id: '100' } } });
+    await expect(access.assertAccess('42', 'delete', actor)).rejects.toMatchObject({ code: 'SHIPMENT_ACCESS_DENIED' });
+    await expect(access.assertRunAccess('87', 'delete', actor, null)).rejects.toMatchObject({
+      code: 'DOCUMENT_ACCESS_DENIED',
+    });
+  });
+
+  it('наследует право просмотра ВЭД выбранной компании в новой поставке', async () => {
+    const { access, actor } = fixture({
+      '10': [{ kind: 'role', subject: 'manager', rights: { read: false } }],
+    });
+    await expect(access.assertDraftAccess('read', actor, '11')).resolves.toBeUndefined();
+    await expect(access.assertDraftAccess('read', actor, '10')).rejects.toMatchObject({
+      code: 'DOCUMENT_ACCESS_DENIED',
+    });
+    await expect(access.assertDraftAccess('write', actor, '10')).rejects.toMatchObject({
+      code: 'DOCUMENT_ACCESS_DENIED',
+    });
+  });
+
+  it('сохраняет прежние права удаления файлов из несохранённого черновика', async () => {
+    const unrestricted = fixture();
+    await expect(unrestricted.access.assertDraftAccess('delete', unrestricted.actor)).resolves.toBeUndefined();
+    const restricted = fixture({ common: [{ ...allowDelete, rights: { delete: false } }] });
+    await expect(restricted.access.assertDraftAccess('delete', restricted.actor)).rejects.toMatchObject({
+      code: 'DOCUMENT_ACCESS_DENIED',
+    });
   });
 });

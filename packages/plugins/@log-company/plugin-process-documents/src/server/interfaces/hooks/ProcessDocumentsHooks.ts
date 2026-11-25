@@ -10,6 +10,7 @@
 import type { Plugin } from '@nocobase/server';
 import { AttachDraftDocumentsToProcess } from '../../application/AttachDraftDocumentsToProcess';
 import { DeleteProcessDocumentsForProcess } from '../../application/DeleteProcessDocumentsForProcess';
+import type { DocumentFolderService } from '../../application/DocumentFolderService';
 import { ValidateDocumentFolderPlacement } from '../../application/ValidateDocumentFolderPlacement';
 import { ValidateProcessDocumentPlacement } from '../../application/ValidateProcessDocumentPlacement';
 import type { DocumentStorage } from '../../application/ports/DocumentStorage';
@@ -56,17 +57,33 @@ export class ProcessDocumentsHooks {
     private readonly deleteProcessDocuments: DeleteProcessDocumentsForProcess,
     private readonly validateFolderPlacement: ValidateDocumentFolderPlacement,
     private readonly validateDocumentPlacement: ValidateProcessDocumentPlacement,
+    private readonly folderService: DocumentFolderService,
   ) {}
 
   register(): void {
+    // Saving a shipment as an association of a run only emits the model's create event.
+    this.plugin.db.on(`${SHIPMENTS_COLLECTION}.afterCreate`, async (model: NocoBaseModel, options: HookOptions) => {
+      const shipmentId = parseIdentifier(model.get('id'));
+      if (!shipmentId || this.draftTokenFromOptions(options)) return;
+      await this.folderService.ensureShipmentDepartmentFolders(
+        shipmentId,
+        this.actorIdFromOptions(options),
+        options.transaction,
+      );
+    });
+
     this.plugin.db.on(
       `${SHIPMENTS_COLLECTION}.afterCreateWithAssociations`,
       async (model: NocoBaseModel, options: HookOptions) => {
+        const shipmentId = parseIdentifier(model.get('id'));
+        const draftToken = this.draftTokenFromOptions(options);
+        if (!shipmentId || !draftToken) return;
+        const actorId = this.actorIdFromOptions(options);
         const state = options.context?.state;
         await this.attachDraftDocuments.execute({
-          draftToken: this.draftTokenFromOptions(options),
-          shipmentId: parseIdentifier(model.get('id')),
-          actorId: this.actorIdFromOptions(options),
+          draftToken,
+          shipmentId,
+          actorId,
           isRoot: this.isRootFromOptions(options),
           companyId: parseIdentifier(model.get('company_id')),
           roles:
@@ -75,6 +92,7 @@ export class ProcessDocumentsHooks {
               : (state?.currentRoles || []).map(String),
           transaction: options.transaction,
         });
+        await this.folderService.ensureShipmentDepartmentFolders(shipmentId, actorId, options.transaction);
       },
     );
 

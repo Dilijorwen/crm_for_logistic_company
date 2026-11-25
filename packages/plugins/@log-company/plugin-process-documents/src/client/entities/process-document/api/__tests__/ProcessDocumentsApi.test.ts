@@ -46,6 +46,21 @@ describe('ProcessDocumentsApi contract', () => {
     await expect(api.list({ shipmentId: '42' }, null)).rejects.toBe(error);
   });
 
+  it('reads the search cursor from the response metadata', async () => {
+    const rows = [{ id: '90', title: 'Устав.pdf', nodes: [], folders: [], target: { kind: 'scoped' } }];
+    const api = new ProcessDocumentsApi({
+      request: vi.fn().mockResolvedValue({ data: { data: rows, meta: { next: 'scoped:90' } } }),
+    });
+    await expect(api.search({ query: 'устав', path: [] })).resolves.toEqual({ rows, next: 'scoped:90' });
+  });
+
+  it('accepts a search response without matches', async () => {
+    const api = new ProcessDocumentsApi({
+      request: vi.fn().mockResolvedValue({ data: { data: [], meta: {} } }),
+    });
+    await expect(api.search({ query: 'устав', path: [] })).resolves.toEqual({ rows: [] });
+  });
+
   it('uploads the folder hierarchy to the draft scope', async () => {
     const request = vi.fn().mockResolvedValue({});
     const api = new ProcessDocumentsApi({ request });

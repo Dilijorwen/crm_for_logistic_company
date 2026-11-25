@@ -97,6 +97,7 @@ function ProcessDocumentsBlockComponent(props: DocumentsBlockProps) {
         {...shipmentHeading}
         requestScope={shipmentScope}
         readOnly={props.folderMode === 'view'}
+        uploadInsideFoldersOnly
         showRefresh={false}
       />
     );
@@ -112,6 +113,9 @@ function ProcessDocumentsBlockComponent(props: DocumentsBlockProps) {
   }
   const readOnly = props.folderMode !== 'upload';
   const recordId = target.kind === 'unsaved' ? undefined : target.recordId;
+  if (target.kind === 'run' && recordId !== undefined) {
+    return <RunDocuments runId={recordId} readOnly={readOnly} showRefresh={false} />;
+  }
   const content =
     recordId === undefined ? (
       readOnly ? (
@@ -125,8 +129,6 @@ function ProcessDocumentsBlockComponent(props: DocumentsBlockProps) {
         allowUpload={false}
         showRefresh={false}
       />
-    ) : target.kind === 'run' ? (
-      <RunDocuments runId={recordId} readOnly={readOnly} allowUpload={false} showRefresh={false} />
     ) : target.kind === 'company' ? (
       <CompanyRequestDocuments recordId={recordId} readOnly={readOnly} />
     ) : (

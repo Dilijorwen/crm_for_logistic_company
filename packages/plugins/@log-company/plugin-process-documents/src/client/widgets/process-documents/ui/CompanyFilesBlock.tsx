@@ -9,8 +9,8 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAPIClient } from '@nocobase/client';
-import { Alert, Button, Modal, Space, Spin, Typography, message } from 'antd';
-import { FolderOutlined, LockOutlined } from '@ant-design/icons';
+import { Alert, Button, Input, Modal, Space, Spin, Typography, message } from 'antd';
+import { FolderOutlined, LockOutlined, SearchOutlined } from '@ant-design/icons';
 import {
   DocumentsCatalogApi,
   ProcessDocumentsApi,
@@ -27,53 +27,18 @@ import { CompanyRequestDocuments } from './CompanyRequestDocuments';
 import { DocumentPreviewDialog, downloadDocument } from './DocumentPreviewDialog';
 import type { DocumentPreviewTarget } from './DocumentPreviewDialog';
 import { RecordAttachments } from './RecordAttachments';
+import { CatalogFileSearchResults } from './CatalogFileSearchResults';
+import {
+  catalogNodeKey,
+  catalogNodeTitle as title,
+  catalogSearchMaxLength,
+  catalogSearchMinLength,
+  type CatalogNode,
+  type CatalogSearchHit,
+} from '../../../../contracts/documentCatalog';
 import { DocumentCatalogContext } from './DocumentCatalogContext';
 
-export type CatalogNode =
-  | { type: 'catalog' }
-  | { type: 'company' | 'customs' | 'unassigned' | 'permits'; company: CatalogItem }
-  | { type: 'contracts'; company: CatalogItem }
-  | { type: 'contractStatus'; company: CatalogItem; active: boolean }
-  | { type: 'contract' | 'agreements'; company: CatalogItem; contract: CatalogItem }
-  | { type: 'corporate'; company: CatalogItem; folderId?: CatalogItem['id']; companyArea?: 'company' }
-  | { type: 'run'; run: CatalogItem; company?: CatalogItem }
-  | { type: 'runGroup' | 'permitGroup'; company: CatalogItem; folder: CatalogFolder }
-  | { type: 'shipment'; shipment: CatalogItem }
-  | { type: 'permit'; permit: CatalogItem };
-
-function title(node: CatalogNode): string {
-  switch (node.type) {
-    case 'catalog':
-      return 'Компании';
-    case 'company':
-      return node.company.title;
-    case 'customs':
-      return 'ВЭД';
-    case 'corporate':
-      return node.companyArea ? node.company.title : 'Учредительные документы';
-    case 'unassigned':
-      return 'Поставки без рейса';
-    case 'permits':
-      return 'Разрешительные документы';
-    case 'contracts':
-      return 'Контракты';
-    case 'contractStatus':
-      return node.active ? 'Действующий' : 'Недействующий';
-    case 'contract':
-      return node.contract.title;
-    case 'agreements':
-      return 'Доп. соглашение';
-    case 'run':
-      return node.run.title;
-    case 'runGroup':
-    case 'permitGroup':
-      return node.folder.title;
-    case 'shipment':
-      return node.shipment.title;
-    case 'permit':
-      return node.permit.title;
-  }
-}
+export type { CatalogNode } from '../../../../contracts/documentCatalog';
 
 function Contents({
   node,
@@ -428,6 +393,14 @@ function CatalogBrowser({ root, readOnly }: { root: CatalogNode; readOnly: boole
   const [companyAtRoot, setCompanyAtRoot] = useState(true);
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null);
   const [revision, setRevision] = useState(0);
+  const [filesRevision, setFilesRevision] = useState(0);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [initialFolderId, setInitialFolderId] = useState<string>();
+  const [locationChange, setLocationChange] = useState(0);
+  const [folder, setFolder] = useState<{ id?: string; isVirtual: boolean }>();
+  const navigation = React.useRef(0);
+  const showSearch = searchText.trim().length > 0;
   const [access, setAccess] = useState<{ key: string; permissions?: SectionPermissions; error?: string }>();
   const node = path[path.length - 1];
   const companyId = node.type === 'company' ? node.company.id : undefined;
@@ -451,10 +424,60 @@ function CatalogBrowser({ root, readOnly }: { root: CatalogNode; readOnly: boole
     };
   }, [documentsApi, companyId, settingsAvailable, accessKey]);
 
+  const reportFolder = React.useCallback((id: string | undefined, isVirtual: boolean) => {
+    setFolder({ id, isVirtual });
+  }, []);
+
+  const refreshSearch = React.useCallback(() => setFilesRevision((previous) => previous + 1), []);
+
+  function navigate(nextPath: CatalogNode[], folderId?: string) {
+    navigation.current += 1;
+    setCompanyAtRoot(!folderId);
+    setFolder(undefined);
+    setInitialFolderId(folderId);
+    setLocationChange((previous) => previous + 1);
+    setSearchText('');
+    setPath(nextPath);
+  }
+
+  async function openSearchFolder(file: CatalogSearchHit) {
+    const currentNavigation = ++navigation.current;
+    const index =
+      root.type === 'catalog' ? -1 : file.nodes.findIndex((entry) => catalogNodeKey(entry) === catalogNodeKey(root));
+    const trail = file.nodes.slice(index + 1);
+    let groups: CatalogFolder[] | undefined;
+    try {
+      for (const [position, entry] of trail.entries()) {
+        if (entry.type !== 'runGroup' && entry.type !== 'permitGroup') continue;
+        groups ??= await api.folders(entry.type === 'runGroup' ? 'runs' : 'permits', entry.company.id);
+        const folder = groups.find(({ id }) => id === entry.folder.id);
+        if (!folder) throw new Error('Папка была перемещена или недоступна.');
+        trail[position] = { ...entry, folder };
+        groups = folder.children ?? [];
+      }
+      if (currentNavigation === navigation.current) navigate([root, ...trail], file.folders.at(-1)?.id);
+    } catch (reason) {
+      if (currentNavigation === navigation.current) {
+        message.error(getDocumentErrorText(reason, 'Не удалось открыть папку.'));
+      }
+    }
+  }
+
+  const searchRequest = {
+    query: searchText.trim(),
+    path: path.filter((entry) => entry.type !== 'catalog').map(catalogNodeKey),
+    folderId: folder
+      ? folder.id
+      : initialFolderId ?? (node.type === 'corporate' && node.folderId != null ? String(node.folderId) : undefined),
+  };
+
   return (
     <Space direction="vertical" style={{ width: '100%' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <nav aria-label="Путь к документам">
+        <nav
+          aria-label="Путь к документам"
+          style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', minWidth: 0 }}
+        >
           <Space wrap size={4}>
             {path.map((entry, index) => (
               <React.Fragment key={index}>
@@ -464,14 +487,7 @@ function CatalogBrowser({ root, readOnly }: { root: CatalogNode; readOnly: boole
                     {title(entry)}
                   </Typography.Text>
                 ) : (
-                  <Button
-                    type="link"
-                    size="small"
-                    onClick={() => {
-                      setCompanyAtRoot(true);
-                      setPath((previous) => previous.slice(0, index + 1));
-                    }}
-                  >
+                  <Button type="link" size="small" onClick={() => navigate(path.slice(0, index + 1))}>
                     {title(entry)}
                   </Button>
                 )}
@@ -488,9 +504,37 @@ function CatalogBrowser({ root, readOnly }: { root: CatalogNode; readOnly: boole
             justifyContent: 'flex-end',
             alignItems: 'center',
             gap: 8,
+            minWidth: 0,
+            maxWidth: '100%',
             marginInlineStart: 'auto',
           }}
         >
+          {searchOpen ? (
+            <Input
+              autoFocus
+              prefix={<SearchOutlined />}
+              aria-label="Поиск по файлам"
+              placeholder="Поиск по файлам"
+              value={searchText}
+              style={{ width: 220, maxWidth: '100%' }}
+              maxLength={catalogSearchMaxLength}
+              allowClear
+              onChange={(event) => {
+                navigation.current += 1;
+                setSearchText(event.target.value);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.stopPropagation();
+                  navigation.current += 1;
+                  setSearchText('');
+                  setSearchOpen(false);
+                }
+              }}
+            />
+          ) : (
+            <Button aria-label="Поиск по файлам" icon={<SearchOutlined />} onClick={() => setSearchOpen(true)} />
+          )}
           {currentAccess?.permissions?.canManageAccess &&
             !readOnly &&
             settingsAvailable &&
@@ -518,27 +562,41 @@ function CatalogBrowser({ root, readOnly }: { root: CatalogNode; readOnly: boole
           action={<Button onClick={() => setRevision((previous) => previous + 1)}>Повторить</Button>}
         />
       ) : (
-        <DocumentCatalogContext.Provider
-          value={{
-            path: path.map(title),
-            manageAccess: !readOnly,
-            toolbarTarget,
-            onCompanyFolderLocationChange: setCompanyAtRoot,
-          }}
-        >
-          <Contents
-            key={JSON.stringify(node)}
-            api={api}
-            node={node}
-            readOnly={readOnly}
-            permissions={currentAccess?.permissions}
-            open={(entry) => {
-              setCompanyAtRoot(true);
-              setPath((previous) => [...previous, entry]);
+        <div hidden={showSearch}>
+          <DocumentCatalogContext.Provider
+            value={{
+              initialFolderId,
+              onDocumentsChanged: refreshSearch,
+              onFolderLocationChange: reportFolder,
+              path: path.map(title),
+              manageAccess: !readOnly,
+              toolbarTarget,
+              onCompanyFolderLocationChange: setCompanyAtRoot,
             }}
-          />
-        </DocumentCatalogContext.Provider>
+          >
+            <Contents
+              key={locationChange}
+              api={api}
+              node={node}
+              readOnly={readOnly}
+              permissions={currentAccess?.permissions}
+              open={(entry) => navigate([...path, entry])}
+            />
+          </DocumentCatalogContext.Provider>
+        </div>
       )}
+      {showSearch &&
+        (searchRequest.query.length < catalogSearchMinLength ? (
+          <Typography.Text type="secondary">Введите хотя бы {catalogSearchMinLength} символа.</Typography.Text>
+        ) : (
+          <CatalogFileSearchResults
+            key={JSON.stringify([searchRequest, folder?.isVirtual, revision, filesRevision])}
+            api={documentsApi}
+            request={searchRequest}
+            isVirtual={folder?.isVirtual === true}
+            openFolder={openSearchFolder}
+          />
+        ))}
     </Space>
   );
 }

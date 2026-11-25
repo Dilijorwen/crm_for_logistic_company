@@ -8,6 +8,7 @@
  */
 
 export type ProcessDocumentsErrorCode =
+  | 'INVALID_DOCUMENT_SEARCH'
   | 'INVALID_DOCUMENT_SCOPE'
   | 'OWNER_NOT_FOUND'
   | 'DOCUMENT_ACCESS_DENIED'

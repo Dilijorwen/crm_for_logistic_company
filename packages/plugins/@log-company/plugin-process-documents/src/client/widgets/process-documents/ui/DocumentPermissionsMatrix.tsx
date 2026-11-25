@@ -9,9 +9,15 @@
 
 import React, { useEffect, useState } from 'react';
 import { useAPIClient } from '@nocobase/client';
-import { Alert, Button, Checkbox, Input, Pagination, Segmented, Space, Table } from 'antd';
-import { documentRights } from '../../../../contracts/processDocuments';
-import type { DocumentAccessRule, DocumentRight, DocumentRights } from '../../../../contracts/processDocuments';
+import { Alert, Button, Checkbox, Input, Pagination, Segmented, Space, Table, Tooltip, Typography } from 'antd';
+import { defaultDocumentSectionRights, documentRights } from '../../../../contracts/processDocuments';
+import type {
+  DocumentAccessRule,
+  DocumentRight,
+  DocumentRights,
+  FolderAccessConstraint,
+} from '../../../../contracts/processDocuments';
+import { allowsFolderOperation, allowsSectionOperation } from '../../../../contracts/documentPermissions';
 import { getDocumentErrorText } from '../../../entities/process-document';
 
 type Recipient = { subject: string; title: string; roles: string[] };
@@ -27,13 +33,15 @@ const pageSize = 25;
 export function DocumentPermissionsMatrix({
   rules,
   inherited = [],
+  constraints = [],
   defaultAllow = true,
   onChange,
   disabled = false,
 }: {
   rules: DocumentAccessRule[];
   inherited?: DocumentAccessRule[];
-  defaultAllow?: boolean;
+  constraints?: FolderAccessConstraint[];
+  defaultAllow?: boolean | DocumentRights;
   onChange: (rules: DocumentAccessRule[]) => void;
   disabled?: boolean;
 }) {
@@ -97,17 +105,41 @@ export function DocumentPermissionsMatrix({
     values.find((rule) => rule.kind === kind && rule.subject === subject)?.rights;
   const inheritedValue = ({ subject, roles }: Recipient, right: DocumentRight) => {
     const inheritedPerson = rowRule(inherited, kind, subject)?.[right];
-    if (kind === 'role' || !roles.length) return inheritedPerson ?? defaultAllow;
+    const defaultRight = typeof defaultAllow === 'boolean' ? defaultAllow : defaultAllow[right] ?? true;
+    if (kind === 'role' || !roles.length) return inheritedPerson ?? defaultRight;
     return roles.some(
       (role) =>
         rowRule(rules, 'role', role)?.[right] ??
         inheritedPerson ??
         rowRule(inherited, 'role', role)?.[right] ??
-        defaultAllow,
+        defaultRight,
     );
   };
+  function restriction(recipient: Recipient, right: DocumentRight) {
+    const roles = kind === 'role' ? [recipient.subject] : recipient.roles;
+    const actor = { roles, isRoot: roles.includes('root'), userId: kind === 'user' ? recipient.subject : null };
+    return constraints.find((constraint) => {
+      if (constraint.type === 'folder') return !allowsFolderOperation(constraint.grants, right, actor);
+      const allowed = ({ inherited, rules }: (typeof constraint.policies)[number]) =>
+        allowsSectionOperation(inherited, rules, right, actor, defaultDocumentSectionRights(constraint.section));
+      return right === 'read'
+        ? !(constraint.readPolicies ?? constraint.policies).some(allowed)
+        : !constraint.policies.every(allowed);
+    });
+  }
+
+  function blocked(recipient: Recipient, right: DocumentRight) {
+    return restriction(recipient, 'read') ?? restriction(recipient, right);
+  }
+
+  function reason(constraint: FolderAccessConstraint, right: DocumentRight) {
+    const source = constraint.type === 'section' ? 'в разделе' : 'в папке';
+    return `${captions[right]} ${right === 'read' ? 'запрещён' : 'запрещено'} ${source} «${constraint.title}»`;
+  }
+
   const checked = (recipient: Recipient, right: DocumentRight) =>
-    rowRule(rules, kind, recipient.subject)?.[right] ?? inheritedValue(recipient, right);
+    !blocked(recipient, right) &&
+    (rowRule(rules, kind, recipient.subject)?.[right] ?? inheritedValue(recipient, right));
 
   function apply(recipients: Recipient[], changes: DocumentRights) {
     const next = new Map(rules.map((rule) => [`${rule.kind}:${rule.subject}`, rule]));
@@ -117,7 +149,7 @@ export function DocumentPermissionsMatrix({
       const rights = { ...next.get(key)?.rights };
       for (const right of documentRights) {
         const value = changes[right];
-        if (value === undefined) continue;
+        if (value === undefined || blocked(recipient, right)) continue;
         if (value === inheritedValue(recipient, right)) delete rights[right];
         else rights[right] = value;
       }
@@ -178,15 +210,30 @@ export function DocumentPermissionsMatrix({
             ? {
                 selectedRowKeys: selected,
                 onChange: (keys) => setSelected(keys.map(String)),
-                getCheckboxProps: () => ({ disabled }),
+                getCheckboxProps: (recipient) => ({ disabled: disabled || !!restriction(recipient, 'read') }),
               }
             : undefined
         }
         columns={[
-          { title: kind === 'role' ? 'Роль' : 'Сотрудник', dataIndex: 'title' },
+          {
+            title: kind === 'role' ? 'Роль' : 'Сотрудник',
+            dataIndex: 'title',
+            render: (title: string, recipient: Recipient) => {
+              const denied = restriction(recipient, 'read');
+              return denied ? (
+                <Space direction="vertical" size={0}>
+                  {title}
+                  <Typography.Text type="secondary">{reason(denied, 'read')}</Typography.Text>
+                </Space>
+              ) : (
+                title
+              );
+            },
+          },
           ...documentRights.map((right) => {
-            const count = visible.filter((recipient) => checked(recipient, right)).length;
-            const mixed = count > 0 && count < visible.length;
+            const editable = visible.filter((recipient) => !blocked(recipient, right));
+            const count = editable.filter((recipient) => checked(recipient, right)).length;
+            const mixed = count > 0 && count < editable.length;
             return {
               key: right,
               align: 'center' as const,
@@ -195,22 +242,28 @@ export function DocumentPermissionsMatrix({
                   {captions[right]}
                   <Checkbox
                     aria-label={`${captions[right]} для всех видимых строк`}
-                    checked={visible.length > 0 && count === visible.length}
+                    checked={editable.length > 0 && count === editable.length}
                     indeterminate={mixed}
                     aria-checked={mixed ? 'mixed' : undefined}
-                    disabled={disabled || !visible.length}
-                    onChange={(event) => toggle(visible, right, event.target.checked)}
+                    disabled={disabled || !editable.length}
+                    onChange={(event) => toggle(editable, right, event.target.checked)}
                   />
                 </Space>
               ),
-              render: (_value: unknown, recipient: Recipient) => (
-                <Checkbox
-                  aria-label={`${recipient.title} · ${captions[right]}`}
-                  checked={checked(recipient, right)}
-                  disabled={disabled}
-                  onChange={(event) => toggle([recipient], right, event.target.checked)}
-                />
-              ),
+              render: (_value: unknown, recipient: Recipient) => {
+                const readRestriction = restriction(recipient, 'read');
+                const denied = readRestriction ?? restriction(recipient, right);
+                return (
+                  <Tooltip title={denied && reason(denied, readRestriction ? 'read' : right)}>
+                    <Checkbox
+                      aria-label={`${recipient.title} · ${captions[right]}`}
+                      checked={checked(recipient, right)}
+                      disabled={disabled || !!denied}
+                      onChange={(event) => toggle([recipient], right, event.target.checked)}
+                    />
+                  </Tooltip>
+                );
+              },
             };
           }),
         ]}

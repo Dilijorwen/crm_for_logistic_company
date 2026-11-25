@@ -27,6 +27,7 @@ export function useDocumentsList(
   api: ProcessDocumentsApi,
   scope: DocumentRequestScope | null,
   rootFolderId: DocumentIdentifier | null = null,
+  initialFolderId = rootFolderId,
 ) {
   const ownerKey =
     scope && 'runId' in scope && scope.runId !== undefined
@@ -43,7 +44,7 @@ export function useDocumentsList(
     scopeKey: '',
     folderId: null,
   });
-  const folderId = location.scopeKey === scopeKey ? location.folderId : rootFolderId;
+  const folderId = location.scopeKey === scopeKey ? location.folderId : initialFolderId;
   const requestKey = JSON.stringify([scopeKey, folderId]);
   const [result, setResult] = useState<{ key: string; data: DocumentsListResponse; rootTitle?: string }>({
     key: '',

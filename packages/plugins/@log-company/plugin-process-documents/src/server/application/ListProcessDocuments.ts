@@ -122,6 +122,7 @@ export class ListProcessDocuments {
         return [
           {
             ...folder,
+            canWrite: canWrite && (await allowed('write')),
             canRename: !section && canRename && (await allowed('rename')),
             canDelete: canDelete && (await allowed('delete')),
           },

@@ -12,22 +12,9 @@ import { catalogIdentifier, permitCatalogFolders, runCatalogFolders, runCatalogT
 
 export { catalogIdentifier };
 
-export type CatalogId = string | number;
-export interface CatalogItem {
-  id: CatalogId;
-  title: string;
-  attachmentOwnerId?: CatalogId;
-  createdAt?: string;
-  author?: string;
-  file_size?: number;
-}
-export interface CatalogFolder {
-  id: string;
-  title: string;
-  children?: CatalogFolder[];
-  items?: CatalogItem[];
-  attachments?: CatalogId[];
-}
+import type { CatalogFolder, CatalogId, CatalogItem } from '../../../../contracts/documentCatalog';
+export type { CatalogFolder, CatalogId, CatalogItem } from '../../../../contracts/documentCatalog';
+
 export type CatalogQuery =
   | { kind: 'companies'; runId?: CatalogId }
   | { kind: 'runs'; companyId: CatalogId }

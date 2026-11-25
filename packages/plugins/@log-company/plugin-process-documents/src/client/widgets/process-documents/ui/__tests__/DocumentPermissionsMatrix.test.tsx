@@ -12,7 +12,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React, { useState } from 'react';
 import { expect, it, vi } from 'vitest';
-import type { DocumentAccessRule } from '../../../../../contracts/processDocuments';
+import { defaultDocumentSectionRights, type DocumentAccessRule } from '../../../../../contracts/processDocuments';
 import { DocumentPermissionsMatrix } from '../DocumentPermissionsMatrix';
 
 const client = vi.hoisted(() => ({ list: vi.fn(), resource: vi.fn() }));
@@ -53,4 +53,62 @@ it('переключает всю видимую колонку и сохран�
   expect(screen.getByRole('checkbox', { name: 'Декларанты · Загрузка' })).toBeChecked();
   fireEvent.change(screen.getByRole('searchbox', { name: 'Поиск по ролям' }), { target: { value: '' } });
   expect(await screen.findByRole('checkbox', { name: 'Менеджеры · Загрузка' })).not.toBeChecked();
+});
+
+it('показывает удаление в ВЭД выключенным по умолчанию и сохраняет явное разрешение', async () => {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (query: string) => ({ matches: false, media: query, addListener: vi.fn(), removeListener: vi.fn() }),
+  });
+  client.resource.mockReturnValue({ list: client.list });
+  client.list.mockResolvedValue({ data: { data: [{ name: 'manager', title: 'Менеджеры' }] } });
+  const onChange = vi.fn();
+  render(
+    <DocumentPermissionsMatrix rules={[]} defaultAllow={defaultDocumentSectionRights('ved')} onChange={onChange} />,
+  );
+  const remove = await screen.findByRole('checkbox', { name: 'Менеджеры · Удаление' });
+  expect(remove).not.toBeChecked();
+  expect(screen.getByRole('checkbox', { name: 'Менеджеры · Просмотр' })).toBeChecked();
+  fireEvent.click(remove);
+  expect(onChange).toHaveBeenLastCalledWith([{ kind: 'role', subject: 'manager', rights: { delete: true } }]);
+});
+
+it('показывает запрет ВЭД даже при явном разрешении папки и пропускает строку при массовом изменении', async () => {
+  client.resource.mockReturnValue({ list: client.list });
+  client.list.mockResolvedValue({
+    data: {
+      data: [
+        { name: 'certificate', title: 'Сертификатчик' },
+        { name: 'manager', title: 'Менеджер' },
+      ],
+    },
+  });
+  const rules: DocumentAccessRule[] = [{ kind: 'role', subject: 'certificate', rights: { read: true } }];
+  const onChange = vi.fn();
+  render(
+    <DocumentPermissionsMatrix
+      rules={rules}
+      onChange={onChange}
+      constraints={[
+        {
+          type: 'section',
+          title: 'ВЭД',
+          section: 'ved',
+          policies: [
+            {
+              inherited: [{ kind: 'role', subject: 'certificate', rights: { read: false } }],
+              rules: [],
+            },
+          ],
+        },
+      ]}
+    />,
+  );
+  const view = await screen.findByRole('checkbox', { name: 'Сертификатчик · Просмотр' });
+  expect(view).not.toBeChecked();
+  expect(view).toBeDisabled();
+  expect(screen.getByText('Просмотр запрещён в разделе «ВЭД»')).toBeVisible();
+  expect(screen.getByRole('checkbox', { name: 'Сертификатчик · Загрузка' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Загрузка для всех видимых строк' }));
+  expect(onChange).toHaveBeenLastCalledWith([...rules, { kind: 'role', subject: 'manager', rights: { write: false } }]);
 });

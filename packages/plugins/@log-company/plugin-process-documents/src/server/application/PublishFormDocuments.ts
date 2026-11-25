@@ -11,6 +11,7 @@ import {
   companyRequestFolderTitle,
   companyRequestFolderTypes,
   isCompanyRequestFolder,
+  supportsFormFolderUploads,
   type DocumentFormResource,
 } from '../../contracts/processDocuments';
 import { ProcessDocumentsError } from '../domain/documents/DocumentErrors';
@@ -27,6 +28,8 @@ export interface FormDocumentsPublication {
   recordId: string;
   actor: DocumentActor;
   files: UploadedDocumentFile[];
+  folderId?: string;
+  emptyFolders?: string[];
 }
 
 export interface FormDocumentsTransaction {
@@ -52,10 +55,17 @@ export class PublishFormDocuments {
   async execute(input: FormDocumentsPublication, outer: FormDocumentsTransaction): Promise<void> {
     const { actor, files, recordId, resource } = input;
     const { transaction } = outer;
+    if ((input.folderId || input.emptyFolders?.length) && !supportsFormFolderUploads(resource)) {
+      throw new ProcessDocumentsError(
+        'INVALID_DOCUMENT_SCOPE',
+        'Эта форма не поддерживает загрузку в выбранную папку.',
+      );
+    }
     const destination: UploadProcessDocumentsInput = {
       actor,
       files,
-      folderId: null,
+      folderId: input.folderId ?? null,
+      ...(input.emptyFolders?.length && { emptyFolders: input.emptyFolders }),
       shipmentId: null,
       draftToken: null,
     };

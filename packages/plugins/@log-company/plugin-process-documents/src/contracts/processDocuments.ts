@@ -51,6 +51,10 @@ export interface FormDocumentSaveTarget {
   recordId: string | null;
 }
 
+export function supportsFormFolderUploads(resource: DocumentFormResource): boolean {
+  return resource === 'shipments' || resource === 'transport_runs';
+}
+
 export type DocumentIdentifier = string | number;
 export type CompanyDocumentArea = 'company' | 'permits' | `contract:${string}`;
 export function contractAreaId(area: unknown): string | undefined {
@@ -79,6 +83,11 @@ export const documentRights = ['read', 'write', 'rename', 'delete'] as const;
 export type DocumentSection = (typeof documentSections)[number];
 export type DocumentRight = (typeof documentRights)[number];
 export type DocumentRights = Partial<Record<DocumentRight, boolean>>;
+
+export function defaultDocumentSectionRights(section: DocumentSection): DocumentRights {
+  return section === 'ved' ? { delete: false } : {};
+}
+
 export interface DocumentAccessRule {
   kind: FolderGrant['kind'];
   subject: string;
@@ -90,6 +99,16 @@ export interface SectionAccessResponse {
   rules: DocumentAccessRule[];
   inherited: DocumentAccessRule[];
 }
+
+export type FolderAccessConstraint =
+  | { type: 'folder'; title: string; grants: FolderAccess }
+  | {
+      type: 'section';
+      title: string;
+      section: DocumentSection;
+      policies: SectionAccessResponse[];
+      readPolicies?: SectionAccessResponse[];
+    };
 
 export interface SectionPermissions {
   sections: Record<DocumentSection, boolean>;
@@ -104,6 +123,7 @@ export interface DocumentFolderDto {
   grants?: FolderAccess | null;
   canRename?: boolean;
   canDelete?: boolean;
+  canWrite?: boolean;
 }
 
 export interface ProcessDocumentDto extends DocumentFolderDto {
@@ -126,3 +146,5 @@ export interface FolderDeleteSummary {
   folders: number;
   files: number;
 }
+
+export const shipmentDepartmentFolders = ['Менеджеры', 'Декларанты', 'Бухгалтерия', 'Юристы', 'Карго'] as const;

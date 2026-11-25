@@ -42,26 +42,32 @@ describe('Режимы документов в компании', () => {
       data:
         url === 'processDocuments:attachmentPermissions'
           ? { canRead: true, canWrite: false, canDelete: false }
-          : url === 'processDocumentDrafts:stage'
-            ? { data: { token: 'batch', files: [{ name: 'Договор.txt', size: 4 }] } }
-            : url === 'processDocumentDrafts:discard'
-              ? true
-              : {
-                  currentFolder:
-                    data?.folderId === '56' ? corporateFolder : data?.folderId === '57' ? contractFolder : folder,
-                  breadcrumbs: [
-                    folder,
-                    ...(data?.folderId === '56' ? [corporateFolder] : data?.folderId === '57' ? [contractFolder] : []),
-                  ],
-                  folders:
-                    data?.folderId === null
-                      ? [folder]
-                      : data?.companyId && data?.folderId === '55'
-                        ? [corporateFolder, contractFolder]
-                        : [],
-                  files: [{ id: '12', title: data?.folderId === '57' ? 'Контракт.pdf' : 'Устав.pdf' }],
-                  permissions,
-                },
+          : url === 'processDocumentDrafts:shipmentPermissions'
+            ? { data: { canRead: true, canWrite: true } }
+            : url === 'processDocumentDrafts:stage'
+              ? { data: { token: 'batch', files: [{ name: 'Договор.txt', size: 4 }] } }
+              : url === 'processDocumentDrafts:discard'
+                ? true
+                : {
+                    currentFolder:
+                      data?.folderId === '56' ? corporateFolder : data?.folderId === '57' ? contractFolder : folder,
+                    breadcrumbs: [
+                      folder,
+                      ...(data?.folderId === '56'
+                        ? [corporateFolder]
+                        : data?.folderId === '57'
+                          ? [contractFolder]
+                          : []),
+                    ],
+                    folders:
+                      data?.folderId === null
+                        ? [folder]
+                        : data?.companyId && data?.folderId === '55'
+                          ? [corporateFolder, contractFolder]
+                          : [],
+                    files: [{ id: '12', title: data?.folderId === '57' ? 'Контракт.pdf' : 'Устав.pdf' }],
+                    permissions,
+                  },
     }));
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,
@@ -75,6 +81,12 @@ describe('Режимы документов в компании', () => {
     expect(screen.getByRole('heading', { name: 'Документы поставки' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Документы поставки' })).toBeNull();
 
+    const row = await screen.findByRole('button', { name: folder.title });
+    expect(screen.queryByRole('button', { name: /Загрузить/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Новая папка' })).not.toBeInTheDocument();
+    fireEvent.click(row);
+    expect(await screen.findByRole('button', { name: /Загрузить/ })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Новая папка' })).toBeVisible();
     const folderInput = container.querySelector('input[webkitdirectory]');
     if (!folderInput) throw new Error('Не найден выбор папки.');
     const file = new File(['test'], 'Договор.txt');
@@ -83,8 +95,10 @@ describe('Режимы документов в компании', () => {
     const upload = request.mock.calls.find(([config]) => config.url === 'processDocuments:uploadFiles')?.[0];
     const query = upload?.data;
     expect(query?.get('shipmentId')).toBe('42');
+    expect(query?.get('folderId')).toBe(folder.id);
     expect(query?.get('files').name).toBe('Скан/Договор.txt');
 
+    fireEvent.click(screen.getByRole('button', { name: 'К списку файлов' }));
     rerender(<ProcessDocumentsBlock shipmentId="43" />);
     await screen.findByRole('button', { name: 'Устав.pdf' });
     expect(request).toHaveBeenLastCalledWith(
@@ -108,12 +122,36 @@ describe('Режимы документов в компании', () => {
     );
     expect(await screen.findByRole('heading', { name: 'Документы рейса' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Документы рейса' })).toBeNull();
-    fireEvent.click(await screen.findByRole('button', { name: /По запросам/ }));
+    fireEvent.click(await screen.findByRole('button', { name: folder.title }));
     fireEvent.click(await screen.findByRole('button', { name: 'К списку файлов' }));
     expect(request).toHaveBeenLastCalledWith(
       expect.objectContaining({ url: 'processDocuments:list', data: { runId: '87', folderId: null } }),
     );
   });
+
+  it.each([
+    { collection: 'shipments', filterByTk: '42', canDelete: true },
+    { collection: 'transport_runs', filterByTk: '87', canDelete: true },
+    { collection: 'transport_runs', filterByTk: '87', canDelete: false },
+  ])(
+    'показывает удаление в карточке ($collection, право $canDelete) по ответу сервера',
+    async ({ collection, filterByTk, canDelete }) => {
+      request.mockResolvedValue({
+        data: {
+          breadcrumbs: [],
+          folders: [],
+          files: [{ id: '12', title: 'Документ.pdf' }],
+          permissions: { canWrite: false, canRename: true, canDelete },
+        },
+      });
+      render(<ProcessDocumentsBlock folderMode="view" modelContext={{ collection, filterByTk }} />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Действия: Документ.pdf' }));
+      await screen.findByRole('menuitem', { name: 'Скачать' });
+      expect(!!screen.queryByRole('menuitem', { name: 'Удалить' })).toBe(canDelete);
+      expect(screen.queryByRole('menuitem', { name: 'Переименовать' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Загрузить/ })).not.toBeInTheDocument();
+    },
+  );
 
   it('находит папку компании без настроек и открывает её только на чтение', async () => {
     render(<ProcessDocumentsBlock {...props} folderMode="view" />);
@@ -177,6 +215,10 @@ describe('Режимы документов в компании', () => {
   });
 
   it('отправляет черновик только со штатным сохранением нового рейса и оставляет его после ошибки', async () => {
+    request.mockResolvedValueOnce({ data: { data: { canRead: true, canWrite: true } } }).mockResolvedValueOnce({
+      data: { data: { token: 'batch', files: [{ name: 'Машина/Документы/Договор.txt', size: 4 }] } },
+    });
+
     const resource = new SingleRecordResource(new FlowContext()).setResourceName('transport_runs');
     resource.isNewRecord = true;
     const saveRequest = vi
@@ -192,13 +234,20 @@ describe('Режимы документов в компании', () => {
         findForm={() => form as unknown as DocumentFormBinding}
       />,
     );
-    expect(screen.getByRole('button', { name: 'Папка' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: /Загрузить/ })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Новая папка' })).toBeVisible();
+    expect(screen.getByText('Документы рейса')).toBeVisible();
     const file = new File(['test'], 'Договор.txt');
     Object.defineProperty(file, 'webkitRelativePath', { value: 'Машина/Документы/Договор.txt' });
     const input = container.querySelector('input[webkitdirectory]');
     if (!input) throw new Error('Не найден выбор папки.');
     fireEvent.change(input, { target: { files: [file] } });
-    expect(await screen.findByText('Договор.txt')).toBeTruthy();
+    fireEvent.click(await screen.findByRole('button', { name: 'Машина' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Документы' }));
+    expect(screen.queryByRole('button', { name: '..', exact: true })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Машина' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Документы' }));
+    expect(screen.getByText('Договор.txt')).toBeVisible();
     const staged = request.mock.calls.find(([config]) => config.url === 'processDocumentDrafts:stage')?.[0];
     expect(staged.params).toEqual({ resource: 'transport_runs', recordId: null });
     expect(staged.data.get('files').name).toBe('Машина/Документы/Договор.txt');
@@ -216,6 +265,23 @@ describe('Режимы документов в компании', () => {
     ]);
     expect(screen.queryByText('Договор.txt')).toBeNull();
     expect(request).not.toHaveBeenCalledWith(expect.objectContaining({ url: 'processDocumentDrafts:discard' }));
+  });
+
+  it('показывает действия в корне документов сохранённого рейса и внутри папок', async () => {
+    render(
+      <ProcessDocumentsBlock folderMode="upload" modelContext={{ collection: 'transport_runs', filterByTk: '99' }} />,
+    );
+    expect(await screen.findByRole('heading', { name: 'Документы рейса' })).toBeVisible();
+    const folderButton = await screen.findByRole('button', { name: folder.title });
+    fireEvent.click(await screen.findByRole('button', { name: /Загрузить/ }));
+    expect(await screen.findByRole('menuitem', { name: 'Файлы' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Папку' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Новая папка' })).toBeVisible();
+
+    fireEvent.click(folderButton);
+    expect(await screen.findByRole('button', { name: 'К списку файлов' })).toBeVisible();
+    expect(await screen.findByRole('button', { name: /Загрузить/ })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Новая папка' })).toBeVisible();
   });
 
   it('не подменяет отсутствующую папку корнем компании', async () => {
@@ -307,5 +373,56 @@ describe('Режимы документов в компании', () => {
         params: { resource: 'our_companies', recordId: '10' },
       }),
     );
+  });
+
+  it('проверяет ВЭД выбранной компании до показа блока в новой поставке', async () => {
+    request.mockResolvedValueOnce({ data: { data: { canRead: false, canWrite: false } } });
+    const resource = new SingleRecordResource(new FlowContext()).setResourceName('shipments');
+    resource.isNewRecord = true;
+    const form = { resource, model: { context: { formValues: { company: { id: '10' } } } } };
+    render(
+      <ProcessDocumentsBlock
+        modelContext={{ collection: 'shipments' }}
+        folderMode="upload"
+        findForm={() => form as unknown as DocumentFormBinding}
+      />,
+    );
+    await waitFor(() => {
+      expect(request).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: 'processDocumentDrafts:shipmentPermissions',
+          params: { resource: 'shipments', recordId: null, companyId: '10' },
+        }),
+      );
+      expect(screen.queryByLabelText('Проверка прав на документы')).not.toBeInTheDocument();
+    });
+    expect(screen.queryByRole('region', { name: 'Список документов' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Папка' })).not.toBeInTheDocument();
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('ставит пустую папку, сброшенную на папку поставки, в черновик с её ID', async () => {
+    const resource = new SingleRecordResource(new FlowContext()).setResourceName('shipments');
+    resource.setFilterByTk('42');
+    const form = { resource, model: { emitter: { on: vi.fn(), off: vi.fn() } } };
+    render(
+      <ProcessDocumentsBlock
+        {...props}
+        modelContext={{ collection: 'shipments', filterByTk: '42' }}
+        folderMode="upload"
+        findForm={() => form as unknown as DocumentFormBinding}
+      />,
+    );
+    const row = await screen.findByRole('button', { name: folder.title });
+    const entry = { name: 'Пустая', isDirectory: true, createReader: () => ({ readEntries: (load) => load([]) }) };
+    fireEvent.drop(row, {
+      dataTransfer: { items: [{ webkitGetAsEntry: () => entry }], types: ['Files'], files: [] },
+    });
+    await waitFor(() => {
+      const staged = request.mock.calls.find(([config]) => config.url === 'processDocumentDrafts:stage')?.[0];
+      expect(staged?.params).toEqual({ resource: 'shipments', recordId: '42', folderId: folder.id });
+      expect(staged?.data.get('emptyFolders')).toBe(JSON.stringify(['Пустая']));
+    });
+    expect(request.mock.calls.some(([config]) => config.url === 'processDocuments:uploadFiles')).toBe(false);
   });
 });

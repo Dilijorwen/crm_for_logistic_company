@@ -22,23 +22,37 @@ import {
   FORM_DOCUMENT_DRAFT_PENDING,
   documentRecordId,
   isDocumentFormResource,
+  supportsFormFolderUploads,
 } from '../../../contracts/processDocuments';
 import type { FormDocumentSaveTarget } from '../../../contracts/processDocuments';
 import type { DocumentActor } from '../../application/ports/ProcessDocumentsRepository';
+import type { DocumentScopeService } from '../../application/DocumentScopeService';
 import type { PublishFormDocuments } from '../../application/PublishFormDocuments';
 import { assertSafeUploadName } from '../../domain/documents/DocumentName';
 import { ProcessDocumentsError } from '../../domain/documents/DocumentErrors';
 import type { TemporaryDocumentDrafts } from '../../infrastructure/storage/TemporaryDocumentDrafts';
-import { decodeUploadedName } from './UploadedDocumentName';
+import { decodeUploadedName, parseUploadedEmptyFolders } from './UploadedDocumentName';
 
 const RESOURCE = 'processDocumentDrafts';
 const tokenPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
 const multipartLimit = processDocumentUpload.maxTotalBytes + 1024 * 1024;
 type UploadContext = Context & { files?: { path: string; originalname: string; size: number }[] };
 type HookTransaction = Transaction & { id: string };
+const captureWorkspaceShipment = Symbol('captureWorkspaceShipment');
+type WorkspaceDraftContext = Context & { [captureWorkspaceShipment]?: (tokens: unknown[], id: string) => void };
+
+const workspaceShipmentDraftField = '_workspaceShipmentDocuments';
+
+function shipmentDraftTokens(row: unknown): unknown {
+  return row && typeof row === 'object' && workspaceShipmentDraftField in row
+    ? row[workspaceShipmentDraftField]
+    : undefined;
+}
+
 type CommitDraft = (recordId: string, transaction: HookTransaction) => Promise<void>;
 
 export class FormDocumentDraftsController {
+  private readonly workspaceCommits = new WeakMap<Context, CommitDraft>();
   private readonly commits = new WeakMap<Context, CommitDraft>();
   private readonly hooked = new Set<string>();
 
@@ -46,24 +60,98 @@ export class FormDocumentDraftsController {
     private readonly plugin: Plugin,
     private readonly drafts: TemporaryDocumentDrafts,
     private readonly publish: PublishFormDocuments,
+    private readonly scopes: DocumentScopeService,
   ) {}
 
   register(): void {
-    this.plugin.app.resourceManager.define({ name: RESOURCE, actions: { stage: this.stage, discard: this.discard } });
-    this.plugin.app.acl.allow(RESOURCE, ['stage', 'discard'], 'loggedIn');
-    this.plugin.app.resourceManager.use((context, next) => this.publishOnSave(context as Context, next), {
-      tag: 'publish-form-documents',
-      after: 'acl',
+    this.plugin.app.resourceManager.define({
+      name: RESOURCE,
+      actions: { stage: this.stage, discard: this.discard, shipmentPermissions: this.shipmentPermissions },
     });
+    this.plugin.app.acl.allow(RESOURCE, ['stage', 'discard', 'shipmentPermissions'], 'loggedIn');
+    this.plugin.db.on(
+      'shipments.afterCreate',
+      (
+        shipment: { get(key: string): unknown },
+        options: { context?: WorkspaceDraftContext; inputValues?: unknown },
+      ) => {
+        const tokens = shipmentDraftTokens(options.inputValues);
+        const id = documentRecordId(shipment.get('id'));
+        if (id && Array.isArray(tokens) && tokens.length) options.context?.[captureWorkspaceShipment]?.(tokens, id);
+      },
+    );
+    this.plugin.app.resourceManager.use(
+      (context, next) => this.publishWorkspaceShipmentDrafts(context as Context, next),
+      {
+        tag: 'publish-form-documents',
+        after: 'acl',
+      },
+    );
+  }
+
+  private readonly shipmentPermissions = async (context: Context, next: Next) => {
+    this.assertPost(context);
+    await this.handle(context, async (actor) => {
+      const resource = context.query.resource === 'transport_runs' ? 'transport_runs' : 'shipments';
+      const form = this.form(context, resource, context.query.recordId ?? null);
+      const companyId = this.shipmentCompany(context, form);
+      const action = form.recordId ? 'update' : 'create';
+      const can = async (operation: 'read' | 'write') => {
+        try {
+          if (resource === 'transport_runs')
+            await this.scopes.assertRunFormAccess(form.recordId, null, operation, actor);
+          else await this.scopes.assertShipmentFormAccess(form.recordId, companyId, null, operation, actor);
+          return true;
+        } catch (error) {
+          if (error instanceof ProcessDocumentsError && /_(ACCESS_DENIED|NOT_FOUND)$/.test(error.code)) return false;
+          throw error;
+        }
+      };
+      const canRead = (form.recordId !== null || !!context.can?.({ resource, action })) && (await can('read'));
+      const canWrite = canRead && !!context.can?.({ resource, action }) && (await can('write'));
+      context.body = { canRead, canWrite };
+      await next();
+    });
+  };
+
+  private shipmentCompany(context: Context, form: FormDocumentSaveTarget): string | null {
+    if (form.resource !== 'shipments' || form.recordId || context.query.companyId === undefined) return null;
+    const companyId = documentRecordId(context.query.companyId);
+    if (!companyId) throw new ProcessDocumentsError('INVALID_DOCUMENT_SCOPE', 'Не удалось определить компанию.');
+    return companyId;
   }
 
   private readonly stage = async (context: UploadContext, next: Next) => {
     this.assertPost(context);
     await this.handle(context, async (actor) => {
-      const { resource, recordId } = context.query;
+      const { resource, recordId, folderId } = context.query;
       const form = this.form(context, resource, recordId ?? null);
+      const supportsFolders = supportsFormFolderUploads(form.resource);
+      if (
+        folderId !== undefined &&
+        (!supportsFolders || !form.recordId || typeof folderId !== 'string' || !/^[\w-]{1,128}$/.test(folderId))
+      ) {
+        throw new ProcessDocumentsError('INVALID_DOCUMENT_SCOPE', 'Не удалось определить папку записи.');
+      }
       if (!context.can?.({ resource: form.resource, action: form.recordId === null ? 'create' : 'update' })) {
         context.throw(403, 'Нет права сохранять эту форму.');
+      }
+      if (form.resource === 'shipments') {
+        await this.scopes.assertShipmentFormAccess(
+          form.recordId,
+          this.shipmentCompany(context, form),
+          typeof folderId === 'string' ? folderId : null,
+          'write',
+          actor,
+        );
+      }
+      if (form.resource === 'transport_runs') {
+        await this.scopes.assertRunFormAccess(
+          form.recordId,
+          typeof folderId === 'string' ? folderId : null,
+          'write',
+          actor,
+        );
       }
       if (context.request.length == null || context.request.length > multipartLimit) {
         context.throw(413, 'Размер отправки должен быть известен и не превышать 250 МБ.');
@@ -72,28 +160,43 @@ export class FormDocumentDraftsController {
         form.resource === 'permit_documents'
           ? { ...processDocumentUpload, allowNativeFormats: true }
           : processDocumentUpload;
-      context.body = await this.drafts.stage(actor.userId, form, async (directory) => {
-        const receive = multer({
-          dest: directory,
-          preservePath: true,
-          limits: { files: processDocumentUpload.maxFiles, fileSize: policy.maxFileBytes, fields: 0 },
-        }).array('files');
-        await receive(context, async () => undefined);
-        const files = context.files ?? [];
-        validateUploadBatch(files, processDocumentUpload);
-        return Promise.all(
-          files.map(async (file) => {
-            const originalName = decodeUploadedName(file.originalname);
-            assertSafeUploadName(originalName);
-            return {
-              path: file.path,
-              originalName,
-              size: file.size,
-              mimeType: await inspectUpload({ path: file.path, originalName, size: file.size }, policy),
-            };
-          }),
-        );
-      });
+      context.body = await this.drafts.stage(
+        actor.userId,
+        form,
+        async (directory) => {
+          const receive = multer({
+            dest: directory,
+            preservePath: true,
+            limits: {
+              files: processDocumentUpload.maxFiles,
+              fileSize: policy.maxFileBytes,
+              fields: supportsFolders ? 1 : 0,
+            },
+          }).array('files');
+          await receive(context, async () => undefined);
+          const files = context.files ?? [];
+          const body = context.request.body;
+          const emptyFolders = parseUploadedEmptyFolders(
+            body && typeof body === 'object' && 'emptyFolders' in body ? body.emptyFolders : undefined,
+          );
+          emptyFolders?.forEach(assertSafeUploadName);
+          validateUploadBatch(files, processDocumentUpload);
+          const verified = await Promise.all(
+            files.map(async (file) => {
+              const originalName = decodeUploadedName(file.originalname);
+              assertSafeUploadName(originalName);
+              return {
+                path: file.path,
+                originalName,
+                size: file.size,
+                mimeType: await inspectUpload({ path: file.path, originalName, size: file.size }, policy),
+              };
+            }),
+          );
+          return { files: verified, emptyFolders };
+        },
+        typeof folderId === 'string' ? folderId : undefined,
+      );
       await next();
     });
   };
@@ -108,6 +211,73 @@ export class FormDocumentDraftsController {
       await next();
     });
   };
+
+  private async publishWorkspaceShipmentDrafts(context: WorkspaceDraftContext, next: Next): Promise<void> {
+    const action = context.action;
+    const values: unknown = action?.params?.values;
+    if (
+      action?.resourceName !== 'transport_runs' ||
+      !['create', 'update'].includes(action.actionName) ||
+      !values ||
+      typeof values !== 'object' ||
+      !('shipments' in values) ||
+      !Array.isArray(values.shipments)
+    )
+      return this.publishOnSave(context, next);
+
+    const draftRows = values.shipments
+      .map(shipmentDraftTokens)
+      .filter((tokens) => tokens !== undefined && (!Array.isArray(tokens) || tokens.length > 0));
+    if (!draftRows.length) return this.publishOnSave(context, next);
+
+    await this.handle(context, async (actor) => {
+      const ids = new Map<string, string>();
+      const batches: Array<{ key: string; batch: ReturnType<TemporaryDocumentDrafts['acquire']> }> = [];
+      let saved = false;
+      context[captureWorkspaceShipment] = (tokens, id) => ids.set(this.tokens(tokens).join(','), id);
+      try {
+        for (const rawTokens of draftRows) {
+          if (Array.isArray(rawTokens) && rawTokens.includes(FORM_DOCUMENT_DRAFT_PENDING)) {
+            context.throw(409, 'Дождитесь загрузки документов поставок и сохраните рейс снова.');
+          }
+          const tokens = this.tokens(rawTokens);
+          const batch = this.drafts.acquire(tokens, actor.userId, { resource: 'shipments', recordId: null });
+          batches.push({ key: tokens.join(','), batch });
+        }
+        this.ensureHook('transport_runs');
+        this.workspaceCommits.set(context, async (_runId, transaction) => {
+          for (const { key, batch } of batches) {
+            const id = ids.get(key);
+            if (!id)
+              throw new ProcessDocumentsError('FORM_DRAFT_BUSY', 'Не удалось сохранить черновик вместе с поставкой.');
+            for (const destination of batch.destinations) {
+              await this.publish.execute(
+                {
+                  resource: 'shipments',
+                  recordId: id,
+                  ...destination,
+                  actor: { ...actor, creatingOwner: { resource: 'shipments', recordId: id } },
+                },
+                {
+                  transaction,
+                  onRollback: (cleanup) => this.plugin.db.once(`transactionRollback:${transaction.id}`, cleanup),
+                },
+              );
+            }
+          }
+          transaction.afterCommit(() => {
+            saved = true;
+          });
+        });
+        await this.publishOnSave(context, next);
+        if (!saved && context.status < 400) context.throw(409, 'Не удалось сохранить черновики поставок.');
+      } finally {
+        this.workspaceCommits.delete(context);
+        delete context[captureWorkspaceShipment];
+        await Promise.all(batches.map(({ batch }) => batch.release(saved)));
+      }
+    });
+  }
 
   private async publishOnSave(context: Context, next: Next): Promise<void> {
     const header = context.get(FORM_DOCUMENT_DRAFT_HEADER);
@@ -133,18 +303,21 @@ export class FormDocumentDraftsController {
         if (published || (form.recordId !== null && form.recordId !== recordId))
           throw new ProcessDocumentsError('FORM_DRAFT_BUSY', 'Загрузка поддерживается для одной записи.');
         published = true;
-        await this.publish.execute(
-          {
-            resource: form.resource,
-            recordId,
-            files: batch.files,
-            actor: form.recordId === null ? { ...actor, creatingOwner: { resource: form.resource, recordId } } : actor,
-          },
-          {
-            transaction,
-            onRollback: (cleanup) => this.plugin.db.once(`transactionRollback:${transaction.id}`, cleanup),
-          },
-        );
+        for (const destination of batch.destinations) {
+          await this.publish.execute(
+            {
+              resource: form.resource,
+              recordId,
+              ...destination,
+              actor:
+                form.recordId === null ? { ...actor, creatingOwner: { resource: form.resource, recordId } } : actor,
+            },
+            {
+              transaction,
+              onRollback: (cleanup) => this.plugin.db.once(`transactionRollback:${transaction.id}`, cleanup),
+            },
+          );
+        }
         transaction.afterCommit(() => {
           saved = true;
         });
@@ -175,12 +348,14 @@ export class FormDocumentDraftsController {
       ) => {
         if (!options.context) return;
         const commit = this.commits.get(options.context);
-        if (!commit) return;
+        const workspaceCommit = resource === 'transport_runs' ? this.workspaceCommits.get(options.context) : undefined;
+        if (!commit && !workspaceCommit) return;
         const id = documentRecordId(record.get('id'));
         if (!options.transaction || !id) {
           throw new ProcessDocumentsError('FORM_DRAFT_BUSY', 'Не удалось сохранить файлы вместе с записью.');
         }
-        await commit(id, options.transaction);
+        await workspaceCommit?.(id, options.transaction);
+        await commit?.(id, options.transaction);
       },
     );
   }

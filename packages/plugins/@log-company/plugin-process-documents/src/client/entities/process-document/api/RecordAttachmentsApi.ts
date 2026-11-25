@@ -169,7 +169,7 @@ export class RecordAttachmentsApi {
 
   async open(id: CatalogId, signal?: AbortSignal): Promise<Blob> {
     const { files } = await this.load();
-    const url = files.find((file) => file.id === id)?.url;
+    const url = files.find((file) => String(file.id) === String(id))?.url;
     if (!url) throw new Error('Ссылка на файл недоступна.');
     const target = new URL(url, window.location.origin);
     if (target.origin !== window.location.origin) throw new Error('Недопустимый адрес файла.');

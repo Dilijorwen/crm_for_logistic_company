@@ -92,6 +92,43 @@ describe('Действия с документами из общего файл�
     expect(screen.queryByRole('button', { name: 'Загрузить' })).toBeNull();
   });
 
+  it('ищет в текущей компании и открывает папку результата', async () => {
+    client.request.mockImplementation(async ({ url }) => {
+      if (url === 'processDocuments:search') {
+        return {
+          data: {
+            data: [
+              {
+                id: '90',
+                title: 'Устав.pdf',
+                nodes: [{ type: 'company', company: { id: '10', title: 'Компания' } }],
+                folders: [{ id: '21', title: 'Учредительные документы' }],
+                target: { kind: 'scoped' },
+              },
+            ],
+            meta: {},
+          },
+        };
+      }
+      return { data: { data: { sections: { company: true } } } };
+    });
+    render(<CompanyFilesBlock root={{ type: 'company', company: { id: '10', title: 'Компания' } }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Поиск по файлам' }));
+    const search = screen.getByRole('textbox', { name: 'Поиск по файлам' });
+    fireEvent.change(search, { target: { value: 'устав' } });
+
+    expect(await screen.findByRole('button', { name: 'Устав.pdf' })).toBeVisible();
+    expect(client.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'processDocuments:search',
+        data: expect.objectContaining({ query: 'устав', path: ['company:10'] }),
+      }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Компания / Учредительные документы' }));
+    expect(search).toHaveValue('');
+    expect(screen.queryByRole('button', { name: 'Устав.pdf' })).toBeNull();
+  });
+
   it('показывает загрузку сразу в компании и скрывает разделы без права просмотра', async () => {
     client.request.mockResolvedValue({
       data: { data: { sections: { company: true, corporate: true, permits: false, ved: false } } },

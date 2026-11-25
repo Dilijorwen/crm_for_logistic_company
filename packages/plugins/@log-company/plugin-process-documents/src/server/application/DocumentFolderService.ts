@@ -8,7 +8,11 @@
  */
 
 import { createUniqueDocumentName } from '../domain/documents/DocumentName';
-import { companyRequestFolderTypes, isCompanyRequestFolder } from '../../contracts/processDocuments';
+import {
+  companyRequestFolderTypes,
+  isCompanyRequestFolder,
+  shipmentDepartmentFolders,
+} from '../../contracts/processDocuments';
 import { ProcessDocumentsError } from '../domain/documents/DocumentErrors';
 import type { DocumentScope } from '../domain/documents/DocumentScope';
 import type { IdentifierGenerator } from './ports/DocumentStorage';
@@ -26,6 +30,22 @@ export class DocumentFolderService {
     private readonly scopeService: DocumentScopeService,
     private readonly identifierGenerator: IdentifierGenerator,
   ) {}
+
+  async ensureShipmentDepartmentFolders(shipmentId: string, actorId: string | null, transaction?: TransactionContext) {
+    const scope = { mode: 'shipment', shipmentId } as const;
+    const ensure = async (tx: TransactionContext) => {
+      const existing = new Set(await this.repository.listFolderTitles(scope, null, tx));
+      for (const title of shipmentDepartmentFolders) {
+        if (existing.has(title)) continue;
+        await this.repository.createFolder(
+          { id: this.identifierGenerator.generate(), title, scope, parentFolderId: null, actorId },
+          tx,
+        );
+      }
+    };
+    if (transaction) await ensure(transaction);
+    else await this.repository.withTransaction(ensure);
+  }
 
   async create(
     scope: DocumentScope,
@@ -87,6 +107,27 @@ export class DocumentFolderService {
       if (cachedFolderId) {
         currentParentId = cachedFolderId;
         continue;
+      }
+
+      if (
+        currentParentId === null &&
+        scope.mode === 'shipment' &&
+        actor.creatingOwner?.resource === 'shipments' &&
+        actor.creatingOwner.recordId === scope.shipmentId &&
+        shipmentDepartmentFolders.some((title) => title === folderName)
+      ) {
+        const matches = (await this.repository.listFolders(scope, null, transaction)).filter(
+          (folder) => folder.title === folderName,
+        );
+        if (matches.length > 1) {
+          throw new ProcessDocumentsError('DOCUMENT_NAME_CONFLICT', 'Найдено несколько папок с таким именем.');
+        }
+        if (matches[0]) {
+          await this.scopeService.assertFolderAccess(matches[0].id, scope, 'write', actor, transaction);
+          currentParentId = matches[0].id;
+          cache.set(cacheKey, currentParentId);
+          continue;
+        }
       }
 
       const folder = await this.create(scope, folderName, currentParentId, actor, transaction);

@@ -34,6 +34,37 @@ export class DocumentScopeService {
     private readonly access: ProcessDocumentAccess,
   ) {}
 
+  async assertShipmentFormAccess(
+    shipmentId: string | null,
+    companyId: string | null,
+    folderId: string | null,
+    operation: 'read' | 'write',
+    actor: DocumentActor,
+  ): Promise<void> {
+    if (!shipmentId) {
+      await this.access.assertDraftAccess?.(operation, actor, companyId);
+      return;
+    }
+    const scope = await this.resolve({ shipmentId, draftToken: null, operation, actor });
+    if (folderId) await this.requireFolder(folderId, scope);
+    await this.assertFolderAccess(folderId, scope, operation, actor);
+  }
+
+  async assertRunFormAccess(
+    runId: string | null,
+    folderId: string | null,
+    operation: 'read' | 'write',
+    actor: DocumentActor,
+  ): Promise<void> {
+    if (!runId) {
+      await this.access.assertDraftAccess?.(operation, actor);
+      return;
+    }
+    const scope = await this.resolve({ runId, shipmentId: null, draftToken: null, operation, actor });
+    if (folderId) await this.requireFolder(folderId, scope);
+    await this.assertFolderAccess(folderId, scope, operation, actor);
+  }
+
   async resolve(input: ResolveDocumentScopeInput, transaction?: TransactionContext): Promise<DocumentScope> {
     if (input.companyId || input.runId) {
       if (input.shipmentId || input.draftToken) {

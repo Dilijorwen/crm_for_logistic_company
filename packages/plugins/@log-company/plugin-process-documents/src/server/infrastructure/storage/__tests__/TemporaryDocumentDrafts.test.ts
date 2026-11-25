@@ -17,7 +17,7 @@ const form = { resource: 'our_companies', recordId: null } as const;
 const staged = async (dir: string) => {
   const filePath = path.join(dir, 'file');
   await writeFile(filePath, 'test');
-  return [{ path: filePath, originalName: 'Контракты/Договор.txt', size: 4, mimeType: 'text/plain' }];
+  return { files: [{ path: filePath, originalName: 'Контракты/Договор.txt', size: 4, mimeType: 'text/plain' }] };
 };
 
 describe('Временные файлы формы', () => {
@@ -34,8 +34,9 @@ describe('Временные файлы формы', () => {
   it('сохраняет файлы на диске для повторного сохранения и удаляет при отмене', async () => {
     const batch = await drafts.stage('1', form, staged);
     const session = drafts.acquire([batch.token], '1', form);
-    expect(session.files[0].originalName).toBe('Контракты/Договор.txt');
-    expect(await readFile(session.files[0].path, 'utf8')).toBe('test');
+    const [file] = session.destinations[0].files;
+    expect(file.originalName).toBe('Контракты/Договор.txt');
+    expect(await readFile(file.path, 'utf8')).toBe('test');
     await session.release();
     const retry = drafts.acquire([batch.token], '1', form);
     await retry.release();

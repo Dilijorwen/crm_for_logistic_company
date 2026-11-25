@@ -14,7 +14,7 @@ import type { BelongsToManyRepository, Filter, Model, Transaction } from '@nocob
 import { contractAreaId, documentRecordId, documentSections } from '../../../contracts/processDocuments';
 import type { DocumentSection, SectionPermissions } from '../../../contracts/processDocuments';
 import type { DocumentSectionAccess } from '../../application/DocumentSectionAccess';
-import type { CompanyDocumentScope } from '../../domain/documents/DocumentScope';
+import type { CompanyDocumentScope, DocumentScope } from '../../domain/documents/DocumentScope';
 import { ProcessDocumentsError } from '../../domain/documents/DocumentErrors';
 import type { ProcessDocumentAccess, ProcessDocumentOperation } from '../../application/ports/ProcessDocumentAccess';
 import type { DocumentActor, TransactionContext } from '../../application/ports/ProcessDocumentsRepository';
@@ -56,6 +56,22 @@ export class NocoBaseProcessDocumentAccess implements ProcessDocumentAccess {
       });
       await this.sectionAccess.assert('ved', this.companyKey(shipment?.get('company_id')), operation, actor);
     }
+  }
+
+  async documentCompanies(scope: Extract<DocumentScope, { mode: 'shipment' | 'run' }>): Promise<Array<string | null>> {
+    if (scope.mode === 'shipment') {
+      const shipment = await this.plugin.db.getRepository(SHIPMENTS_COLLECTION).findOne({
+        filterByTk: scope.shipmentId,
+        fields: ['company_id'],
+      });
+      return [this.companyKey(shipment?.get('company_id'))];
+    }
+    const run = await this.plugin.db.getRepository('transport_runs').findOne({
+      filterByTk: scope.runId,
+      appends: ['shipments.company_id'],
+    });
+    const companies = this.runCompanies(run?.get('shipments'));
+    return companies.size ? [...companies] : [null];
   }
 
   async assertCompanyAccess(
@@ -108,8 +124,10 @@ export class NocoBaseProcessDocumentAccess implements ProcessDocumentAccess {
     return (await this.sectionAccess?.allows(section, companyId, operation, actor)) ?? true;
   }
 
-  async assertDraftAccess(operation: ProcessDocumentOperation, actor: DocumentActor) {
-    await this.sectionAccess?.assert('ved', null, operation, actor);
+  async assertDraftAccess(operation: ProcessDocumentOperation, actor: DocumentActor, companyId: string | null = null) {
+    // В своём черновике можно убрать файл и без права удаления сохранённых документов.
+    if (companyId) await this.assertCompanyRecord(companyId, 'read', actor);
+    await this.sectionAccess?.assert('ved', companyId, operation, actor, {});
   }
 
   async assertCompanyRecord(
@@ -147,7 +165,7 @@ export class NocoBaseProcessDocumentAccess implements ProcessDocumentAccess {
         companyId ? 'Рейс не относится к этой компании.' : 'Рейс не найден.',
       );
     }
-    const runAction = operation === 'read' ? 'get' : 'update';
+    const runAction = this.actionFor(operation);
     if (!(await this.canAccess('transport_runs', runId, runAction, actor, transaction))) {
       throw new ProcessDocumentsError('DOCUMENT_ACCESS_DENIED', 'Нет доступа к документам рейса.');
     }
@@ -156,14 +174,7 @@ export class NocoBaseProcessDocumentAccess implements ProcessDocumentAccess {
         await this.sectionAccess.assert('ved', companyId, operation, actor);
         return;
       }
-      const shipments: unknown = run.get('shipments');
-      const companies = new Set(
-        (Array.isArray(shipments) ? shipments : []).map((shipment: unknown) =>
-          this.companyKey(
-            shipment && typeof shipment === 'object' && 'company_id' in shipment ? shipment.company_id : null,
-          ),
-        ),
-      );
+      const companies = this.runCompanies(run.get('shipments'));
       if (!companies.size) companies.add(companyId);
       if (operation === 'read') {
         for (const company of companies) {
@@ -253,6 +264,16 @@ export class NocoBaseProcessDocumentAccess implements ProcessDocumentAccess {
     return this.companyKey(record.get('company_id'));
   }
 
+  private runCompanies(shipments: unknown) {
+    return new Set(
+      (Array.isArray(shipments) ? shipments : []).map((shipment: unknown) =>
+        this.companyKey(
+          shipment && typeof shipment === 'object' && 'company_id' in shipment ? shipment.company_id : null,
+        ),
+      ),
+    );
+  }
+
   private companyKey(value: unknown): string | null {
     return typeof value === 'string' || typeof value === 'number' ? String(value) : null;
   }
@@ -264,18 +285,36 @@ export class NocoBaseProcessDocumentAccess implements ProcessDocumentAccess {
     transaction?: TransactionContext,
     field?: string,
   ): Promise<boolean> {
-    if (actor.isRoot) return true;
+    const filter = await this.permissionFilter(resource, action, actor, field, id);
+    if (filter === null) return false;
+    if (!Object.keys(filter).length) return true;
+    return !!(await this.plugin.db
+      .getRepository(resource)
+      .findOne({ filter: { $and: [{ id }, filter] }, transaction: transaction as Transaction | undefined }));
+  }
+
+  async permissionFilter(
+    resource: string,
+    action: string,
+    actor: DocumentActor,
+    field?: string,
+    id?: string,
+  ): Promise<Filter | null> {
+    if (actor.isRoot) return {};
     const context = actor.authorizationContext as NocoBaseAuthorizationContext;
     const creating =
-      action === 'update' && actor.creatingOwner?.resource === resource && actor.creatingOwner.recordId === id;
+      action === 'update' &&
+      id !== undefined &&
+      actor.creatingOwner?.resource === resource &&
+      actor.creatingOwner.recordId === id;
     const permission = context.can?.({ resource, action: creating ? 'create' : action });
-    if (!permission) return false;
+    if (!permission) return null;
     const { whitelist, blacklist } = permission.params ?? {};
-    if (field && ((whitelist && !whitelist.includes(field)) || blacklist?.includes(field))) return false;
+    if (field && ((whitelist && !whitelist.includes(field)) || blacklist?.includes(field))) return null;
     const rawFilter = permission.params?.filter;
-    if (!rawFilter) return true;
+    if (!rawFilter) return {};
 
-    const filter =
+    return (
       (await parseJsonTemplate(rawFilter, {
         state: context.state,
         timezone: context.get('x-timezone'),
@@ -283,19 +322,12 @@ export class NocoBaseProcessDocumentAccess implements ProcessDocumentAccess {
           db: context.db || this.plugin.db,
           currentUser: context.state?.currentUser,
         }),
-      })) ?? rawFilter;
-    return !!(await this.plugin.db
-      .getRepository(resource)
-      .findOne({ filter: { $and: [{ id }, filter] }, transaction: transaction as Transaction | undefined }));
+      })) ?? rawFilter
+    );
   }
 
-  private actionFor(operation: ProcessDocumentOperation): string {
-    if (operation === 'read') {
-      return 'get';
-    }
-    if (operation === 'delete') {
-      return 'destroy';
-    }
-    return 'update';
+  private actionFor(operation: ProcessDocumentOperation): 'get' | 'update' {
+    // Удаление файла требует просмотра записи, а право удаления берётся из правил документов.
+    return operation === 'read' || operation === 'delete' ? 'get' : 'update';
   }
 }

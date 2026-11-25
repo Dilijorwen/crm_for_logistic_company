@@ -64,6 +64,18 @@ describe('Назначение файлов при сохранении карт
     expect(upload.execute).not.toHaveBeenCalled();
   });
 
+  it('отправляет файлы и пустые папки в указанную папку поставки в общей транзакции', async () => {
+    const { publish, upload } = setup();
+    await publish.execute(
+      { resource: 'shipments', recordId: '1043', actor, files, folderId: '55', emptyFolders: ['Архив'] },
+      outer,
+    );
+    expect(upload.execute).toHaveBeenCalledWith(
+      { shipmentId: '1043', draftToken: null, folderId: '55', actor, files, emptyFolders: ['Архив'] },
+      outer,
+    );
+  });
+
   it('сохраняет основной документ как вложение конкретного контракта', async () => {
     const { publish, owners, upload, documents } = setup(
       [{ id: '52', title: 'По запросам' }],

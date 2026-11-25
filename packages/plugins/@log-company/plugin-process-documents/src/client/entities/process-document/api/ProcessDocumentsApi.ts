@@ -18,16 +18,18 @@ import type {
   DocumentsListResponse,
   FolderDeleteSummary,
   FolderAccess,
+  FolderAccessConstraint,
   DocumentAccessRule,
   DocumentSection,
   SectionAccessResponse,
   SectionPermissions,
   CompanyRequestFolderName,
 } from '../../../../contracts/processDocuments';
+import type { CatalogSearchRequest, CatalogSearchResponse } from '../../../../contracts/documentCatalog';
 import type { SelectedDocument } from './FormDocumentDraftsApi';
 
 export interface ProcessDocumentsTransport {
-  request(config: { url: string; method: 'post'; data: unknown }): Promise<unknown>;
+  request(config: { url: string; method: 'post'; data: unknown; signal?: AbortSignal }): Promise<unknown>;
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -47,6 +49,21 @@ function isDocument(value: unknown): value is DocumentsListResponse['folders'][n
 
 export class ProcessDocumentsApi {
   constructor(private readonly transport: ProcessDocumentsTransport) {}
+
+  async search(request: CatalogSearchRequest, signal?: AbortSignal): Promise<CatalogSearchResponse> {
+    const response = await this.transport.request({
+      url: 'processDocuments:search',
+      method: 'post',
+      data: request,
+      signal,
+    });
+    const { data: rows, meta } = record(record(response).data);
+    const { next } = record(meta);
+    if (!Array.isArray(rows) || (next !== undefined && typeof next !== 'string')) {
+      throw new Error('Сервер вернул некорректные результаты поиска.');
+    }
+    return { rows, next: typeof next === 'string' ? next : undefined };
+  }
 
   async list(scope: DocumentRequestScope, folderId: DocumentIdentifier | null): Promise<DocumentsListResponse> {
     const data = responseData(await this.request('list', { ...scope, folderId }));
@@ -141,6 +158,15 @@ export class ProcessDocumentsApi {
       folderId = folder.id;
     }
     return folderId;
+  }
+
+  async folderConstraints(
+    folderId: DocumentIdentifier,
+    companyId?: DocumentIdentifier,
+  ): Promise<FolderAccessConstraint[]> {
+    const data = responseData(await this.request('getFolderConstraints', { folderId, companyId }));
+    if (!Array.isArray(data.constraints)) throw new Error('Сервер не вернул унаследованные права.');
+    return data.constraints;
   }
 
   async setFolderAccess(folderId: DocumentIdentifier, grants: FolderAccess | null) {

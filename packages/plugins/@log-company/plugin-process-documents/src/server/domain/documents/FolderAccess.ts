@@ -7,23 +7,4 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import type { DocumentRight, FolderAccess } from '../../../contracts/processDocuments';
-import { allowsSectionOperation } from './DocumentAccessRules';
-
-const levels = { read: 1, write: 2, delete: 3 } as const;
-
-export function allowsFolderOperation(
-  grants: FolderAccess | null | undefined,
-  operation: DocumentRight,
-  actor: { isRoot: boolean; userId: string | null; roles?: readonly string[] },
-): boolean {
-  if (actor.isRoot || grants == null) return true;
-  if (!Array.isArray(grants)) {
-    return allowsSectionOperation([], grants.rules, operation, actor, grants.defaultAllow);
-  }
-  return grants.some(
-    (grant) =>
-      (grant.kind === 'user' ? grant.subject === actor.userId : actor.roles?.includes(grant.subject)) &&
-      levels[grant.level] >= levels[operation === 'rename' ? 'write' : operation],
-  );
-}
+export { allowsFolderOperation } from '../../../contracts/documentPermissions';

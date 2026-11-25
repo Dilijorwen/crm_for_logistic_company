@@ -7,10 +7,16 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import React, { useState } from 'react';
-import { Alert, Modal, Space, Typography } from 'antd';
-import type { DocumentAccessRule, DocumentFolderDto, FolderAccess } from '../../../../contracts/processDocuments';
-import { getDocumentErrorText } from '../../../entities/process-document';
+import React, { useEffect, useState } from 'react';
+import { Alert, Button, Modal, Space, Spin, Typography } from 'antd';
+import type {
+  DocumentAccessRule,
+  DocumentFolderDto,
+  DocumentIdentifier,
+  FolderAccess,
+  FolderAccessConstraint,
+} from '../../../../contracts/processDocuments';
+import { getDocumentErrorText, type ProcessDocumentsApi } from '../../../entities/process-document';
 import { DocumentPermissionsMatrix } from './DocumentPermissionsMatrix';
 
 export function folderAccessRules(access?: FolderAccess | null): DocumentAccessRule[] {
@@ -33,11 +39,15 @@ export function folderAccessValue(
 
 export function DocumentFolderAccessDialog({
   folder,
+  api,
+  companyId,
   path,
   onSave,
   onClose,
 }: {
   folder: DocumentFolderDto;
+  api: ProcessDocumentsApi;
+  companyId?: DocumentIdentifier;
   path?: string;
   onSave: (grants: FolderAccess | null) => Promise<void>;
   onClose: () => void;
@@ -49,8 +59,30 @@ export function DocumentFolderAccessDialog({
   const [error, setError] = useState<string>();
   const [dirty, setDirty] = useState(false);
 
+  const [constraints, setConstraints] = useState<FolderAccessConstraint[]>();
+  const [constraintsError, setConstraintsError] = useState<string>();
+  const [attempt, setAttempt] = useState(0);
+  const isVirtual = String(folder.id).startsWith('virtual-folder:');
+
+  useEffect(() => {
+    if (isVirtual) return;
+    let active = true;
+    setConstraintsError(undefined);
+    api
+      .folderConstraints(folder.id, companyId)
+      .then((value) => {
+        if (active) setConstraints(value);
+      })
+      .catch((reason) => {
+        if (active) setConstraintsError(getDocumentErrorText(reason, 'Не удалось загрузить унаследованные права.'));
+      });
+    return () => {
+      active = false;
+    };
+  }, [api, folder.id, companyId, isVirtual, attempt]);
+
   async function save() {
-    if (saving || !dirty) return;
+    if (saving || !dirty || (!isVirtual && !constraints)) return;
     setSaving(true);
     setError(undefined);
     try {
@@ -70,7 +102,7 @@ export function DocumentFolderAccessDialog({
       okText="Сохранить права"
       cancelText="Отмена"
       confirmLoading={saving}
-      okButtonProps={{ disabled: !dirty }}
+      okButtonProps={{ disabled: !dirty || (!isVirtual && !constraints) }}
       cancelButtonProps={{ disabled: saving }}
       onOk={save}
       onCancel={onClose}
@@ -81,18 +113,27 @@ export function DocumentFolderAccessDialog({
         <Typography.Text type="secondary">
           Права папки действуют в пределах доступа к родительским папкам и исходной записи.
         </Typography.Text>
-        {!String(folder.id).startsWith('virtual-folder:') && (
-          <Typography.Text type="secondary">ID папки: {folder.id}</Typography.Text>
+        {!isVirtual && <Typography.Text type="secondary">ID папки: {folder.id}</Typography.Text>}
+        {constraintsError ? (
+          <Alert
+            type="error"
+            message={constraintsError}
+            action={<Button onClick={() => setAttempt((value) => value + 1)}>Повторить</Button>}
+          />
+        ) : isVirtual || constraints ? (
+          <DocumentPermissionsMatrix
+            rules={rules}
+            constraints={constraints}
+            defaultAllow={defaultAllow}
+            disabled={saving}
+            onChange={(next) => {
+              setRules(next);
+              setDirty(true);
+            }}
+          />
+        ) : (
+          <Spin aria-label="Загрузка унаследованных прав" />
         )}
-        <DocumentPermissionsMatrix
-          rules={rules}
-          defaultAllow={defaultAllow}
-          disabled={saving}
-          onChange={(next) => {
-            setRules(next);
-            setDirty(true);
-          }}
-        />
       </Space>
     </Modal>
   );

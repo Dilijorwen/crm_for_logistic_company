@@ -40,6 +40,8 @@ vi.mock('../../ui/ProcessDocumentsBlock', () => ({
   ProcessDocumentsBlock: () => null,
 }));
 
+vi.mock('../../ui/FormFolderUpload', () => ({ WorkspaceShipmentDraftUpload: () => null }));
+
 import { ProcessDocumentsBlockModel } from '../ProcessDocumentsBlockModel';
 
 interface DocumentsElementProps {
@@ -68,17 +70,19 @@ function renderModel(
   return (instance.renderComponent() as React.ReactElement<DocumentsElementProps>).props;
 }
 
-function form(collection: string, create: boolean, view?: unknown) {
+function form(collection: string, create: boolean, view?: unknown, recordId = '24', parent?: unknown) {
   const resource = Object.assign(Object.create(SingleRecordResource.prototype), {
     getResourceName: () => collection,
     getDataSourceKey: () => 'main',
-    getFilterByTk: () => (create ? undefined : '24'),
+    getMeta: () => undefined,
+    getFilterByTk: () => (create ? undefined : recordId),
     isNewRecord: create,
   });
   return Object.assign(
     create ? new CreateFormModel({ use: 'CreateFormModel' }) : new EditFormModel({ use: 'EditFormModel' }),
     {
       context: { resource, view },
+      parent,
     },
   );
 }
@@ -171,5 +175,40 @@ describe('ProcessDocumentsBlockModel', () => {
     expect(props.folderMode).toBe('upload');
     expect(props.findForm()?.model).toBe(own);
     expect(renderModel(context, { models: [own], props: { folderMode: 'view' } }).folderMode).toBe('view');
+  });
+
+  it('finds the neighboring permit form with a separate copy of the popup context', () => {
+    const args = { viewUid: 'edit-permit', collectionName: 'permit_documents', filterByTk: '24' };
+    const parent = { uid: 'permit-grid', parent: { uid: 'edit-tab', subKey: 'tabs' } };
+    const owner = form('permit_documents', false, { type: 'embed', inputArgs: { ...args } }, '24', parent);
+    const props = renderModel(
+      { view: { type: 'embed', inputArgs: { ...args, filterByTk: 24 } } },
+      { parent, models: [owner] },
+    );
+    expect(props.findForm()?.model).toBe(owner);
+    expect(props.folderMode).toBe('upload');
+  });
+
+  it('never binds a different record, a creation form or a form in another tab', () => {
+    const view = {
+      type: 'embed',
+      inputArgs: { viewUid: 'edit-permit', collectionName: 'permit_documents', filterByTk: '24' },
+    };
+    const parent = { uid: 'permit-grid', parent: { uid: 'edit-tab', subKey: 'tabs' } };
+    const otherParent = { uid: 'other-grid', parent: { uid: 'other-tab', subKey: 'tabs' } };
+    const wrongRow = form('permit_documents', false, view, '25', parent);
+    const wrongTab = form('permit_documents', false, view, '24', otherParent);
+    const creation = form('permit_documents', true, view, '24', parent);
+    for (const candidate of [wrongRow, wrongTab, creation]) {
+      expect(renderModel({ view }, { parent, models: [candidate] }).findForm()).toBeUndefined();
+    }
+  });
+
+  it('does not choose between two forms editing the same record in the same tab', () => {
+    const args = { viewUid: 'edit-permit', collectionName: 'permit_documents', filterByTk: '24' };
+    const parent = { uid: 'permit-grid', parent: { uid: 'edit-tab', subKey: 'tabs' } };
+    const exact = form('permit_documents', false, { inputArgs: args }, '24', parent);
+    const copied = form('permit_documents', false, { inputArgs: { ...args } }, '24', parent);
+    expect(renderModel({ view: { inputArgs: args } }, { parent, models: [exact, copied] }).findForm()).toBeUndefined();
   });
 });

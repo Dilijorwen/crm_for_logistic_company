@@ -7,7 +7,13 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import type { DocumentAccessRule, DocumentRight, DocumentSection } from '../../contracts/processDocuments';
+import {
+  defaultDocumentSectionRights,
+  type DocumentAccessRule,
+  type DocumentRight,
+  type DocumentRights,
+  type DocumentSection,
+} from '../../contracts/processDocuments';
 import { allowsSectionOperation } from '../domain/documents/DocumentAccessRules';
 import { ProcessDocumentsError } from '../domain/documents/DocumentErrors';
 import type { DocumentActor } from './ports/ProcessDocumentsRepository';
@@ -32,14 +38,26 @@ export class DocumentSectionAccess {
     await this.rules.save(section, companyId, rules);
   }
 
-  async allows(section: DocumentSection, companyId: string | null, operation: DocumentRight, actor: DocumentActor) {
+  async allows(
+    section: DocumentSection,
+    companyId: string | null,
+    operation: DocumentRight,
+    actor: DocumentActor,
+    defaults = defaultDocumentSectionRights(section),
+  ) {
     if (actor.isRoot) return true;
     const { rules, inherited } = await this.get(section, companyId);
-    return allowsSectionOperation(companyId ? inherited : rules, companyId ? rules : [], operation, actor);
+    return allowsSectionOperation(companyId ? inherited : rules, companyId ? rules : [], operation, actor, defaults);
   }
 
-  async assert(section: DocumentSection, companyId: string | null, operation: DocumentRight, actor: DocumentActor) {
-    if (!(await this.allows(section, companyId, operation, actor))) {
+  async assert(
+    section: DocumentSection,
+    companyId: string | null,
+    operation: DocumentRight,
+    actor: DocumentActor,
+    defaults?: DocumentRights,
+  ) {
+    if (!(await this.allows(section, companyId, operation, actor, defaults))) {
       const message =
         operation === 'write' && section === 'ved'
           ? 'У вас нет права загружать документы в разделе ВЭД.'

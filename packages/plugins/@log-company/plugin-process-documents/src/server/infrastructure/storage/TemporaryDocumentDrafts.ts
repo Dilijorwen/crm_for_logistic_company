@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { processDocumentUpload, validateUploadBatch } from '@log-company/plugin-file-storage';
-import type { FormDocumentSaveTarget } from '../../../contracts/processDocuments';
+import { MAX_DOCUMENT_UPLOAD_ENTRIES, type FormDocumentSaveTarget } from '../../../contracts/processDocuments';
 import type { UploadedDocumentFile } from '../../application/UploadProcessDocuments';
 import { ProcessDocumentsError } from '../../domain/documents/DocumentErrors';
 
@@ -19,11 +19,19 @@ const lifetime = 2 * 60 * 60 * 1_000;
 const concurrentUploads = 4;
 const maximumStagedBytes = 8 * processDocumentUpload.maxTotalBytes;
 const maximumBatches = 100;
-interface Draft {
+interface DraftSelection {
+  files: UploadedDocumentFile[];
+  emptyFolders?: string[];
+}
+
+interface DraftDestination extends DraftSelection {
+  folderId?: string;
+}
+
+interface Draft extends DraftDestination {
   actor: string;
   form: FormDocumentSaveTarget;
   directory: string;
-  files: UploadedDocumentFile[];
   expires: number;
   active?: boolean;
   discarded?: boolean;
@@ -56,7 +64,8 @@ export class TemporaryDocumentDrafts {
   async stage(
     actor: string,
     form: FormDocumentSaveTarget,
-    receive: (directory: string) => Promise<UploadedDocumentFile[]>,
+    receive: (directory: string) => Promise<DraftSelection>,
+    folderId?: string,
   ) {
     if (this.staging.has(actor) || this.staging.size >= concurrentUploads || this.drafts.size >= maximumBatches) {
       throw new ProcessDocumentsError('FORM_DRAFT_BUSY', 'Дождитесь окончания предыдущей загрузки.');
@@ -67,18 +76,29 @@ export class TemporaryDocumentDrafts {
     try {
       directory = await mkdtemp(path.join(this.root, 'batch-'));
       this.busyDirectories.add(directory);
-      const files = await receive(directory);
-      if (!files.length) throw new ProcessDocumentsError('FILES_REQUIRED', 'Файлы не выбраны.');
+      const { files, emptyFolders } = await receive(directory);
+      if (!files.length && !emptyFolders?.length) throw new ProcessDocumentsError('FILES_REQUIRED', 'Файлы не выбраны.');
       const existing = [...this.drafts.values()];
-      validateUploadBatch([...existing.filter((draft) => draft.actor === actor).flatMap((draft) => draft.files), ...files],
+      const own = existing.filter((draft) => draft.actor === actor);
+      const count = own.reduce((sum, draft) => sum + draft.files.length + (draft.emptyFolders?.length ?? 0),
+        files.length + (emptyFolders?.length ?? 0));
+      if (count > MAX_DOCUMENT_UPLOAD_ENTRIES) {
+        throw new ProcessDocumentsError('INVALID_UPLOAD',
+          `Можно загрузить не более ${MAX_DOCUMENT_UPLOAD_ENTRIES} файлов и папок за раз.`);
+      }
+      validateUploadBatch([...own.flatMap((draft) => draft.files), ...files],
         processDocumentUpload);
       if ([...existing.flatMap((draft) => draft.files), ...files].reduce((sum, item) => sum + item.size, 0) > maximumStagedBytes) {
         throw new ProcessDocumentsError('FORM_DRAFT_BUSY', 'Временное хранилище занято. Повторите позже.');
       }
       const token = randomUUID();
-      this.drafts.set(token, { actor, form, directory, files, expires: Date.now() + lifetime });
+      this.drafts.set(token, { actor, form, folderId, directory, files, emptyFolders, expires: Date.now() + lifetime });
       retained = true;
-      return { token, files: files.map(({ originalName, size }) => ({ name: originalName, size })) };
+      return {
+        token,
+        files: files.map(({ originalName, size }) => ({ name: originalName, size })),
+        ...(emptyFolders?.length && { emptyFolders }),
+      };
     } finally {
       this.staging.delete(actor);
       if (directory) {
@@ -98,9 +118,16 @@ export class TemporaryDocumentDrafts {
       if (draft.active) throw new ProcessDocumentsError('FORM_DRAFT_BUSY', 'Файлы уже сохраняются.');
       return draft;
     });
+    const destinations = new Map<string | undefined, DraftDestination>();
+    for (const { folderId, files, emptyFolders } of drafts) {
+      const destination = destinations.get(folderId) ?? { folderId, files: [] };
+      destination.files.push(...files);
+      if (emptyFolders?.length) (destination.emptyFolders ??= []).push(...emptyFolders);
+      destinations.set(folderId, destination);
+    }
     drafts.forEach((draft) => { draft.active = true; });
     return {
-      files: drafts.flatMap((draft) => draft.files),
+      destinations: [...destinations.values()],
       release: async (saved = false) => {
         await Promise.all(tokens.map(async (token, index) => {
           const draft = drafts[index];
