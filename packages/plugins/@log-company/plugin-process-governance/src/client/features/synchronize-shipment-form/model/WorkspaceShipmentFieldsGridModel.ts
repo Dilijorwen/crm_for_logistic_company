@@ -17,6 +17,16 @@ export class LogisticsWorkspaceShipmentFieldsGridModel extends FormGridModel {
     // Match the native renderer's row fork and observe its hidden state before ACL runs.
     const key = `${this.context.fieldKey}:${field.uid}`;
     const current = this.context.fieldIndex == null ? field : field.getFork(key) ?? field.createFork({}, key);
+    if (current !== field && !Object.prototype.hasOwnProperty.call(current.context, 'fieldPathArray')) {
+      const fieldPath = field.getStepParams('fieldSettings', 'init')?.fieldPath;
+      if (typeof fieldPath === 'string' && fieldPath) {
+        // A field hidden before renderItem still needs its own path for native submission filtering.
+        current.context.defineProperty('fieldPathArray', {
+          get: () => fieldPath.split('.'),
+          cache: false,
+        });
+      }
+    }
     // Native GridModel replaces the fork's local props while rendering. Designer visibility belongs to the field model.
     return !field.hidden && !field.props.hidden && !current.hidden && !current.forbidden;
   }
@@ -37,48 +47,25 @@ export class LogisticsWorkspaceShipmentFieldsGridModel extends FormGridModel {
       (this.subModels.items ?? []).filter((item) => item.use === 'FormItemModel').map((item) => [item.uid, item]),
     );
     const result: GridRowV2[] = [];
-    let fieldRows: FieldRow[] = [];
+    const checkboxes: FieldRow['cells'] = [];
+    let previousSingle: GridRowV2 | undefined;
 
     const isVisible = (uid: string): boolean => {
       const field = fields.get(uid);
       return !field || this.isVisibleField(field);
     };
 
-    const flush = () => {
-      const original = fieldRows.flatMap((row) => row.cells.map((cell) => cell.items[0]));
-      const visible = original.filter(isVisible);
-      const regular: string[] = [];
-      const checkboxes: string[] = [];
-      for (const uid of visible) {
-        const input = fields.get(uid)?.subModels?.field;
-        (input && !Array.isArray(input) && input.use === 'CheckboxFieldModel' ? checkboxes : regular).push(uid);
+    const flushCheckboxes = () => {
+      for (let index = 0; index < checkboxes.length; index += 2) {
+        const cells = checkboxes.slice(index, index + 2);
+        result.push({
+          id: `${this.uid}-checkboxes-${cells[0].items[0]}`,
+          cells,
+          sizes: cells.map(() => 24 / cells.length),
+        });
       }
-
-      if (
-        visible.length === original.length &&
-        [...regular, ...checkboxes].every((uid, index) => uid === original[index])
-      ) {
-        const checkboxRow = fieldRows.find((row) => row.cells.some((cell) => checkboxes.includes(cell.items[0])));
-        if (!checkboxRow || checkboxRow.cells.every((cell) => checkboxes.includes(cell.items[0]))) {
-          result.push(...fieldRows);
-          fieldRows = [];
-          return;
-        }
-      }
-
-      let rowIndex = 0;
-      for (const group of [regular, checkboxes]) {
-        for (let index = 0; index < group.length; index += 2) {
-          const cells = group.slice(index, index + 2).map((uid) => ({ id: uid, items: [uid] }));
-          const row = fieldRows[rowIndex++];
-          result.push({
-            id: row?.id ?? `${this.uid}-checkboxes`,
-            cells,
-            sizes: row?.sizes?.length === cells.length ? row.sizes : cells.map(() => 24 / cells.length),
-          });
-        }
-      }
-      fieldRows = [];
+      checkboxes.length = 0;
+      previousSingle = undefined;
     };
 
     const isFieldRow = (candidate: GridRowV2): candidate is FieldRow =>
@@ -89,13 +76,36 @@ export class LogisticsWorkspaceShipmentFieldsGridModel extends FormGridModel {
       const singleField = row.cells.length === 1 ? row.cells[0].items?.[0] : undefined;
       const path = singleField && fields.get(singleField)?.getStepParams('fieldSettings', 'init')?.fieldPath;
       const fullWidthStatus = path === 'status' || path === 'shipments.status';
-      if (isFieldRow(row) && !fullWidthStatus) fieldRows.push(row);
-      else {
-        flush();
+      if (!isFieldRow(row) || fullWidthStatus) {
+        flushCheckboxes();
         if (!fullWidthStatus || (singleField && isVisible(singleField))) result.push(row);
+        continue;
       }
+
+      const checkboxCount = checkboxes.length;
+      const cells = row.cells.filter((cell) => {
+        const uid = cell.items[0];
+        if (!isVisible(uid)) return false;
+        const input = fields.get(uid)?.subModels?.field;
+        if (!input || Array.isArray(input) || input.use !== 'CheckboxFieldModel') return true;
+        checkboxes.push(cell);
+        return false;
+      });
+      if (!cells.length) continue;
+
+      const isPartialPair = row.cells.length === 2 && cells.length === 1 && checkboxes.length === checkboxCount;
+      if (isPartialPair && previousSingle) {
+        previousSingle.cells.push(cells[0]);
+        previousSingle.sizes = [12, 12];
+        previousSingle = undefined;
+        continue;
+      }
+
+      const visibleRow = cells.length === row.cells.length ? row : { ...row, cells, sizes: [24] };
+      result.push(visibleRow);
+      previousSingle = isPartialPair ? visibleRow : undefined;
     }
-    flush();
+    flushCheckboxes();
     return { ...layout, rows: result };
   }
 }

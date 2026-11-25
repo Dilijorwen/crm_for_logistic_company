@@ -24,6 +24,7 @@ import { WorkspaceShipmentDetachButton } from '../WorkspaceShipmentDetachButton'
 import {
   LogisticsWorkspaceCreateFormModel,
   LogisticsWorkspaceScopedSelectFieldModel,
+  LogisticsWorkspaceShipmentFieldsGridModel,
   ShipmentSynchronizedEditFormModel,
 } from '../../../synchronize-shipment-form';
 import {
@@ -54,7 +55,7 @@ function fixture() {
   return { engine, host };
 }
 
-async function mountUnifiedForm({ withFold = false, editing = false, withContract = false } = {}) {
+async function mountUnifiedForm({ withFold = false, editing = false, withContract = false, restricted = false } = {}) {
   const app = new Application();
   const engine = app.flowEngine;
   await new PluginFlowEngine({}, app).load();
@@ -63,9 +64,24 @@ async function mountUnifiedForm({ withFold = false, editing = false, withContrac
     LogisticsWorkspaceCreateFormModel,
     LogisticsWorkspaceShipmentSubformModel,
     LogisticsWorkspaceShipmentFoldGridModel,
+    LogisticsWorkspaceShipmentFieldsGridModel,
     LogisticsWorkspaceScopedSelectFieldModel,
   });
-  engine.context.acl.setData({ allowAll: true });
+  engine.context.acl.setData(
+    restricted
+      ? {
+          resources: ['shipments', 'transport_runs'],
+          actions: {
+            'transport_runs:create': { fields: ['shipments'] },
+            'transport_runs:update': { fields: ['shipments'] },
+            'transport_runs:view': { fields: ['shipments'] },
+            'shipments:create': { fields: ['invoice_number', 'status'] },
+            'shipments:update': { fields: ['invoice_number', 'status'] },
+            'shipments:view': { fields: ['invoice_number', 'status', 'shipment_number'] },
+          },
+        }
+      : { allowAll: true },
+  );
   engine.context.defineProperty('flowSettingsEnabled', { value: false });
   engine.context.defineProperty('view', {
     value: {
@@ -82,6 +98,21 @@ async function mountUnifiedForm({ withFold = false, editing = false, withContrac
       { name: 'invoice_number', type: 'string', interface: 'input', uiSchema: { title: 'Инвойс' } },
     ],
   });
+  if (restricted) {
+    source?.addCollection({
+      name: 'customs_warehouses',
+      filterTargetKey: 'id',
+      fields: [{ name: 'id', type: 'bigInt', interface: 'integer' }],
+    });
+    source?.getCollection('shipments')?.addField({
+      name: 'customs_warehouse',
+      type: 'belongsTo',
+      interface: 'm2o',
+      target: 'customs_warehouses',
+      targetKey: 'id',
+      uiSchema: { title: 'СВХ' },
+    });
+  }
   source?.addCollection({
     name: 'transport_runs',
     filterTargetKey: 'id',
@@ -177,6 +208,21 @@ async function mountUnifiedForm({ withFold = false, editing = false, withContrac
         },
       ]
     : [invoiceField, ...(withContract ? [contractItem] : [])];
+  if (restricted) {
+    editorFields.push({
+      use: 'LogisticsWorkspaceShipmentFoldGridModel',
+      props: { workspaceSectionTitle: 'Таможенное оформление' },
+      subModels: {
+        items: [
+          {
+            use: 'FormItemModel',
+            stepParams: { fieldSettings: { init: field('shipments.customs_warehouse') } },
+            subModels: { field: { use: 'LogisticsWorkspaceScopedSelectFieldModel' } },
+          },
+        ],
+      },
+    });
+  }
   const pickerUid = 'unified-test-shipment-field';
   engine.setModelRepository({
     findOne: vi.fn(async (query) =>
@@ -222,6 +268,12 @@ async function mountUnifiedForm({ withFold = false, editing = false, withContrac
       },
     },
     subModels: {
+      actions: [
+        {
+          use: 'FormSubmitActionModel',
+          stepParams: { buttonSettings: { general: { title: 'Сохранить рейс', type: 'primary' } } },
+        },
+      ],
       grid: {
         use: 'FormGridModel',
         subModels: {
@@ -239,7 +291,7 @@ async function mountUnifiedForm({ withFold = false, editing = false, withContrac
                   },
                   subModels: {
                     grid: {
-                      use: 'FormGridModel',
+                      use: 'LogisticsWorkspaceShipmentFieldsGridModel',
                       subModels: { items: editorFields },
                     },
                   },
@@ -256,11 +308,23 @@ async function mountUnifiedForm({ withFold = false, editing = false, withContrac
     if (url.includes('contracts:list')) {
       return { data: { data: [], meta: { count: 0, page: 1, pageSize: 40 } } };
     }
+    const selectedShipment = {
+      id: editing ? '103' : '101',
+      shipment_number: editing ? 23 : 21,
+      invoice_number: editing ? 'INV-THIRD' : 'INV-EXISTING',
+    };
     if (url.includes('shipments:list')) {
+      return { data: { data: [selectedShipment], meta: { count: 1, page: 1, pageSize: 20 } } };
+    }
+    if (url.includes('shipments:get')) {
       return {
         data: {
-          data: [{ id: '101', shipment_number: 21, invoice_number: 'INV-EXISTING' }],
-          meta: { count: 1, page: 1, pageSize: 20 },
+          data: {
+            ...selectedShipment,
+            company: { id: '51', name: 'Импортер' },
+            contract_record: { id: '61', name: 'Контракт' },
+            manager_comment: 'Сохранённый комментарий',
+          },
         },
       };
     }
@@ -398,6 +462,10 @@ describe('FlowEngine permissions and shared native detach action', () => {
     await selectShipmentAction('Создать новую поставку');
     await selectShipmentAction('Создать новую поставку');
     await screen.findByRole('tab', { name: 'Новая поставка 2' });
+    expect(model.form.getFieldValue('shipments')).toEqual([
+      expect.objectContaining({ status: 'queue' }),
+      expect.objectContaining({ status: 'queue' }),
+    ]);
     await act(async () => {
       await expect(model.submit()).rejects.toBeDefined();
     });
@@ -412,7 +480,44 @@ describe('FlowEngine permissions and shared native detach action', () => {
     const create = request.mock.calls.find(([config]) => String(config.url).includes('transport_runs:create'))?.[0];
     expect(create?.params).toMatchObject({ workspaceUnified: true });
     expect(create?.params?.updateAssociationValues).toContain('shipments');
-    expect(create?.data).toMatchObject({ shipments: [{ invoice_number: 'INV-10' }, { invoice_number: 'INV-20' }] });
+    expect(create?.data).toMatchObject({
+      shipments: [
+        { invoice_number: 'INV-10', status: 'queue' },
+        { invoice_number: 'INV-20', status: 'queue' },
+      ],
+    });
+  });
+
+  it.each([false, true])('submits the current shipment tabs through the toolbar (editing=%s)', async (editing) => {
+    const { model, request } = await mountUnifiedForm({ editing, restricted: true });
+    await selectShipmentAction('Привязать существующую');
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(
+      within(await within(dialog).findByRole('row', { name: editing ? /INV-THIRD/ : /INV-EXISTING/ })).getByRole(
+        'checkbox',
+      ),
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Submit' }));
+    await screen.findByRole('tab', { name: editing ? '№23' : '№21' });
+    for (const invoice of ['INV-NEW-1', 'INV-NEW-2', 'INV-NEW-3']) {
+      await selectShipmentAction('Создать новую поставку');
+      fireEvent.change(await screen.findByRole('textbox'), { target: { value: invoice } });
+    }
+    for (let index = editing ? 0 : 1; index < (editing ? 3 : 4); index++) {
+      model.form.setFieldValue(['shipments', index, 'customs_warehouse'], { id: '99' });
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить рейс' }));
+    const action = editing ? 'transport_runs:update' : 'transport_runs:create';
+    await waitFor(() => expect(request.mock.calls.some(([config]) => String(config.url).includes(action))).toBe(true));
+    const save = request.mock.calls.find(([config]) => String(config.url).includes(action))?.[0];
+    expect(save?.data?.shipments).toEqual([
+      ...(editing ? [{ id: '101' }, { id: '102' }] : []),
+      { id: editing ? '103' : '101' },
+      ...['INV-NEW-1', 'INV-NEW-2', 'INV-NEW-3'].map((invoice_number) =>
+        expect.objectContaining({ invoice_number, status: 'queue' }),
+      ),
+    ]);
+    expect(save?.data?.shipments.some((row: Record<string, unknown>) => 'customs_warehouse' in row)).toBe(false);
   });
 
   it('keeps fields in a collapsed section connected to the native run form', async () => {
@@ -468,8 +573,15 @@ describe('FlowEngine permissions and shared native detach action', () => {
     await waitFor(() => expect(filters()).toContainEqual(expectedFilter('52')));
   });
 
-  it('selects an existing shipment in a native modal before the run is saved', async () => {
-    const { model, request } = await mountUnifiedForm();
+  it.each([
+    { scenario: 'as a link', invoice: undefined, expected: { id: '101' } },
+    {
+      scenario: 'with an intentional edit',
+      invoice: 'INV-CHANGED',
+      expected: { id: '101', invoice_number: 'INV-CHANGED' },
+    },
+  ])('saves an existing shipment in the native modal $scenario', async ({ invoice, expected }) => {
+    const { model, request } = await mountUnifiedForm({ withContract: true });
     await selectShipmentAction('Привязать существующую');
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveClass('ant-modal');
@@ -477,9 +589,15 @@ describe('FlowEngine permissions and shared native detach action', () => {
     fireEvent.click(within(row).getByRole('checkbox'));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Submit' }));
     await screen.findByRole('tab', { name: '№21' });
+    expect(model.form.getFieldValue(['shipments', 0])).toMatchObject({
+      company: { id: '51' },
+      contract_record: { id: '61' },
+      manager_comment: 'Сохранённый комментарий',
+    });
+    if (invoice) fireEvent.change(await screen.findByRole('textbox'), { target: { value: invoice } });
     await model.submit();
     const create = request.mock.calls.find(([config]) => String(config.url).includes('transport_runs:create'))?.[0];
-    expect(create?.data).toMatchObject({ shipments: [{ id: '101' }] });
+    expect(create?.data?.shipments).toEqual([expected]);
   });
 
   it('removes a draft from the toolbar without losing another shipment’s values', async () => {

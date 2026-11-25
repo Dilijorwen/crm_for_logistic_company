@@ -16,6 +16,7 @@ import {
 } from '@nocobase/flow-engine';
 import { LOGISTICS_COLLECTIONS } from '../../../../shared/logistics';
 import { WORKSPACE_DETACHED_SHIPMENT_IDS_FIELD } from '../../../../shared/workspace';
+import { configureUnifiedShipmentSave } from './unifiedShipmentSave';
 import { LOGISTICS_RECORDS_CHANGED } from '../../../shared/lib';
 
 interface DirtyFormModel {
@@ -155,7 +156,7 @@ export class ShipmentSynchronizedEditFormModel extends EditFormModel {
     }
 
     if (this.props.workspaceUnified) {
-      resource.setSaveActionOptions({ params: { workspaceUnified: true } });
+      configureUnifiedShipmentSave(resource);
       resource.on('saved', () => this.form?.setFieldValue(WORKSPACE_DETACHED_SHIPMENT_IDS_FIELD, undefined));
     }
     bindShipmentSaveLifecycle(resource, this as unknown as DirtyFormModel, this.flowEngine);

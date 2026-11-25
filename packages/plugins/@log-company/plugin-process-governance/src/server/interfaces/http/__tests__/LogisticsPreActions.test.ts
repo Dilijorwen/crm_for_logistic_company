@@ -33,7 +33,12 @@ function setup(linkedRunCount = 0, genericHandlers: PreActionHandler[] = [], lin
           { name: 'company_id', options: { isForeignKey: true } },
         ],
       }),
-      getRepository: () => ({ find: async () => linked.map((id) => ({ get: () => id })) }),
+      getRepository: (name: string) => ({
+        find: async ({ filter }: { filter: { id?: { $in: string[] } } }) => {
+          const ids = name === 'shipments' ? filter.id?.$in ?? [] : linked;
+          return ids.map((id) => ({ get: () => id }));
+        },
+      }),
     },
   } as unknown as Plugin;
   const repository = {
@@ -82,7 +87,7 @@ describe('LogisticsPreActions', () => {
       values: {
         shipments: [
           {
-            id: 'shipment-1',
+            id: '103',
             invoice_number: 'INV-1',
             company: { id: 'company-1', name: 'Компания' },
             shipment_number: 25,
@@ -92,13 +97,16 @@ describe('LogisticsPreActions', () => {
     };
     const checkAcl: PreActionHandler = async (_context, next) => {
       expect(params.updateAssociationValues).toEqual(['shipments']);
-      expect(params.values.shipments).toEqual([{ id: 'shipment-1', invoice_number: 'INV-1', company: 'company-1' }]);
-      params.values.shipments = ['shipment-1'];
+      expect(params.values).toEqual([
+        { shipments: [] },
+        { shipments: [{ id: '103', invoice_number: 'INV-1', company: 'company-1' }] },
+      ]);
+      Object.assign(params, { values: [{ shipments: [] }, { shipments: ['103'] }] });
       await next();
     };
     const { handlers } = setup(0, [checkAcl]);
     const write = vi.fn(async () => {
-      expect(params.values.shipments).toEqual(['shipment-1', 'existing-shipment']);
+      expect(params.values.shipments).toEqual(['103', 'existing-shipment']);
     });
     await handlers.get('transport_runs:update')?.({ action: { actionName: 'update', params } }, write);
     expect(write).toHaveBeenCalledOnce();

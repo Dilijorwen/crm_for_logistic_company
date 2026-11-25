@@ -29,3 +29,5 @@ export const WORKSPACE_RUN_VIEW_UID = 'lcwsrecordpopup';
 export const WORKSPACE_SHIPMENT_VIEW_UID = 'lcwsshippagepopup';
 export const WORKSPACE_CREATE_SHIPMENT_VIEW_UID = 'lcwsnewshipment';
 export const WORKSPACE_DETACHED_SHIPMENT_IDS_FIELD = '_workspaceDetachedShipmentIds';
+
+export const WORKSPACE_SHIPMENT_DOCUMENTS = '_workspaceShipmentDocuments';

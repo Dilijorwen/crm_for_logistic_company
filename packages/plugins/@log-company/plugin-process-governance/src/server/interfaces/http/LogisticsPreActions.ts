@@ -7,6 +7,9 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import { createUserProvider, parseJsonTemplate } from '@nocobase/acl';
+import type { Context } from '@nocobase/actions';
+import type { Model } from '@nocobase/database';
 import type { Plugin } from '@nocobase/server';
 import { requireShipmentChineseClients } from '../../domain/logistics/ShipmentChineseClients';
 import { asLogisticsHttpError } from '../logistics/LogisticsHttpError';
@@ -20,12 +23,15 @@ import {
   uniqueIdentifiers,
   type EntityId,
 } from '../../domain/shared/Identifiers';
-import { LOGISTICS_COLLECTIONS } from '../../../shared/logistics';
-import { WORKSPACE_DETACHED_SHIPMENT_IDS_FIELD } from '../../../shared/workspace';
+import { LOGISTICS_COLLECTIONS, SHIPMENT_REFERENCE_FIELDS } from '../../../shared/logistics';
+import { WORKSPACE_DETACHED_SHIPMENT_IDS_FIELD, WORKSPACE_SHIPMENT_DOCUMENTS } from '../../../shared/workspace';
 import { logisticsErrorStatus } from '../logistics/LogisticsHttpError';
 
 interface ActionContext {
   throw?: (status: number, message: string) => never;
+  can?: (input: { resource: string; action: string }) => { params?: { filter?: Record<string, unknown> } } | null;
+  state?: Context['state'];
+  get?: (header: string) => string;
   action?: {
     actionName?: string;
     sourceId?: unknown;
@@ -33,7 +39,6 @@ interface ActionContext {
   };
 }
 
-const SHIPMENT_REFERENCE_FIELDS = ['chinese_client', 'company', 'contract_record', 'customs_warehouse'] as const;
 const RUN_SHIPMENTS_FIELD = 'shipments';
 
 export class LogisticsPreActions {
@@ -107,13 +112,23 @@ export class LogisticsPreActions {
         });
       }
       const associations = params?.updateAssociationValues;
-      if (Array.isArray(associations) && associations.includes('shipments')) {
+      if (params && Array.isArray(associations) && associations.includes('shipments')) {
         // A resource-specific pre-action takes precedence over NocoBase's generic
         // pre-action. Explicitly run the registered native association ACL before write.
         const manager = this.plugin.app.resourcer;
         const handlers = manager.getRegisteredPreActionHandlers('', context.action?.actionName || '');
         if (!handlers.length) throw this.httpError(403, 'Недоступна проверка прав на изменение поставок.');
+        const shipmentRows =
+          unified && Array.isArray(values.shipments)
+            ? await this.prepareShipmentAclRows(context, values.shipments)
+            : [];
+        if (shipmentRows.length) {
+          // NocoBase may remove the primary key from a permitted patch as a non-editable field.
+          // Keep the result of each association check in its own array slot to retain its identity.
+          params.values = [{ ...values, shipments: [] }, ...shipmentRows.map((row) => ({ shipments: [row] }))];
+        }
         const preserveLinks = async () => {
+          if (shipmentRows.length) this.restoreShipmentIdentities(params, shipmentRows);
           await this.preserveRunShipmentLinks(context, detachedIds);
           await next();
         };
@@ -127,6 +142,69 @@ export class LogisticsPreActions {
       await next();
     });
   };
+
+  private async prepareShipmentAclRows(context: ActionContext, rows: unknown[]): Promise<unknown[]> {
+    const ids = uniqueIdentifiers(rows);
+    if (!ids.length) return rows;
+    if (ids.some((id) => !/^[1-9]\d*$/.test(String(id)))) {
+      throw this.httpError(400, 'Не удалось определить выбранную поставку.');
+    }
+    const permission = context.can?.({ resource: LOGISTICS_COLLECTIONS.shipments, action: 'list' });
+    if (context.can && !permission) {
+      throw this.httpError(403, 'Нет прав на просмотр выбранных поставок.');
+    }
+    const rawFilter = permission?.params?.filter;
+    const scope = rawFilter
+      ? await parseJsonTemplate(rawFilter, {
+          state: context.state,
+          timezone: context.get?.('x-timezone'),
+          userProvider: createUserProvider({ db: this.plugin.db, currentUser: context.state?.currentUser }),
+        })
+      : undefined;
+    const selected = { id: { $in: ids } };
+    const records = await this.plugin.db.getRepository('shipments').find({
+      filter: scope ? { $and: [scope, selected] } : selected,
+      fields: ['id'],
+    });
+    const storedIds = new Map<string, EntityId>();
+    for (const record of records as Model[]) {
+      const id = extractIdentifier(record.get('id'));
+      if (id !== null) storedIds.set(String(id), id);
+    }
+    return rows.map((row) => {
+      const id = extractIdentifier(row);
+      if (id === null) return row;
+      const stored = storedIds.get(String(id));
+      if (stored == null) throw this.httpError(400, 'Одна из выбранных поставок больше недоступна.');
+      return { ...this.asRecord(row), id: stored };
+    });
+  }
+
+  private restoreShipmentIdentities(params: Record<string, unknown>, submittedRows: unknown[]): void {
+    if (!Array.isArray(params.values) || params.values.length !== submittedRows.length + 1) {
+      throw this.httpError(400, 'Не удалось проверить сохранение поставок.');
+    }
+    const [main, ...checkedRows] = params.values;
+    const run = this.asRecord(main);
+    if (!Array.isArray(run.shipments)) {
+      throw this.httpError(403, 'Нет прав на изменение поставок рейса.');
+    }
+    run.shipments = checkedRows.map((checked, index) => {
+      const { shipments } = this.asRecord(checked);
+      if (!Array.isArray(shipments) || shipments[0] == null) {
+        throw this.httpError(403, 'Нет прав на сохранение одной из поставок рейса.');
+      }
+      const row: unknown = shipments[0];
+      const id = extractIdentifier(submittedRows[index]);
+      if (id === null) {
+        const documents = this.asRecord(submittedRows[index])[WORKSPACE_SHIPMENT_DOCUMENTS];
+        return documents === undefined ? row : { ...this.asRecord(row), [WORKSPACE_SHIPMENT_DOCUMENTS]: documents };
+      }
+      const { id: checkedId, ...edits } = this.asRecord(row);
+      return Object.keys(edits).length ? { ...edits, id } : id;
+    });
+    params.values = run;
+  }
 
   private async preserveRunShipmentLinks(context: ActionContext, detachedIds: ReadonlySet<string>): Promise<void> {
     if (context.action?.actionName !== 'update') return;
@@ -170,6 +248,10 @@ export class LogisticsPreActions {
         const shipment = Object.fromEntries(
           Object.entries(this.asRecord(item)).filter(([key]) => editableFields.has(key)),
         );
+        const documents = this.asRecord(item)[WORKSPACE_SHIPMENT_DOCUMENTS];
+        if (documents !== undefined && extractIdentifier(shipment) === null) {
+          shipment[WORKSPACE_SHIPMENT_DOCUMENTS] = documents;
+        }
         for (const field of SHIPMENT_REFERENCE_FIELDS) {
           const value = shipment[field];
           if (value == null) continue;

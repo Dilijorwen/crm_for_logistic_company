@@ -10,14 +10,17 @@
 import { SubFormListFieldModel } from '@nocobase/client';
 import { DisconnectOutlined, DownOutlined, PlusOutlined } from '@ant-design/icons';
 import type { FlowModel } from '@nocobase/flow-engine';
-import { Button, Collapse, Dropdown, Form, Space, Tabs, Typography, theme } from 'antd';
+import { Button, Collapse, Dropdown, Form, Space, Tabs, Typography, theme, type FormInstance } from 'antd';
 import React, { useLayoutEffect, useRef, useState } from 'react';
-import { WORKSPACE_DETACHED_SHIPMENT_IDS_FIELD } from '../../../../shared/workspace';
+import { WORKSPACE_DETACHED_SHIPMENT_IDS_FIELD, WORKSPACE_SHIPMENT_DOCUMENTS } from '../../../../shared/workspace';
+import { DEFAULT_LOGISTICS_STATUS, SHIPMENT_REFERENCE_FIELDS } from '../../../../shared/logistics';
 import { LogisticsWorkspaceShipmentFieldsGridModel } from './WorkspaceShipmentFieldsGridModel';
+import { rememberSelectedShipments, setShipmentSelectionPending } from './unifiedShipmentSave';
 import { ScopedNativeBlock } from '../../scoped-native-block';
 
-interface ShipmentRow {
+interface ShipmentRow extends Record<string, unknown> {
   id?: string | number;
+  workspaceDraftKey?: string;
   shipment_number?: string | number;
   __is_stored__?: boolean;
 }
@@ -31,14 +34,19 @@ function WorkspaceShipmentSubform({
 }) {
   const form = model.context.form;
   const name = model.props.name;
+  const shipmentPath = Array.isArray(name) ? name : [name];
   const watched: unknown = Form.useWatch(name, { form, preserve: true });
   const [activeKey, setActiveKey] = useState<string>();
+  const nextDraft = useRef(0);
+  const draftBindings = useRef(
+    new Map<string, { form: FormInstance; companyPath(): (string | number)[]; setTokens(tokens: string[]): void }>(),
+  );
   const fieldsRef = useRef<HTMLDivElement>(null);
   const { token } = theme.useToken();
   const value: unknown = watched ?? form.getFieldValue(name);
   const rows = (Array.isArray(value) ? value : []) as ShipmentRow[];
   const items = rows.map((row, index) => ({
-    key: row?.id == null ? `new-${index}` : String(row.id),
+    key: row?.id == null ? row.workspaceDraftKey ?? `new-${index}` : String(row.id),
     label: row?.shipment_number == null ? `Новая поставка ${index + 1}` : `№${row.shipment_number}`,
   }));
   const selected = items.findIndex((item) => item.key === activeKey);
@@ -58,8 +66,9 @@ function WorkspaceShipmentSubform({
   const canCreate = Boolean(model.props.allowCreate && model.props.allowAddNew);
   const canAssociate = Boolean(model.props.allowSelectExistingRecord);
   function addShipment() {
-    setActiveKey(`new-${rows.length}`);
-    model.props.onChange([...rows, { __is_new__: true }]);
+    const workspaceDraftKey = `draft-${++nextDraft.current}`;
+    setActiveKey(workspaceDraftKey);
+    model.props.onChange([...rows, { __is_new__: true, status: DEFAULT_LOGISTICS_STATUS, workspaceDraftKey }]);
   }
   async function detachShipment() {
     if (shipmentId != null) {
@@ -80,7 +89,9 @@ function WorkspaceShipmentSubform({
     const remaining = rows.filter((_, rowIndex) => rowIndex !== index);
     const nextIndex = Math.min(index, remaining.length - 1);
     const next = remaining[nextIndex];
-    setActiveKey(next && (next.id == null ? `new-${nextIndex}` : String(next.id)));
+    const removedDraft = rows[index].workspaceDraftKey;
+    if (removedDraft) draftBindings.current.delete(removedDraft);
+    setActiveKey(next && (next.id == null ? next.workspaceDraftKey ?? `new-${nextIndex}` : String(next.id)));
     model.props.onChange(remaining);
   }
   return (
@@ -89,7 +100,7 @@ function WorkspaceShipmentSubform({
         {(canCreate || canAssociate) && (
           <Dropdown
             trigger={['click']}
-            disabled={model.props.disabled}
+            disabled={model.props.disabled || model.props.workspaceSelectionPending}
             menu={{
               items: [
                 { key: 'create', label: 'Создать новую поставку', disabled: !canCreate },
@@ -131,6 +142,32 @@ function WorkspaceShipmentSubform({
       ) : (
         <Typography.Text type="secondary">Поставок пока нет</Typography.Text>
       )}
+      {rows.map((row, rowIndex) => {
+        const key = row.workspaceDraftKey;
+        if (row.id != null || !key) return null;
+        let binding = draftBindings.current.get(key);
+        if (!binding) {
+          const indexOfDraft = () =>
+            (form.getFieldValue(name) as ShipmentRow[] | undefined)?.findIndex(
+              (item) => item.workspaceDraftKey === key,
+            ) ?? -1;
+          binding = {
+            form,
+            companyPath: () => [...shipmentPath, indexOfDraft(), 'company'],
+            setTokens: (tokens) => {
+              const draftIndex = indexOfDraft();
+              if (draftIndex !== -1)
+                form.setFieldValue([...shipmentPath, draftIndex, WORKSPACE_SHIPMENT_DOCUMENTS], tokens);
+            },
+          };
+          draftBindings.current.set(key, binding);
+        }
+        return (
+          <div key={key} hidden={rowIndex !== index} style={{ marginTop: token.marginSM }}>
+            <ScopedNativeBlock host={model} templateUid="lcwspagedocs" shipmentDraft={binding} />
+          </div>
+        );
+      })}
       {shipmentId != null && (
         <Space direction="vertical" size={token.marginSM} style={{ width: '100%', marginTop: token.marginSM }}>
           <ScopedNativeBlock key={shipmentId} host={model} templateUid="lcwspagedocs" shipmentId={String(shipmentId)} />
@@ -142,6 +179,42 @@ function WorkspaceShipmentSubform({
 
 /** The native subform owns inputs, selector, validation, ACL and the submit payload. */
 export class LogisticsWorkspaceShipmentSubformModel extends SubFormListFieldModel {
+  async change() {
+    if (this.props.workspaceSelectionPending) return;
+    const { resource, form, api } = this.context.blockModel.context;
+    const name = this.props.name;
+    const readRows = (): ShipmentRow[] => form.getFieldValue(name) ?? [];
+    const known = new Set(readRows().flatMap(({ id }) => (id == null ? [] : [String(id)])));
+    const selected: ShipmentRow[] = this.selectedRows.value;
+    const ids = [...new Set(selected.flatMap(({ id }) => (id != null && !known.has(String(id)) ? [String(id)] : [])))];
+    if (!ids.length) return;
+    this.setProps('workspaceSelectionPending', true);
+    setShipmentSelectionPending(resource, true);
+    try {
+      // Picker rows contain only the fields needed by its current columns.
+      const records = await Promise.all(
+        ids.map(async (id) => {
+          const response = await api.request({
+            url: 'shipments:get',
+            method: 'get',
+            params: { filterByTk: id, appends: [...SHIPMENT_REFERENCE_FIELDS] },
+          });
+          const record = response.data?.data as ShipmentRow | undefined;
+          if (record?.id == null || String(record.id) !== id) throw new Error('Выбранная поставка недоступна.');
+          return { ...record, __is_stored__: true };
+        }),
+      );
+      const current = readRows();
+      rememberSelectedShipments(resource, current, records);
+      this.props.onChange([...current, ...records]);
+    } catch {
+      this.context.message.error('Не удалось загрузить данные выбранных поставок. Повторите выбор.');
+    } finally {
+      setShipmentSelectionPending(resource, false);
+      this.setProps('workspaceSelectionPending', false);
+    }
+  }
+
   onMount() {
     const grid = this.subModels?.grid;
     const forks = grid && !Array.isArray(grid) ? grid.forks : undefined;

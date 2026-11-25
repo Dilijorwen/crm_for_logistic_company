@@ -12,23 +12,29 @@ import { FlowEngine, FlowModel } from '@nocobase/flow-engine';
 import { describe, expect, it } from 'vitest';
 import { LogisticsWorkspaceShipmentFieldsGridModel } from '../WorkspaceShipmentFieldsGridModel';
 
-function fixture(fieldIndex?: number) {
+const customsRows = { first: [['declaration'], ['badis']], second: [['payment'], ['date']], third: [['control']] };
+
+function fixture(
+  fieldIndex?: number,
+  rows: Record<string, string[][]> = customsRows,
+  checkboxFields = ['badis', 'control'],
+) {
   const flow = new FlowEngine();
   flow.registerModels({
     LogisticsWorkspaceShipmentFieldsGridModel,
     FormItemModel: FlowModel,
     CheckboxFieldModel: FlowModel,
   });
-  const fields = ['declaration', 'badis', 'payment', 'date', 'control'];
+  const fields = Object.values(rows).flat(2);
   const model = flow.createModel<LogisticsWorkspaceShipmentFieldsGridModel>({
     uid: 'shipment-section',
     use: 'LogisticsWorkspaceShipmentFieldsGridModel',
-    props: { rows: { first: [['declaration'], ['badis']], second: [['payment'], ['date']], third: [['control']] } },
+    props: { rows },
     subModels: {
       items: fields.map((uid) => ({
         uid,
         use: 'FormItemModel',
-        ...(['badis', 'control'].includes(uid) && {
+        ...(checkboxFields.includes(uid) && {
           subModels: { field: { uid: `${uid}-check`, use: 'CheckboxFieldModel' } },
         }),
       })),
@@ -43,9 +49,30 @@ function fixture(fieldIndex?: number) {
 }
 
 describe('Раскладка полей поставки', () => {
-  it('ставит флажки после остальных полей и заполняет ячейки видимыми полями', () => {
+  const detailsRows = {
+    first: [['warehouse'], ['warehouse_date']],
+    second: [['manager_comment']],
+    third: [['importer'], ['contract']],
+    fourth: [['client'], ['scheme']],
+  };
+
+  it('растягивает СВХ на всю строку и оставляет комментарий менеджера под ним', () => {
+    const { model, visibleRows, field } = fixture(undefined, detailsRows, []);
+    field('warehouse_date').hidden = true;
+    expect(visibleRows()).toEqual([['warehouse'], ['manager_comment'], ['importer', 'contract'], ['client', 'scheme']]);
+    expect(model.getGridLayout().rows[0].sizes).toEqual([24]);
+  });
+
+  it('удаляет пустую строку и объединяет поля из двух неполных соседних строк', () => {
+    const { model, visibleRows, field } = fixture(undefined, detailsRows, []);
+    for (const uid of ['warehouse', 'warehouse_date', 'contract', 'client']) field(uid).hidden = true;
+    expect(visibleRows()).toEqual([['manager_comment'], ['importer', 'scheme']]);
+    expect(model.getGridLayout().rows[1].sizes).toEqual([12, 12]);
+  });
+
+  it('ставит флажки после остальных полей и сохраняет строки обычных полей', () => {
     const { visibleRows, field } = fixture();
-    expect(visibleRows()).toEqual([['declaration', 'payment'], ['date'], ['badis', 'control']]);
+    expect(visibleRows()).toEqual([['declaration'], ['payment', 'date'], ['badis', 'control']]);
     field('payment').setProps({ hidden: true });
     field('badis').hidden = true;
     expect(visibleRows()).toEqual([['declaration', 'date'], ['control']]);

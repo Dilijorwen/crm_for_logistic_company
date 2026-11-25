@@ -37,6 +37,7 @@ export const LOGISTICS_STATUS_VALUES = [
 export type LogisticsStatus = (typeof LOGISTICS_STATUS_VALUES)[number];
 
 export const DEFAULT_LOGISTICS_STATUS: LogisticsStatus = 'queue';
+export const SHIPMENT_REFERENCE_FIELDS = ['chinese_client', 'company', 'contract_record', 'customs_warehouse'] as const;
 
 export const LOGISTICS_STATUS_LABELS: Record<LogisticsStatus, string> = {
   queue: 'В очереди',

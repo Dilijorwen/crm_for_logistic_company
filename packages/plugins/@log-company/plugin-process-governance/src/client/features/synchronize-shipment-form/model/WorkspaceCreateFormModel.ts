@@ -10,12 +10,13 @@
 import { CreateFormModel, type ResourceSettingsInitParams } from '@nocobase/client';
 import type { FlowModelContext } from '@nocobase/flow-engine';
 import { refreshShipmentConsumers } from './ShipmentSynchronizedEditFormModel';
+import { configureUnifiedShipmentSave } from './unifiedShipmentSave';
 
 /** Refresh both the open run and its work list after creating a source record. */
 export class LogisticsWorkspaceCreateFormModel extends CreateFormModel {
   createResource(context: FlowModelContext, params: ResourceSettingsInitParams) {
     const resource = super.createResource(context, params);
-    if (this.props.workspaceUnified) resource.setSaveActionOptions({ params: { workspaceUnified: true } });
+    if (this.props.workspaceUnified) configureUnifiedShipmentSave(resource);
     const save = resource.save.bind(resource);
     resource.save = async (data, options) => {
       const result = await save(data, options);

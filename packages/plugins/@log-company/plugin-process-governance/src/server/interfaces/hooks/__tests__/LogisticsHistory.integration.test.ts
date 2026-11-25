@@ -393,6 +393,7 @@ describe('Logistics history database integration', () => {
     });
     const linked = db.getRepository('transport_runs.shipments', combined.get('id'));
     const [created] = await linked.find({ appends: ['chinese_client'] });
+    expect(created.get('status')).toBe('queue');
     expect(created.get('chinese_client')).toHaveLength(2);
     await runs.update({
       context,

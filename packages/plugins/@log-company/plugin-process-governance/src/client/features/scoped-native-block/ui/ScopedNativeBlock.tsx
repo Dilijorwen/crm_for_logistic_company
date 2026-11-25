@@ -15,7 +15,7 @@ import {
   FlowViewContextProvider,
   type CreateModelOptions,
 } from '@nocobase/flow-engine';
-import { Alert, Skeleton } from 'antd';
+import { Alert, Skeleton, type FormInstance } from 'antd';
 import React, { useEffect, useState } from 'react';
 import type { WorkspaceViewHost } from '../../../shared/lib';
 
@@ -25,15 +25,24 @@ export function ScopedNativeBlock({
   templateUid,
   runId,
   shipmentId,
+  shipmentDraft,
 }: {
   host: WorkspaceViewHost;
   templateUid: string;
-} & ({ runId: string; shipmentId?: never } | { runId?: never; shipmentId: string })) {
+} & (
+  | { runId: string; shipmentId?: never; shipmentDraft?: never }
+  | { runId?: never; shipmentId: string; shipmentDraft?: never }
+  | {
+      runId?: never;
+      shipmentId?: never;
+      shipmentDraft: { form: FormInstance; companyPath(): (string | number)[]; setTokens(tokens: string[]): void };
+    }
+)) {
   const [content, setContent] = useState<React.ReactNode>(<Skeleton active />);
   useEffect(() => {
     let active = true;
     const id = shipmentId ?? runId;
-    const collectionName = shipmentId ? 'shipments' : 'transport_runs';
+    const collectionName = shipmentId || shipmentDraft ? 'shipments' : 'transport_runs';
     setContent(<Skeleton active />);
     const engine = createBlockScopedEngine(host.flowEngine);
     const context = new FlowContext();
@@ -48,6 +57,7 @@ export function ScopedNativeBlock({
           filterByTk: id,
           workspaceRunId: runId ?? null,
           workspaceShipmentId: shipmentId ?? null,
+          workspaceShipmentDraft: shipmentDraft,
           sourceId: null,
           associationName: null,
         },
@@ -80,6 +90,6 @@ export function ScopedNativeBlock({
       active = false;
       engine.unlinkFromStack();
     };
-  }, [host, templateUid, runId, shipmentId]);
+  }, [host, templateUid, runId, shipmentId, shipmentDraft]);
   return <>{content}</>;
 }
