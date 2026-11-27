@@ -70,6 +70,12 @@
 перетаскивании сохраняются и пустые папки; в остальных черновиках пустые папки не переносятся.
 В разрешительных документах вложенность показывается в блоке «Документы»; штатное поле по-прежнему содержит те же вложения.
 
+Блок «Документы» принимает до 500 МБ на файл, до 2500 МБ файлов и до 1000 файлов и пустых папок за одну загрузку.
+Разрешено до 200 частей пути, включая имя файла, по 200 символов на часть. Имена и пути передаются отдельным полем UTF-8.
+Лимиты 2500 МБ и 1000 элементов также применяются к активным черновикам одного пользователя, а суммарный объём
+сохранённых черновиков всех пользователей ограничен 10 ГБ на процесс приложения. Штатные вложения CRM используют
+свои лимиты. На сервере прокси должен пропускать multipart-запросы с учётом метаданных (до 2628 МБ).
+
 В блоке «Документы» списки файлов в папках и списки штатных вложений оформлены одинаково. Имя файла открывает
 просмотр в карточке, действие «Скачать» доступно отдельно. Разделы и права на загрузку и удаление остаются раздельными.
 Excel (`.xlsx`, `.xls`), ODS и CSV открываются как таблицы.
@@ -178,9 +184,11 @@ shipments/drafts/{draft_token}/{uuid}.{extension}
 
 ```bash
 yarn eslint --fix packages/plugins/@log-company/plugin-process-documents/src
-yarn build @log-company/plugin-process-documents
-yarn tar @log-company/plugin-process-documents
-docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-process-documents-2.0.106.tgz
+export PLUGIN_PACKAGE_PREFIX=@nocobase/plugin-,@nocobase/preset-,@nocobase/plugin-pro-,@log-company/plugin-
+yarn build @log-company/plugin-file-storage @log-company/plugin-process-documents
+yarn tar @log-company/plugin-file-storage @log-company/plugin-process-documents
+docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-file-storage-2.0.61.tgz
+docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-process-documents-2.0.110.tgz
 docker compose exec -T app yarn nocobase upgrade
 docker compose restart app
 ```
@@ -188,6 +196,9 @@ docker compose restart app
 После обновления архива проверьте, что перезапустился именно веб-процесс NocoBase. Если он запущен напрямую в контейнере,
 внутренний вызов PM2 из `pm update` его не перезапустит. До перезапуска `pm:listEnabled` может выдавать прежний
 хэш клиентского скрипта, и браузер продолжит использовать кеш даже при новой версии на диске.
+Сборка «Документов» использует установленный `plugin-file-storage`. При сборке поверх старого `dist` проверьте,
+что в архив не попала устаревшая копия по пути `dist/node_modules/@log-company/plugin-file-storage`:
+она перекрывает установленную версию. Если копия осталась от старой сборки, отложите её вне `dist` и пересоберите архив.
 
 После обновления проверяют пустой блок существующей поставки, draft в форме создания, загрузку, скачивание, удаление
 файла и папки, а также каскад при удалении несвязанной с рейсами поставки.

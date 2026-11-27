@@ -237,14 +237,14 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
     return rows.map((row) => this.mapDocument(row));
   }
 
-  async listDocumentsByShipmentId(
-    shipmentId: string,
+  async listDocumentsByOwner(
+    owner: Extract<DocumentScope, { mode: 'shipment' | 'run' }>,
     transaction?: TransactionContext,
   ): Promise<ProcessDocumentRecord[]> {
     const [rows] = (await this.plugin.db.sequelize.query(
-      `select * from ${DOCUMENTS_COLLECTION} where shipment_id = :shipmentId order by id asc`,
+      `select * from ${DOCUMENTS_COLLECTION} where ${this.scopePredicate(owner)} order by id asc`,
       {
-        replacements: { shipmentId },
+        replacements: this.scopeReplacements(owner),
         transaction: this.asTransaction(transaction),
       },
     )) as [DocumentRow[], unknown];
@@ -375,16 +375,22 @@ export class NocoBaseProcessDocumentsRepository implements ProcessDocumentsRepos
     });
   }
 
-  async deleteDocumentsByShipmentId(shipmentId: string, transaction?: TransactionContext): Promise<void> {
-    await this.plugin.db.sequelize.query(`delete from ${DOCUMENTS_COLLECTION} where shipment_id = :shipmentId`, {
-      replacements: { shipmentId },
+  async deleteDocumentsByOwner(
+    owner: Extract<DocumentScope, { mode: 'shipment' | 'run' }>,
+    transaction?: TransactionContext,
+  ): Promise<void> {
+    await this.plugin.db.sequelize.query(`delete from ${DOCUMENTS_COLLECTION} where ${this.scopePredicate(owner)}`, {
+      replacements: this.scopeReplacements(owner),
       transaction: this.asTransaction(transaction),
     });
   }
 
-  async deleteFoldersByShipmentId(shipmentId: string, transaction?: TransactionContext): Promise<void> {
-    await this.plugin.db.sequelize.query(`delete from ${FOLDERS_COLLECTION} where shipment_id = :shipmentId`, {
-      replacements: { shipmentId },
+  async deleteFoldersByOwner(
+    owner: Extract<DocumentScope, { mode: 'shipment' | 'run' }>,
+    transaction?: TransactionContext,
+  ): Promise<void> {
+    await this.plugin.db.sequelize.query(`delete from ${FOLDERS_COLLECTION} where ${this.scopePredicate(owner)}`, {
+      replacements: this.scopeReplacements(owner),
       transaction: this.asTransaction(transaction),
     });
   }

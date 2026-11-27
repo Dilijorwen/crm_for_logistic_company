@@ -149,6 +149,30 @@ describe('Сохранение записи с временными докуме
     expect(await readdir(root)).toEqual([]);
   });
 
+  it('сохраняет UTF-8 путь из 200 частей отдельно от заголовка файла', async () => {
+    const boundary = 'document-draft-long-path';
+    const filename = [...Array(199).fill('文'.repeat(200)), '表格.txt'].join('/');
+    const body = Buffer.from(
+      `--${boundary}\r\nContent-Disposition: form-data; name="filePaths"\r\n\r\n${JSON.stringify([filename])}\r\n` +
+        `--${boundary}\r\nContent-Disposition: form-data; name="files"; filename="upload"\r\n` +
+        `Content-Type: text/plain\r\n\r\nhello\r\n--${boundary}--\r\n`,
+    );
+    const req = Object.assign(new PassThrough(), {
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}`, 'content-length': String(body.length) },
+    });
+    req.end(body);
+    const staged = {
+      ...context(''),
+      method: 'POST',
+      req,
+      query: { resource: 'shipments', recordId: '42' },
+      request: { length: body.length },
+      can: () => true,
+    } as unknown as Context;
+    await stageMultipart(staged, vi.fn());
+    expect(staged.body).toEqual({ token: expect.any(String), files: [{ name: filename, size: 5 }] });
+  });
+
   it('принимает multipart с пустой папкой без файлов и сохраняет её только в черновике', async () => {
     const boundary = 'document-draft-test';
     const body = Buffer.from(

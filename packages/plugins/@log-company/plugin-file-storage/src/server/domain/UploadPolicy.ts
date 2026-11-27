@@ -18,10 +18,10 @@ interface UploadProfile {
 }
 
 export const processDocumentUpload: UploadProfile = {
-  maxFiles: 100,
-  maxFileBytes: 50 * megabyte,
-  maxTotalBytes: 250 * megabyte,
-  maxPathSegments: 20,
+  maxFiles: 1000,
+  maxFileBytes: 500 * megabyte,
+  maxTotalBytes: 2500 * megabyte,
+  maxPathSegments: 200,
 };
 
 export const nativeAttachmentUpload: UploadProfile = {

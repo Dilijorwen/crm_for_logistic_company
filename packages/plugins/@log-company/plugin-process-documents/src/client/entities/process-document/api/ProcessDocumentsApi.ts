@@ -26,7 +26,7 @@ import type {
   CompanyRequestFolderName,
 } from '../../../../contracts/processDocuments';
 import type { CatalogSearchRequest, CatalogSearchResponse } from '../../../../contracts/documentCatalog';
-import type { SelectedDocument } from './FormDocumentDraftsApi';
+import { appendDocumentFiles, type SelectedDocument } from './FormDocumentDraftsApi';
 
 export interface ProcessDocumentsTransport {
   request(config: { url: string; method: 'post'; data: unknown; signal?: AbortSignal }): Promise<unknown>;
@@ -133,7 +133,7 @@ export class ProcessDocumentsApi {
     }
     if (folderId !== null) data.append('folderId', String(folderId));
     if (emptyFolders.length) data.append('emptyFolders', JSON.stringify(emptyFolders));
-    for (const { file, name } of files) data.append('files', file, name);
+    appendDocumentFiles(data, files);
     await this.request('uploadFiles', data);
   }
 

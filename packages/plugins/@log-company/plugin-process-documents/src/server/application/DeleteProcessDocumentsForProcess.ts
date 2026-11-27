@@ -8,13 +8,15 @@
  */
 
 import { documentStorageOwnerPath } from './documentStorageOwnerPath';
+import type { DocumentScope } from '../domain/documents/DocumentScope';
 import type { ApplicationLogger, DocumentStorage } from './ports/DocumentStorage';
 import type { ProcessDocumentsRepository, TransactionContext } from './ports/ProcessDocumentsRepository';
 
-export interface DeleteProcessDocumentsForProcessInput {
-  shipmentId: string;
-  transaction?: TransactionContext;
-}
+type RemovalOwner = Extract<DocumentScope, { mode: 'shipment' | 'run' }>;
+export type DeleteProcessDocumentsForProcessInput = (
+  | { shipmentId: string; runId?: never }
+  | { runId: string; shipmentId?: never }
+) & { transaction?: TransactionContext };
 
 export class DeleteProcessDocumentsForProcess {
   constructor(
@@ -24,24 +26,26 @@ export class DeleteProcessDocumentsForProcess {
   ) {}
 
   async execute(input: DeleteProcessDocumentsForProcessInput): Promise<void> {
-    if (input.transaction) return this.enqueueCleanup(input.shipmentId, input.transaction);
-    await this.repository.withTransaction((transaction) => this.enqueueCleanup(input.shipmentId, transaction));
+    const owner: RemovalOwner =
+      input.runId !== undefined
+        ? { mode: 'run', runId: input.runId }
+        : { mode: 'shipment', shipmentId: input.shipmentId };
+    if (input.transaction) return this.enqueueCleanup(owner, input.transaction);
+    await this.repository.withTransaction((transaction) => this.enqueueCleanup(owner, transaction));
   }
 
-  private async enqueueCleanup(shipmentId: string, transaction: TransactionContext): Promise<void> {
-    const documents = await this.repository.listDocumentsByShipmentId(shipmentId, transaction);
-    const prefix = `${documentStorageOwnerPath({ mode: 'shipment', shipmentId })}/`;
+  private async enqueueCleanup(owner: RemovalOwner, transaction: TransactionContext): Promise<void> {
+    const documents = await this.repository.listDocumentsByOwner(owner, transaction);
+    const prefix = `${documentStorageOwnerPath(owner)}/`;
     let shipmentPrefixKeys: string[];
     try {
       shipmentPrefixKeys = await this.storage.listKeys(prefix);
     } catch (error) {
-      this.logger.error('Не удалось получить список объектов удаляемой поставки в хранилище', error, {
-        shipmentId,
-      });
+      this.logger.error('Не удалось получить список объектов удаляемой записи в хранилище', error, owner);
       throw error;
     }
-    await this.repository.deleteDocumentsByShipmentId(shipmentId, transaction);
-    await this.repository.deleteFoldersByShipmentId(shipmentId, transaction);
+    await this.repository.deleteDocumentsByOwner(owner, transaction);
+    await this.repository.deleteFoldersByOwner(owner, transaction);
     await this.storage.enqueueDeletion(
       [
         ...new Set([

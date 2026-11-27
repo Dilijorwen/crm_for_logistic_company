@@ -71,7 +71,8 @@ describe('ProcessDocumentsApi contract', () => {
     expect(data.get('draftToken')).toBe('draft-token');
     expect(data.get('shipmentId')).toBeNull();
     expect(data.get('folderId')).toBe('folder');
-    expect((data.get('files') as File).name).toBe('Поставка/договор.txt');
+    expect((data.get('files') as File).name).toBe('upload');
+    expect(JSON.parse(String(data.get('filePaths')))).toEqual(['Поставка/договор.txt']);
     expect(request.mock.calls[0][0].url).toBe('processDocuments:uploadFiles');
   });
 

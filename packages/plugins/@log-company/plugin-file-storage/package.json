@@ -1,7 +1,7 @@
 {
   "name": "@log-company/plugin-file-storage",
   "displayName": "Единое файловое хранилище",
-  "version": "2.0.60",
+  "version": "2.0.61",
   "main": "dist/server/index.js",
   "files": ["server.js", "client.js", "storage.js"],
   "dependencies": {

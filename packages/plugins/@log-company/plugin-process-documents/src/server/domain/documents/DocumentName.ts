@@ -8,6 +8,7 @@
  */
 
 import { ProcessDocumentsError } from './DocumentErrors';
+import { MAX_DOCUMENT_UPLOAD_PATH_SEGMENTS } from '../../../contracts/processDocuments';
 
 export function isDocumentNameSegment(name: string): boolean {
   return (
@@ -24,7 +25,7 @@ export function isDocumentNameSegment(name: string): boolean {
 
 export function assertSafeUploadName(relativeName: string): void {
   const parts = relativeName.split(/[\\/]/);
-  if (parts.length > 20 || parts.some((part) => !isDocumentNameSegment(part.trim()))) {
+  if (parts.length > MAX_DOCUMENT_UPLOAD_PATH_SEGMENTS || parts.some((part) => !isDocumentNameSegment(part.trim()))) {
     throw new ProcessDocumentsError('INVALID_UPLOAD', 'Слишком длинный или недопустимый путь в загружаемой папке.');
   }
 }

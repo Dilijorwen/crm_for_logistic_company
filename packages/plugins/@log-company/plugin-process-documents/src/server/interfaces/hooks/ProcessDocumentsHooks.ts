@@ -96,6 +96,11 @@ export class ProcessDocumentsHooks {
       },
     );
 
+    this.plugin.db.on('transport_runs.beforeDestroy', async (model: NocoBaseModel, options: HookOptions) => {
+      const runId = parseIdentifier(model.get('id'));
+      if (runId) await this.deleteProcessDocuments.execute({ runId, transaction: options.transaction });
+    });
+
     this.plugin.db.on(`${SHIPMENTS_COLLECTION}.afterDestroy`, async (model: NocoBaseModel, options: HookOptions) => {
       const shipmentId = parseIdentifier(model.get('id'));
       if (!shipmentId) {

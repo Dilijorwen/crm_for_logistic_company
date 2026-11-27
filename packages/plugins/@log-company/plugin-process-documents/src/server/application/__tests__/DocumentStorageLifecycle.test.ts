@@ -68,9 +68,10 @@ function dependencies() {
       return folder;
     },
     createDocument,
-    listDocumentsByShipmentId: async (shipmentId: string) => documents.filter((item) => item.shipmentId === shipmentId),
-    deleteDocumentsByShipmentId: vi.fn(async () => undefined),
-    deleteFoldersByShipmentId: vi.fn(async () => undefined),
+    listDocumentsByOwner: async (owner: { shipmentId: string }) =>
+      documents.filter((item) => item.shipmentId === owner.shipmentId),
+    deleteDocumentsByOwner: vi.fn(async () => undefined),
+    deleteFoldersByOwner: vi.fn(async () => undefined),
     attachDraftToShipment: async (draftToken: string, shipmentId: string) => {
       for (const document of documents.filter((item) => item.draftToken === draftToken)) {
         document.shipmentId = shipmentId;

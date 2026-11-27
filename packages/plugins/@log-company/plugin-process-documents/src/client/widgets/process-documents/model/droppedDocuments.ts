@@ -8,9 +8,10 @@
  */
 
 import type { SelectedDocument } from '../../../entities/process-document';
-import { MAX_DOCUMENT_UPLOAD_ENTRIES as maxFiles } from '../../../../contracts/processDocuments';
-
-const maxDepth = 20;
+import {
+  MAX_DOCUMENT_UPLOAD_ENTRIES as maxFiles,
+  MAX_DOCUMENT_UPLOAD_PATH_SEGMENTS as maxDepth,
+} from '../../../../contracts/processDocuments';
 
 export async function droppedDocuments(transfer: DataTransfer): Promise<SelectedDocument[]> {
   return (await readDroppedDocuments(transfer)).files;

@@ -53,7 +53,12 @@ import { normalizeNullableIdentifier, parseDraftToken, parseIdentifier } from '.
 import { isCompanyDocumentArea, PROCESS_DOCUMENTS_DRAFT_FIELD } from '../../../contracts/processDocuments';
 import type { DocumentsListResponse } from '../../../contracts/processDocuments';
 
-import { decodeUploadedName, parseUploadedEmptyFolders } from './UploadedDocumentName';
+import {
+  documentUploadFieldBytes,
+  documentUploadRequestBytes,
+  parseUploadedEmptyFolders,
+  resolveUploadedFilePaths,
+} from './UploadedDocumentName';
 
 const RESOURCE = 'processDocuments';
 
@@ -86,7 +91,12 @@ export class ProcessDocumentsController {
   private readonly upload = multer({
     dest: path.join(os.tmpdir(), 'process-documents-upload'),
     preservePath: true,
-    limits: { files: processDocumentUpload.maxFiles, fileSize: processDocumentUpload.maxFileBytes, fields: 8 },
+    limits: {
+      files: processDocumentUpload.maxFiles,
+      fileSize: processDocumentUpload.maxFileBytes + 1,
+      fields: 9,
+      fieldSize: documentUploadFieldBytes,
+    },
   }).array('files');
 
   constructor(
@@ -246,14 +256,18 @@ export class ProcessDocumentsController {
 
   private readonly uploadFiles = async (context: UploadContext, next: Next): Promise<void> => {
     await this.handle(context, async () => {
+      if (context.request.length == null || context.request.length > documentUploadRequestBytes) {
+        context.throw(413, 'Размер запроса загрузки неизвестен или превышает допустимый.');
+      }
       try {
         await this.upload(context, async () => undefined);
         const files = context.files || [];
         const values = this.actionValues(context);
         validateUploadBatch(files, processDocumentUpload);
+        const filePaths = resolveUploadedFilePaths(values.filePaths, files);
         const verifiedFiles: UploadedDocumentFile[] = [];
-        for (const file of files) {
-          const originalName = decodeUploadedName(file.originalname);
+        for (const [index, file] of files.entries()) {
+          const originalName = filePaths[index];
           verifiedFiles.push({
             path: file.path,
             originalName,

@@ -17,7 +17,7 @@ import { ProcessDocumentsError } from '../../domain/documents/DocumentErrors';
 
 const lifetime = 2 * 60 * 60 * 1_000;
 const concurrentUploads = 4;
-const maximumStagedBytes = 8 * processDocumentUpload.maxTotalBytes;
+const maximumStagedBytes = 10 * 1024 ** 3;
 const maximumBatches = 100;
 interface DraftSelection {
   files: UploadedDocumentFile[];

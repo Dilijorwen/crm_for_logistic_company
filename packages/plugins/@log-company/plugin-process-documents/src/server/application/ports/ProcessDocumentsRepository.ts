@@ -104,7 +104,10 @@ export interface ProcessDocumentsRepository {
     folderIds: string[],
     transaction?: TransactionContext,
   ): Promise<ProcessDocumentRecord[]>;
-  listDocumentsByShipmentId(shipmentId: string, transaction?: TransactionContext): Promise<ProcessDocumentRecord[]>;
+  listDocumentsByOwner(
+    owner: Extract<DocumentScope, { mode: 'shipment' | 'run' }>,
+    transaction?: TransactionContext,
+  ): Promise<ProcessDocumentRecord[]>;
   createFolder(input: CreateFolderRecordInput, transaction?: TransactionContext): Promise<DocumentFolderRecord>;
   lockCompanyFolders(companyId: string, transaction: TransactionContext): Promise<void>;
   createDocument(input: CreateDocumentRecordInput, transaction?: TransactionContext): Promise<ProcessDocumentRecord>;
@@ -112,7 +115,13 @@ export interface ProcessDocumentsRepository {
   renameEntry(kind: 'folder' | 'file', id: string, title: string, transaction: TransactionContext): Promise<void>;
   deleteFolder(id: string, transaction?: TransactionContext): Promise<void>;
   deleteDocument(id: string, transaction?: TransactionContext): Promise<void>;
-  deleteDocumentsByShipmentId(shipmentId: string, transaction?: TransactionContext): Promise<void>;
-  deleteFoldersByShipmentId(shipmentId: string, transaction?: TransactionContext): Promise<void>;
+  deleteDocumentsByOwner(
+    owner: Extract<DocumentScope, { mode: 'shipment' | 'run' }>,
+    transaction?: TransactionContext,
+  ): Promise<void>;
+  deleteFoldersByOwner(
+    owner: Extract<DocumentScope, { mode: 'shipment' | 'run' }>,
+    transaction?: TransactionContext,
+  ): Promise<void>;
   attachDraftToShipment(draftToken: string, shipmentId: string, transaction?: TransactionContext): Promise<void>;
 }

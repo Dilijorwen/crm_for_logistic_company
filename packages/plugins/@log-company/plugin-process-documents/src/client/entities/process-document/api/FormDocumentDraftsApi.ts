@@ -21,6 +21,12 @@ export interface FormDocumentBatch {
   emptyFolders?: string[];
 }
 
+export function appendDocumentFiles(data: FormData, files: readonly SelectedDocument[]) {
+  if (!files.length) return;
+  data.append('filePaths', JSON.stringify(files.map(({ name }) => name)));
+  for (const { file } of files) data.append('files', file, 'upload');
+}
+
 export class FormDocumentDraftsApi {
   constructor(private readonly client: APIClient) {}
 
@@ -44,7 +50,7 @@ export class FormDocumentDraftsApi {
     companyId?: string,
   ) {
     const data = new FormData();
-    files.forEach(({ file, name }) => data.append('files', file, name));
+    appendDocumentFiles(data, files);
     if (emptyFolders?.length) data.append('emptyFolders', JSON.stringify(emptyFolders));
     const response = await this.client.request<{ data: FormDocumentBatch }>({
       url: 'processDocumentDrafts:stage',

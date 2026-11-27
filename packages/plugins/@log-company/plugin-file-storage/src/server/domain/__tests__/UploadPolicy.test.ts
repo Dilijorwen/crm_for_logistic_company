@@ -27,6 +27,33 @@ describe('shared upload policy', () => {
 
   it('rejects oversized requests even when each file is within the individual limit', () => {
     const files = Array.from({ length: 6 }, () => ({ size: processDocumentUpload.maxFileBytes }));
-    expect(() => validateUploadBatch(files, processDocumentUpload)).toThrow('250 МБ');
+    expect(() => validateUploadBatch(files, processDocumentUpload)).toThrow('2500 МБ');
+  });
+
+  it('accepts the new limits and rejects the first value above each limit', () => {
+    const mb = 1024 * 1024;
+    expect(() =>
+      validateUploadBatch(
+        Array.from({ length: 5 }, () => ({ size: 500 * mb })),
+        processDocumentUpload,
+      ),
+    ).not.toThrow();
+    expect(() => validateUploadBatch([{ size: 500 * mb + 1 }], processDocumentUpload)).toThrow('500 МБ');
+    expect(() =>
+      validateUploadBatch(
+        Array.from({ length: 1000 }, () => ({ size: 1 })),
+        processDocumentUpload,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateUploadBatch(
+        Array.from({ length: 1001 }, () => ({ size: 1 })),
+        processDocumentUpload,
+      ),
+    ).toThrow('1000');
+    const path = [...Array(199).fill('文'.repeat(200)), '表格.xlsx'].join('/');
+    expect(validateUploadName(path, processDocumentUpload)).toBe('表格.xlsx');
+    expect(() => validateUploadName(`extra/${path}`, processDocumentUpload)).toThrow();
+    expect(() => validateUploadName('я'.repeat(201), processDocumentUpload)).toThrow();
   });
 });

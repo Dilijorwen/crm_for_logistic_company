@@ -88,6 +88,6 @@ describe('Documents catalog', () => {
     const { data } = request.mock.calls[0][0];
     expect(data.get('companyId')).toBe('10');
     expect(data.get('runId')).toBe('87');
-    expect(data.get('files').name).toBe('Декларантам/СМР.pdf');
+    expect(JSON.parse(data.get('filePaths'))).toEqual(['Декларантам/СМР.pdf']);
   });
 });

@@ -96,7 +96,7 @@ describe('Режимы документов в компании', () => {
     const query = upload?.data;
     expect(query?.get('shipmentId')).toBe('42');
     expect(query?.get('folderId')).toBe(folder.id);
-    expect(query?.get('files').name).toBe('Скан/Договор.txt');
+    expect(JSON.parse(query?.get('filePaths'))).toEqual(['Скан/Договор.txt']);
 
     fireEvent.click(screen.getByRole('button', { name: 'К списку файлов' }));
     rerender(<ProcessDocumentsBlock shipmentId="43" />);
@@ -250,7 +250,7 @@ describe('Режимы документов в компании', () => {
     expect(screen.getByText('Договор.txt')).toBeVisible();
     const staged = request.mock.calls.find(([config]) => config.url === 'processDocumentDrafts:stage')?.[0];
     expect(staged.params).toEqual({ resource: 'transport_runs', recordId: null });
-    expect(staged.data.get('files').name).toBe('Машина/Документы/Договор.txt');
+    expect(JSON.parse(staged.data.get('filePaths'))).toEqual(['Машина/Документы/Договор.txt']);
     expect(saveRequest).not.toHaveBeenCalled();
     await act(async () => {
       await expect(resource.save({ test: 'рейс' })).rejects.toBeDefined();

@@ -32,9 +32,9 @@ function documentRecord(id: string, storageKey: string): ProcessDocumentRecord {
 }
 
 function dependencies(documents: ProcessDocumentRecord[]) {
-  const listDocumentsByShipmentId = vi.fn().mockResolvedValue(documents);
-  const deleteDocumentsByShipmentId = vi.fn().mockResolvedValue(undefined);
-  const deleteFoldersByShipmentId = vi.fn().mockResolvedValue(undefined);
+  const listDocumentsByOwner = vi.fn().mockResolvedValue(documents);
+  const deleteDocumentsByOwner = vi.fn().mockResolvedValue(undefined);
+  const deleteFoldersByOwner = vi.fn().mockResolvedValue(undefined);
   const listKeys = vi.fn().mockResolvedValue([]);
   const enqueueDeletion = vi.fn().mockResolvedValue(undefined);
   const transaction: TransactionContext = {};
@@ -44,15 +44,15 @@ function dependencies(documents: ProcessDocumentRecord[]) {
   return {
     repository: {
       withTransaction: (work: (tx: TransactionContext) => Promise<unknown>) => work(transaction),
-      listDocumentsByShipmentId,
-      deleteDocumentsByShipmentId,
-      deleteFoldersByShipmentId,
+      listDocumentsByOwner,
+      deleteDocumentsByOwner,
+      deleteFoldersByOwner,
     } as unknown as ProcessDocumentsRepository,
     storage: { listKeys, enqueueDeletion } as unknown as DocumentStorage,
     logger: { warn, error } as ApplicationLogger,
-    listDocumentsByShipmentId,
-    deleteDocumentsByShipmentId,
-    deleteFoldersByShipmentId,
+    listDocumentsByOwner,
+    deleteDocumentsByOwner,
+    deleteFoldersByOwner,
     listKeys,
     enqueueDeletion,
     transaction,
@@ -77,14 +77,30 @@ describe('DeleteProcessDocumentsForProcess', () => {
 
     await useCase.execute({ shipmentId: 'shipment-1', transaction });
 
-    expect(deps.listDocumentsByShipmentId).toHaveBeenCalledWith('shipment-1', transaction);
+    expect(deps.listDocumentsByOwner).toHaveBeenCalledWith({ mode: 'shipment', shipmentId: 'shipment-1' }, transaction);
     expect(deps.listKeys).toHaveBeenCalledWith('shipments/shipment-1/');
-    expect(deps.deleteDocumentsByShipmentId).toHaveBeenCalledWith('shipment-1', transaction);
-    expect(deps.deleteFoldersByShipmentId).toHaveBeenCalledWith('shipment-1', transaction);
+    expect(deps.deleteDocumentsByOwner).toHaveBeenCalledWith(
+      { mode: 'shipment', shipmentId: 'shipment-1' },
+      transaction,
+    );
+    expect(deps.deleteFoldersByOwner).toHaveBeenCalledWith({ mode: 'shipment', shipmentId: 'shipment-1' }, transaction);
     expect(deps.enqueueDeletion).toHaveBeenCalledWith(
       [firstDocument.storageKey, secondDocument.storageKey, unindexedStorageKey],
       transaction,
     );
+  });
+
+  it('queues only the deleted run’s files in the caller’s transaction', async () => {
+    const document = documentRecord('document-1', 'runs/41/document-1.pdf');
+    const deps = dependencies([document]);
+    deps.listKeys.mockResolvedValue(['runs/41/unindexed.pdf', 'runs/410/other.pdf', 'shipments/41/other.pdf']);
+    const useCase = new DeleteProcessDocumentsForProcess(deps.repository, deps.storage, deps.logger);
+
+    await useCase.execute({ runId: '41', transaction: deps.transaction });
+
+    expect(deps.deleteDocumentsByOwner).toHaveBeenCalledWith({ mode: 'run', runId: '41' }, deps.transaction);
+    expect(deps.deleteFoldersByOwner).toHaveBeenCalledWith({ mode: 'run', runId: '41' }, deps.transaction);
+    expect(deps.enqueueDeletion).toHaveBeenCalledWith([document.storageKey, 'runs/41/unindexed.pdf'], deps.transaction);
   });
 
   it('creates a transaction for cleanup when called without one', async () => {
@@ -101,14 +117,14 @@ describe('DeleteProcessDocumentsForProcess', () => {
     const document = documentRecord('document-1', 'shipments/shipment-1/document-1.pdf');
     const deps = dependencies([document]);
     const databaseError = new Error('Database cleanup failed');
-    deps.deleteDocumentsByShipmentId.mockRejectedValue(databaseError);
+    deps.deleteDocumentsByOwner.mockRejectedValue(databaseError);
     const transaction: TransactionContext = { afterCommit: vi.fn() };
     const useCase = new DeleteProcessDocumentsForProcess(deps.repository, deps.storage, deps.logger);
 
     await expect(useCase.execute({ shipmentId: 'shipment-1', transaction })).rejects.toThrow(databaseError);
 
     expect(transaction.afterCommit).not.toHaveBeenCalled();
-    expect(deps.deleteFoldersByShipmentId).not.toHaveBeenCalled();
+    expect(deps.deleteFoldersByOwner).not.toHaveBeenCalled();
     expect(deps.enqueueDeletion).not.toHaveBeenCalled();
   });
 
@@ -121,12 +137,12 @@ describe('DeleteProcessDocumentsForProcess', () => {
 
     await expect(useCase.execute({ shipmentId: 'shipment-1' })).rejects.toThrow(storageError);
 
-    expect(deps.deleteDocumentsByShipmentId).not.toHaveBeenCalled();
-    expect(deps.deleteFoldersByShipmentId).not.toHaveBeenCalled();
+    expect(deps.deleteDocumentsByOwner).not.toHaveBeenCalled();
+    expect(deps.deleteFoldersByOwner).not.toHaveBeenCalled();
     expect(deps.error).toHaveBeenCalledWith(
-      'Не удалось получить список объектов удаляемой поставки в хранилище',
+      'Не удалось получить список объектов удаляемой записи в хранилище',
       storageError,
-      { shipmentId: 'shipment-1' },
+      { mode: 'shipment', shipmentId: 'shipment-1' },
     );
   });
 });

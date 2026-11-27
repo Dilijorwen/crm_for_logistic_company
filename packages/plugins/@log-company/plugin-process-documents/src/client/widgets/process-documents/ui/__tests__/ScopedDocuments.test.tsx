@@ -183,7 +183,7 @@ describe('Доступ к открытой папке', () => {
     });
     await waitFor(() => {
       const upload = request.mock.calls.find(([config]) => config.url === 'processDocuments:uploadFiles')?.[0];
-      expect(upload?.data.get('files')?.name).toBe('Сканы/Акт.txt');
+      expect(JSON.parse(upload?.data.get('filePaths'))).toEqual(['Сканы/Акт.txt']);
       expect(upload?.data.get('emptyFolders')).toBe(JSON.stringify(['Сканы/Архив']));
       expect(upload?.data.get('runId')).toBe('87');
     });

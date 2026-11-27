@@ -28,14 +28,19 @@ import type { FormDocumentSaveTarget } from '../../../contracts/processDocuments
 import type { DocumentActor } from '../../application/ports/ProcessDocumentsRepository';
 import type { DocumentScopeService } from '../../application/DocumentScopeService';
 import type { PublishFormDocuments } from '../../application/PublishFormDocuments';
+import type { UploadedDocumentFile } from '../../application/UploadProcessDocuments';
 import { assertSafeUploadName } from '../../domain/documents/DocumentName';
 import { ProcessDocumentsError } from '../../domain/documents/DocumentErrors';
 import type { TemporaryDocumentDrafts } from '../../infrastructure/storage/TemporaryDocumentDrafts';
-import { decodeUploadedName, parseUploadedEmptyFolders } from './UploadedDocumentName';
+import {
+  documentUploadFieldBytes,
+  documentUploadRequestBytes,
+  parseUploadedEmptyFolders,
+  resolveUploadedFilePaths,
+} from './UploadedDocumentName';
 
 const RESOURCE = 'processDocumentDrafts';
 const tokenPattern = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
-const multipartLimit = processDocumentUpload.maxTotalBytes + 1024 * 1024;
 type UploadContext = Context & { files?: { path: string; originalname: string; size: number }[] };
 type HookTransaction = Transaction & { id: string };
 const captureWorkspaceShipment = Symbol('captureWorkspaceShipment');
@@ -153,8 +158,8 @@ export class FormDocumentDraftsController {
           actor,
         );
       }
-      if (context.request.length == null || context.request.length > multipartLimit) {
-        context.throw(413, 'Размер отправки должен быть известен и не превышать 250 МБ.');
+      if (context.request.length == null || context.request.length > documentUploadRequestBytes) {
+        context.throw(413, 'Размер запроса загрузки неизвестен или превышает допустимый.');
       }
       const policy =
         form.resource === 'permit_documents'
@@ -169,8 +174,9 @@ export class FormDocumentDraftsController {
             preservePath: true,
             limits: {
               files: processDocumentUpload.maxFiles,
-              fileSize: policy.maxFileBytes,
-              fields: supportsFolders ? 1 : 0,
+              fileSize: policy.maxFileBytes + 1,
+              fields: supportsFolders ? 2 : 1,
+              fieldSize: documentUploadFieldBytes,
             },
           }).array('files');
           await receive(context, async () => undefined);
@@ -181,18 +187,21 @@ export class FormDocumentDraftsController {
           );
           emptyFolders?.forEach(assertSafeUploadName);
           validateUploadBatch(files, processDocumentUpload);
-          const verified = await Promise.all(
-            files.map(async (file) => {
-              const originalName = decodeUploadedName(file.originalname);
-              assertSafeUploadName(originalName);
-              return {
-                path: file.path,
-                originalName,
-                size: file.size,
-                mimeType: await inspectUpload({ path: file.path, originalName, size: file.size }, policy),
-              };
-            }),
+          const filePaths = resolveUploadedFilePaths(
+            body && typeof body === 'object' && 'filePaths' in body ? body.filePaths : undefined,
+            files,
           );
+          const verified: UploadedDocumentFile[] = [];
+          for (const [index, file] of files.entries()) {
+            const originalName = filePaths[index];
+            assertSafeUploadName(originalName);
+            verified.push({
+              path: file.path,
+              originalName,
+              size: file.size,
+              mimeType: await inspectUpload({ path: file.path, originalName, size: file.size }, policy),
+            });
+          }
           return { files: verified, emptyFolders };
         },
         typeof folderId === 'string' ? folderId : undefined,

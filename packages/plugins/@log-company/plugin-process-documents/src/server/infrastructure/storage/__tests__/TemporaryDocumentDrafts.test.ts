@@ -71,4 +71,22 @@ describe('Временные файлы формы', () => {
       vi.useRealTimers();
     }
   });
+
+  it('ограничивает общий объём черновиков 10 ГБ независимо от лимита одной загрузки', async () => {
+    const mb = 1024 ** 2;
+    const receive = (sizes: number[]) => async (directory: string) => ({
+      files: sizes.map((size) => ({
+        path: path.join(directory, 'file'),
+        size: size * mb,
+        originalName: 'test.txt',
+        mimeType: 'text/plain',
+      })),
+    });
+    for (const actor of ['1', '2', '3', '4']) {
+      await drafts.stage(actor, form, receive([500, 500, 500, 500, 500]));
+    }
+    await drafts.stage('5', form, receive([240]));
+    await expect(drafts.stage('6', form, receive([1]))).rejects.toMatchObject({ code: 'FORM_DRAFT_BUSY' });
+    expect(await readdir(root)).toHaveLength(5);
+  });
 });

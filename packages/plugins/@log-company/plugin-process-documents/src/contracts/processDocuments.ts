@@ -8,7 +8,8 @@
  */
 
 export const PROCESS_DOCUMENTS_DRAFT_FIELD = '_shipmentDocumentsDraftToken';
-export const MAX_DOCUMENT_UPLOAD_ENTRIES = 100;
+export const MAX_DOCUMENT_UPLOAD_ENTRIES = 1000;
+export const MAX_DOCUMENT_UPLOAD_PATH_SEGMENTS = 200;
 export const FORM_DOCUMENT_DRAFT_HEADER = 'X-Log-Company-Form-Documents';
 export const FORM_DOCUMENT_DRAFT_PENDING = 'pending';
 export const PERMIT_DOCUMENT_FOLDERS_META = 'logCompanyDocumentFolders';
