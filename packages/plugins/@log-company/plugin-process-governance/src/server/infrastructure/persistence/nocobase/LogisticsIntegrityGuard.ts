@@ -7,6 +7,7 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import type { Database } from '@nocobase/database';
 import type { Plugin } from '@nocobase/server';
 
 const UNIQUE_INDEX_QUERIES = [
@@ -15,10 +16,29 @@ const UNIQUE_INDEX_QUERIES = [
   'CREATE UNIQUE INDEX IF NOT EXISTS shipments_shipment_number_unique ON shipments(shipment_number)',
 ] as const;
 
+export function configureShipmentClientDeletionRules(db: Database): void {
+  // NocoBase applies each many-to-many field's rule to both foreign keys.
+  // Match the asymmetric PostgreSQL constraints after both fields have been loaded.
+  for (const [collection, foreignKey, onDelete] of [
+    ['shipments', 'shipment_id', 'CASCADE'],
+    ['chinese_clients', 'chinese_client_id', 'RESTRICT'],
+  ] as const) {
+    const references = db.referenceMap.getReferences(collection) || [];
+    const membership = references.find(
+      (reference) =>
+        reference.sourceCollectionName === 'shipment_chinese_clients' &&
+        reference.sourceField === foreignKey &&
+        reference.targetField === 'id',
+    );
+    if (membership) membership.onDelete = onDelete;
+  }
+}
+
 export class LogisticsIntegrityGuard {
   constructor(private readonly plugin: Plugin) {}
 
   register(): void {
+    this.plugin.app.on('afterStart', () => configureShipmentClientDeletionRules(this.plugin.db));
     this.plugin.app.on('afterStart', this.ensureUniqueIndexes);
   }
 

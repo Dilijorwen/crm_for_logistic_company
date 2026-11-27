@@ -18,7 +18,9 @@ import {
 } from '@nocobase/flow-engine';
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { useWorkspaceRunPermissions } from '../../model/useWorkspaceRunPermissions';
+import { LogisticsWorkspaceOpenDeletionActionModel } from '../../model/WorkspaceOpenDeletionActionModel';
 import { LogisticsWorkspaceDisassociateActionModel } from '../WorkspaceShipmentActions';
 import { WorkspaceShipmentDetachButton } from '../WorkspaceShipmentDetachButton';
 import {
@@ -357,6 +359,46 @@ async function mountUnifiedForm({ withFold = false, editing = false, withContrac
 }
 
 describe('FlowEngine permissions and shared native detach action', () => {
+  it.each(['transport_runs', 'shipments'])('opens the deletion page with delete permission on %s', async (resource) => {
+    const app = new Application();
+    await new PluginFlowEngine({}, app).load();
+    const engine = app.flowEngine;
+    engine.context.acl.setMeta({
+      dataSources: { main: { resources: [resource], actions: { [`${resource}:destroy`]: {} } } },
+    });
+    const model = engine.createModel({ use: LogisticsWorkspaceOpenDeletionActionModel });
+    model.context.defineProperty('resourceName', { value: 'logistics_work_items' });
+    render(
+      <MemoryRouter>
+        <FlowEngineProvider engine={engine}>
+          <FlowEngineGlobalsContextProvider>
+            <Routes>
+              <Route path="/" element={<FlowModelRenderer model={model} />} />
+              <Route path="/admin/logistics-delete" element={<h2>Удаление рейсов и поставок</h2>} />
+            </Routes>
+          </FlowEngineGlobalsContextProvider>
+        </FlowEngineProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Удалить рейсы и поставки' }));
+    expect(await screen.findByRole('heading', { name: 'Удаление рейсов и поставок' })).toBeVisible();
+  });
+
+  it('does not render a deletion button for a role with read-only access', async () => {
+    const app = new Application();
+    await new PluginFlowEngine({}, app).load();
+    const engine = app.flowEngine;
+    engine.context.acl.setData({ strategy: { actions: ['view'] } });
+    const model = engine.createModel({ use: LogisticsWorkspaceOpenDeletionActionModel });
+    model.context.defineProperty('resourceName', { value: 'logistics_work_items' });
+
+    await model.dispatchEvent('beforeRender');
+    render(<MemoryRouter>{model.render()}</MemoryRouter>);
+
+    expect(screen.queryByRole('button', { name: 'Удалить рейсы и поставки' })).not.toBeInTheDocument();
+  });
+
   it('allows the native administrator without the legacy ACL React provider', async () => {
     const { host } = fixture();
     const { result } = renderHook(() => useWorkspaceRunPermissions(host, '10'));

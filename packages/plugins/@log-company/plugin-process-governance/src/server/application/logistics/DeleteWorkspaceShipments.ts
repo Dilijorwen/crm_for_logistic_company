@@ -22,6 +22,7 @@ export interface WorkspaceDeletionSelection {
 }
 export interface WorkspaceDeletionSession {
   select(rowIds: string[]): Promise<WorkspaceDeletionSelection>;
+  lockSelection(selection: WorkspaceDeletionSelection): Promise<WorkspaceDeletionSelection>;
   assertShipmentDeletion(shipmentId: string): Promise<void>;
   assertRunDeletion(runId: string): Promise<void>;
   findRunsEmptiedBy(selection: WorkspaceDeletionSelection): Promise<string[]>;
@@ -36,6 +37,38 @@ export interface WorkspaceDeletionUnitOfWork {
 /** One shipment may have several selected rows and may be carried in several runs. */
 export class DeleteWorkspaceShipments {
   constructor(private readonly unitOfWork: WorkspaceDeletionUnitOfWork) {}
+
+  async executeSelection(value: unknown): Promise<WorkspaceDeletionSelection> {
+    const input = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+    const runIds = this.identifiers(input.runIds);
+    const shipmentIds = this.identifiers(input.shipmentIds);
+    if (!runIds.length && !shipmentIds.length) {
+      throw new WorkspaceDeletionError('INVALID_SELECTION', 'Отметьте рейсы или поставки для удаления.');
+    }
+    return this.unitOfWork.run(async (session) => {
+      const locks = await session.lockSelection({ runIds, shipmentIds });
+      for (const id of shipmentIds) await session.assertShipmentDeletion(id);
+      for (const id of runIds) await session.assertRunDeletion(id);
+      if (shipmentIds.length) {
+        await session.detachShipments(locks);
+        await session.destroyShipments(shipmentIds);
+      }
+      if (runIds.length) await session.destroyRuns(runIds);
+      return { runIds, shipmentIds };
+    });
+  }
+
+  private identifiers(value: unknown): string[] {
+    if (
+      !Array.isArray(value) ||
+      value.some(
+        (id) =>
+          typeof id !== 'string' || !/^[1-9][0-9]{0,18}$/.test(id) || (id.length === 19 && id > '9223372036854775807'),
+      )
+    )
+      throw new WorkspaceDeletionError('INVALID_SELECTION', 'Выбраны некорректные записи.');
+    return [...new Set<string>(value)];
+  }
 
   async execute(value: unknown): Promise<{ shipments: number; runs: number; shipmentIds: string[]; runIds: string[] }> {
     if (

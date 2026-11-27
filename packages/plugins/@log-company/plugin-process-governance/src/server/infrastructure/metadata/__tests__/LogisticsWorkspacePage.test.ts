@@ -30,6 +30,7 @@ import UseCombinedWorkspaceHistory from '../../../migrations/20261121020000-use-
 import ConfigureSharedWorkspaceDiscussion from '../../../migrations/20261121021000-configure-shared-workspace-discussion';
 import PersonalizeShipmentPickers from '../../../migrations/20261122010000-personalize-workspace-shipment-pickers';
 import SwapUnifiedFormColumns from '../../../migrations/20261123010000-swap-unified-form-columns';
+import OpenWorkspaceDeletionPage from '../../../migrations/20261126030000-open-workspace-deletion-page';
 import { upgradeLogisticsWorkspace } from '../UpgradeLogisticsWorkspace';
 import { WORKSPACE_RECORD_POPUP_UID, type WorkspaceFlowTree } from '../LogisticsWorkspaceNativeModels';
 import { installWorkspacePresentation } from '../InstallWorkspacePresentation';
@@ -167,6 +168,17 @@ describe('logistics workspace with the real FlowModelRepository', () => {
       expect(paths.includes('shipments.declarant_comment')).toBe(uid === 'lcwsrunform');
       expect(paths.includes('shipments.ntm_honest_sign_goods')).toBe(uid === 'lcwsrunform');
     }
+  });
+
+  it('заменяет только кнопку основной таблицы', async () => {
+    await installWorkspacePresentation(db);
+    await models.upsertModel({ uid: 'lcwsdeleteshipment', use: 'LogisticsWorkspaceBulkDeleteActionModel' });
+    const associatedAction = await fullModel('lcwsrsdelete');
+    const migrate = new OpenWorkspaceDeletionPage({ db } as ConstructorParameters<typeof OpenWorkspaceDeletionPage>[0]);
+    await migrate.up();
+    await migrate.up();
+    expect((await fullModel('lcwsdeleteshipment')).use).toBe('LogisticsWorkspaceOpenDeletionActionModel');
+    expect((await fullModel('lcwsrsdelete')).use).toBe(associatedAction.use);
   });
 
   it('scopes native selectors across run and shipment forms while preserving other field settings', async () => {
@@ -616,7 +628,7 @@ describe('logistics workspace with the real FlowModelRepository', () => {
       stepParams: { popupSettings: { openView: { uid: WORKSPACE_RECORD_POPUP_UID } } },
     });
     expect(table.subModels.actions.map((action: { use: string }) => action.use)).toEqual(
-      expect.arrayContaining(['LogisticsWorkspaceAddActionModel', 'LogisticsWorkspaceBulkDeleteActionModel']),
+      expect.arrayContaining(['LogisticsWorkspaceAddActionModel', 'LogisticsWorkspaceOpenDeletionActionModel']),
     );
     const popup = await models.findModelByParentId(WORKSPACE_RECORD_POPUP_UID, {
       subKey: 'page',

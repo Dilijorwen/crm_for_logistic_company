@@ -7,6 +7,7 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
+import { WORKSPACE_DELETION_ACTION } from '../../../shared/workspace';
 import type { FieldOptions } from '@nocobase/database';
 import shipments from '../../collections/shipments';
 import transportRuns from '../../collections/transportRuns';
@@ -530,11 +531,11 @@ export function logisticsWorkspaceNativeTrees(): WorkspaceFlowTree[] {
     },
     {
       uid: WORKSPACE_DELETE_UID,
-      use: 'LogisticsWorkspaceBulkDeleteActionModel',
+      use: WORKSPACE_DELETION_ACTION,
       parentId: 'lclogworkspacetable',
       subKey: 'actions',
       subType: 'array',
-      props: { title: 'Удалить', danger: true, icon: 'DeleteOutlined' },
+      props: { title: 'Удалить', danger: true, icon: 'DeleteOutlined', iconOnly: true },
     },
   ];
   for (const tree of trees) assignParents(tree);

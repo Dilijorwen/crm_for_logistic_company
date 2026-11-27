@@ -20,6 +20,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ValidateRunParents } from '../../../application/logistics/ValidateRunParents';
 import { ValidateShipmentDeletion } from '../../../application/logistics/ValidateShipmentDeletion';
 import type { LogisticsRepository } from '../../../application/logistics/ports/LogisticsRepository';
+import { DeleteWorkspaceShipments } from '../../../application/logistics/DeleteWorkspaceShipments';
+import { NocoBaseWorkspaceDeletion } from '../../../infrastructure/persistence/nocobase/NocoBaseWorkspaceDeletion';
 import { LogisticsPreActions } from '../LogisticsPreActions';
 
 type PreActionHandler = (
@@ -323,5 +325,29 @@ describe('LogisticsPreActions database integration', () => {
       .send({ shipments: [{ display_name: 'Недоступная новая поставка' }] });
     expect(blocked.status).toBe(403);
     expect(await db.getRepository('transport_runs').count()).toBe(1);
+  });
+  it('удаляет отмеченные записи независимо и находит поставки без рейса', async () => {
+    const runs = db.getRepository('transport_runs');
+    const shipments = db.getRepository('shipments');
+    const first = await shipments.create({ values: { display_name: 'Общая' } });
+    const kept = await shipments.create({ values: { display_name: 'Остаётся' } });
+    const firstRun = await runs.create({ values: { shipments: [first.get('id')] } });
+    const secondRun = await runs.create({ values: { shipments: [first.get('id'), kept.get('id')] } });
+    const context = { can: () => ({}), state: {}, get: () => undefined };
+    const deletion = new DeleteWorkspaceShipments(
+      new NocoBaseWorkspaceDeletion(
+        db,
+        context as unknown as ConstructorParameters<typeof NocoBaseWorkspaceDeletion>[1],
+      ),
+    );
+    const filter = { 'runs.id': { $notExists: true } };
+    expect(await shipments.count({ filter })).toBe(0);
+    await deletion.executeSelection({ runIds: [], shipmentIds: [String(first.get('id'))] });
+    expect(await runs.count()).toBe(2);
+    expect(await db.getRepository('transport_runs.shipments', firstRun.get('id')).count()).toBe(0);
+    expect(await shipments.count({ filter })).toBe(0);
+    await deletion.executeSelection({ runIds: [String(secondRun.get('id'))], shipmentIds: [] });
+    expect(await runs.count()).toBe(1);
+    expect((await shipments.find({ filter })).map((row) => row.get('id'))).toEqual([kept.get('id')]);
   });
 });

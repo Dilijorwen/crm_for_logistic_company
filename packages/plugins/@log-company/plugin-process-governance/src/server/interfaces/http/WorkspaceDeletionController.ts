@@ -19,9 +19,34 @@ export class WorkspaceDeletionController {
     this.plugin.app.acl.allow('logisticsWorkspace', 'destroyShipments', (context) =>
       Boolean(context.state.currentUser && context.can?.({ resource: 'shipments', action: 'destroy' })),
     );
+    this.plugin.app.acl.allow('logisticsWorkspace', 'destroySelection', (context) =>
+      Boolean(
+        context.state.currentUser &&
+          ['shipments', 'transport_runs'].some((resource) => context.can?.({ resource, action: 'destroy' })),
+      ),
+    );
     this.plugin.app.resourceManager.define({
       name: 'logisticsWorkspace',
       actions: {
+        destroySelection: async (context: Context, next) => {
+          if (context.method !== 'POST') context.throw(405);
+          try {
+            context.body = await new DeleteWorkspaceShipments(
+              new NocoBaseWorkspaceDeletion(this.plugin.db, context),
+            ).executeSelection(context.action.params.values);
+          } catch (error) {
+            if (error instanceof WorkspaceDeletionError) {
+              context.throw(
+                error.code === 'INVALID_SELECTION' ? 400 : error.code === 'NOT_FOUND' ? 404 : 403,
+                error.message,
+              );
+              return;
+            }
+            this.plugin.app.logger.error('[logistics-workspace] Failed to delete selection', { error });
+            context.throw(500, 'Не удалось удалить выбранные записи. Изменения отменены.');
+          }
+          await next();
+        },
         destroyShipments: async (context: Context, next) => {
           try {
             const values: unknown = context.action.params.values;

@@ -183,8 +183,7 @@ LogisticsWorkspaceBulkDeleteActionModel.registerFlow({
       defaultParams: {
         enable: true,
         title: 'Удалить выбранные поставки?',
-        content:
-          'Поставки удалятся целиком из всех рейсов. Рейсы, в которых после этого не останется поставок, тоже удалятся.',
+        content: 'Выбранные поставки удалятся из CRM и всех связанных рейсов. Рейсы сохранятся.',
       },
     },
     delete: {
@@ -205,20 +204,21 @@ LogisticsWorkspaceBulkDeleteActionModel.registerFlow({
           const shipmentId = workspaceRecordIds(key)?.shipmentId;
           if (shipmentId) selection.set(shipmentId, key);
         }
-        const keys = [...selection.values()];
-        if (!keys.length) {
+        const shipmentIds = [...selection.keys()];
+        if (!shipmentIds.length) {
           ctx.message.warning('Выберите строки с поставками.');
           return;
         }
         const refreshEngine = ctx.model.flowEngine.previousEngine || ctx.model.flowEngine;
-        const response = await ctx.api.resource('logisticsWorkspace').destroyShipments({ values: { rowIds: keys } });
+        await ctx.api.request({
+          url: 'logisticsWorkspace:destroySelection',
+          method: 'post',
+          data: { runIds: [], shipmentIds },
+        });
         current?.setSelectedRows?.([]);
-        const deleted = response.data?.data as { runIds?: string[] } | undefined;
-        if (runId && deleted?.runIds?.includes(runId) && ctx.view?.type === 'dialog')
-          await ctx.view.close?.(undefined, true);
-        else await current?.refresh();
+        await current?.refresh();
         notifyWorkspaceChanged(refreshEngine);
-        ctx.message.success('Выбранные поставки и опустевшие рейсы удалены.');
+        ctx.message.success('Выбранные поставки удалены.');
       },
     },
   },

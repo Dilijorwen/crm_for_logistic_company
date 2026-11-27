@@ -11,6 +11,8 @@ import type { Context } from '@nocobase/actions';
 import { createMockDatabase, type Database } from '@nocobase/database';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DeleteWorkspaceShipments } from '../../../../application/logistics/DeleteWorkspaceShipments';
+import { clientShipmentsField, shipmentChineseClientsField } from '../../../metadata/LogisticsAssociationFields';
+import { configureShipmentClientDeletionRules } from '../LogisticsIntegrityGuard';
 import { NocoBaseWorkspaceDeletion } from '../NocoBaseWorkspaceDeletion';
 
 describe('workspace deletion transaction with real repositories', () => {
@@ -75,6 +77,36 @@ describe('workspace deletion transaction with real repositories', () => {
     } as unknown as Context;
     return new DeleteWorkspaceShipments(new NocoBaseWorkspaceDeletion(db, context));
   }
+
+  it.each([false, true])('deletes a shipment with a client after run deletion=%s', async (removeRunsFirst) => {
+    db.collection({ name: 'chinese_clients' });
+    db.collection({ name: 'shipment_chinese_clients', timestamps: false });
+    // The inverse association can register its RESTRICT option first in NocoBase.
+    db.getCollection('chinese_clients').setField(clientShipmentsField.name, { ...clientShipmentsField });
+    db.getCollection('shipments').setField(shipmentChineseClientsField.name, { ...shipmentChineseClientsField });
+    await db.sync();
+    configureShipmentClientDeletionRules(db);
+    await db.getRepository('chinese_clients').create({ values: { id: 20 } });
+    await db.getRepository('shipment_chinese_clients').create({
+      values: [
+        { shipment_id: 100, chinese_client_id: 20 },
+        { shipment_id: 101, chinese_client_id: 20 },
+      ],
+    });
+    if (removeRunsFirst) await deletion().executeSelection({ runIds: ['10', '11'], shipmentIds: [] });
+
+    await expect(deletion().executeSelection({ runIds: [], shipmentIds: ['100'] })).resolves.toEqual({
+      runIds: [],
+      shipmentIds: ['100'],
+    });
+
+    expect(await db.getRepository('transport_runs').count()).toBe(removeRunsFirst ? 0 : 2);
+    expect(await db.getRepository('shipments').findById(101)).toBeTruthy();
+    expect(await db.getRepository('shipment_chinese_clients').count({ filter: { shipment_id: 100 } })).toBe(0);
+    expect(await db.getRepository('shipment_chinese_clients').count({ filter: { shipment_id: 101 } })).toBe(1);
+    await expect(db.getRepository('chinese_clients').destroy({ filterByTk: 20 })).rejects.toThrow('RESTRICT');
+    expect(await db.getRepository('chinese_clients').findById(20)).toBeTruthy();
+  });
 
   it('removes a shipment from all runs and deletes only the run that becomes empty', async () => {
     const hookIds: string[] = [];

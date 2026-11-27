@@ -30,3 +30,8 @@ export {
   LogisticsWorkspaceAssociateActionModel,
 } from './ui/WorkspaceShipmentActions';
 export { WorkspaceReturnButton } from './ui/WorkspaceReturnButton';
+
+export {
+  LogisticsWorkspaceOpenDeletionActionModel,
+  useWorkspaceDeletionPermissions,
+} from './model/WorkspaceOpenDeletionActionModel';

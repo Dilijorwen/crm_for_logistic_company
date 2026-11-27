@@ -7,7 +7,7 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { Application } from '@nocobase/client';
+import { Application, BulkDeleteActionModel } from '@nocobase/client';
 import { createViewScopedEngine, ErrorFlowModel } from '@nocobase/flow-engine';
 import { describe, expect, it } from 'vitest';
 import { PluginProcessGovernanceClient } from '../plugin';
@@ -22,6 +22,7 @@ describe('workspace model registration', () => {
       'LogisticsWorkspaceScopedSelectFieldModel',
       'LogisticsWorkspaceRunDocumentsModel',
       'LogisticsWorkspaceShipmentFieldsGridModel',
+      'LogisticsWorkspaceOpenDeletionActionModel',
     ];
 
     await app.pm.add(PluginProcessGovernanceClient);
@@ -35,5 +36,12 @@ describe('workspace model registration', () => {
     });
     expect(documents).not.toBeInstanceOf(ErrorFlowModel);
     expect(view.getModel(documents.uid)).toBe(documents);
+  });
+  it('does not redefine the stock NocoBase delete action', async () => {
+    const original = BulkDeleteActionModel.meta;
+    const app = new Application();
+    await app.pm.add(PluginProcessGovernanceClient);
+    await app.pm.load();
+    expect(BulkDeleteActionModel.meta).toBe(original);
   });
 });

@@ -41,14 +41,23 @@ class DeletionSession implements WorkspaceDeletionSession {
         'NOT_FOUND',
         'Часть выбранных поставок уже удалена или отвязана. Обновите список.',
       );
-    const shipmentIds = Array.from(new Set(rowIds.map((id) => id.split(':')[1]))).sort();
+    const shipmentIds = Array.from(new Set(rowIds.map((id) => id.split(':')[1])));
+    return this.lockSelection({ shipmentIds, runIds: [] });
+  }
+
+  async lockSelection({
+    shipmentIds,
+    runIds: selectedRuns,
+  }: WorkspaceDeletionSelection): Promise<WorkspaceDeletionSelection> {
     await this.lockRecords('shipments', shipmentIds);
-    const links = await this.db.getRepository('transport_run_shipments').find({
-      filter: { shipment_id: { $in: shipmentIds } },
-      transaction: this.transaction,
-    });
+    const links = shipmentIds.length
+      ? await this.db.getRepository('transport_run_shipments').find({
+          filter: { shipment_id: { $in: shipmentIds } },
+          transaction: this.transaction,
+        })
+      : [];
     const runIds = Array.from(new Set<string>(links.map((link: Model) => String(link.get('transport_run_id'))))).sort();
-    await this.lockRecords('transport_runs', runIds);
+    await this.lockRecords('transport_runs', [...new Set([...runIds, ...selectedRuns])]);
     for (const runId of runIds) await this.assertPermission('transport_runs', 'list', runId);
     return { shipmentIds, runIds };
   }
@@ -72,7 +81,7 @@ class DeletionSession implements WorkspaceDeletionSession {
       throw new WorkspaceDeletionError(
         'FORBIDDEN',
         action === 'destroy' && resource === 'transport_runs'
-          ? 'Нет прав на удаление рейса, который останется без поставок. Удаление отменено.'
+          ? 'Нет прав на удаление выбранного рейса. Удаление отменено.'
           : 'Нет прав для удаления выбранных поставок или доступа к их рейсам.',
       );
     const rawFilter = permission.params?.filter;

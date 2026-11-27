@@ -7,7 +7,7 @@
  * For more information, please refer to: https://www.nocobase.com/agreement.
  */
 
-import { BulkDeleteActionModel, Plugin } from '@nocobase/client';
+import { Plugin } from '@nocobase/client';
 import enUS from '../../locale/en-US.json';
 import ruRU from '../../locale/ru-RU.json';
 import { StableFlowRoute } from './ui/StableFlowRoute';
@@ -23,6 +23,7 @@ import {
   LogisticsWorkspaceAddActionModel,
   LogisticsWorkspaceNewShipmentActionModel,
   LogisticsWorkspaceBulkDeleteActionModel,
+  LogisticsWorkspaceOpenDeletionActionModel,
   LogisticsWorkspaceRecordFieldModel,
   LogisticsWorkspaceShipmentAddActionModel,
   LogisticsWorkspaceDisassociateActionModel,
@@ -41,7 +42,8 @@ import {
   LogisticsWorkspaceShipmentEditFormModel,
   LogisticsWorkspaceShipmentSectionsGridModel,
 } from '../widgets/workspace-shipment-page';
-import { isWorkspaceDeleteContext } from '../shared/lib';
+import { WorkspaceDeletionPage } from '../pages/workspace-deletion';
+import { WORKSPACE_DELETION_PATH } from '../../shared/workspace';
 import { LogisticsWorkspaceRunDocumentsModel } from '../features/scoped-native-block/ui/WorkspaceRunDocumentsModel';
 import { RunTreeActionModel } from '../widgets/run-tree';
 import { RunTreeBlockModel } from '../widgets/run-tree';
@@ -74,6 +76,7 @@ export class PluginProcessGovernanceClient extends Plugin {
       LogisticsWorkspaceAddActionModel,
       LogisticsWorkspaceNewShipmentActionModel,
       LogisticsWorkspaceBulkDeleteActionModel,
+      LogisticsWorkspaceOpenDeletionActionModel,
       LogisticsWorkspaceRecordFieldModel,
       LogisticsWorkspaceShipmentAddActionModel,
       LogisticsWorkspaceDisassociateActionModel,
@@ -97,12 +100,9 @@ export class PluginProcessGovernanceClient extends Plugin {
   async load(): Promise<void> {
     this.app.addComponents({ FlowRoute: StableFlowRoute });
     this.flowEngine.registerModels({ EditFormModel: ShipmentSynchronizedEditFormModel });
-    const deleteMetadata = BulkDeleteActionModel.meta;
-    BulkDeleteActionModel.define({
-      ...deleteMetadata,
-      hide: (context) =>
-        isWorkspaceDeleteContext(context) ||
-        (typeof deleteMetadata?.hide === 'function' ? deleteMetadata.hide(context) : false),
+    this.app.router.add('admin.logistics-delete', {
+      path: WORKSPACE_DELETION_PATH,
+      Component: WorkspaceDeletionPage,
     });
     this.app.i18n.addResources('en-US', NAMESPACE, enUS);
     this.app.i18n.addResources('ru-RU', NAMESPACE, ruRU);

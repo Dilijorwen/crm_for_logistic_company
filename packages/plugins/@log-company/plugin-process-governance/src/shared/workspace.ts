@@ -31,3 +31,7 @@ export const WORKSPACE_CREATE_SHIPMENT_VIEW_UID = 'lcwsnewshipment';
 export const WORKSPACE_DETACHED_SHIPMENT_IDS_FIELD = '_workspaceDetachedShipmentIds';
 
 export const WORKSPACE_SHIPMENT_DOCUMENTS = '_workspaceShipmentDocuments';
+
+export const WORKSPACE_DELETION_PATH = '/admin/logistics-delete';
+export const WORKSPACE_PATH = '/admin/lclogworkspace';
+export const WORKSPACE_DELETION_ACTION = 'LogisticsWorkspaceOpenDeletionActionModel';

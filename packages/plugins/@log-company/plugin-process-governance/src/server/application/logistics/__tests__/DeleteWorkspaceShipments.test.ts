@@ -17,6 +17,7 @@ import {
 function setup(emptyRuns: string[] = []) {
   const session: WorkspaceDeletionSession = {
     select: vi.fn(async () => ({ shipmentIds: ['100'], runIds: ['10', '11'] })),
+    lockSelection: vi.fn(async ({ shipmentIds }) => ({ shipmentIds, runIds: shipmentIds.length ? ['10', '11'] : [] })),
     assertShipmentDeletion: vi.fn(async () => undefined),
     assertRunDeletion: vi.fn(async () => undefined),
     findRunsEmptiedBy: vi.fn(async () => emptyRuns),
@@ -83,5 +84,38 @@ describe('DeleteWorkspaceShipments', () => {
     vi.mocked(session.destroyShipments).mockRejectedValue(new Error('storage unavailable'));
     await expect(useCase.execute(['10:100'])).rejects.toThrow('storage unavailable');
     expect(session.destroyRuns).not.toHaveBeenCalled();
+  });
+});
+
+describe('Удаление отмеченных записей', () => {
+  it('удаляет поставку из всех связей и оставляет рейсы, даже если они опустели', async () => {
+    const { useCase, session } = setup(['10', '11']);
+    await expect(
+      useCase.executeSelection({
+        runIds: [],
+        shipmentIds: ['100', '100'],
+      }),
+    ).resolves.toEqual({ runIds: [], shipmentIds: ['100'] });
+    expect(session.detachShipments).toHaveBeenCalledWith({ shipmentIds: ['100'], runIds: ['10', '11'] });
+    expect(session.findRunsEmptiedBy).not.toHaveBeenCalled();
+    expect(session.destroyRuns).not.toHaveBeenCalled();
+  });
+
+  it('запрашивает удаление только явно отмеченных рейсов', async () => {
+    const { useCase, session } = setup();
+    await useCase.executeSelection({ runIds: ['20'], shipmentIds: [] });
+    expect(session.assertRunDeletion).toHaveBeenCalledWith('20');
+    expect(session.destroyRuns).toHaveBeenCalledWith(['20']);
+    expect(session.destroyShipments).not.toHaveBeenCalled();
+  });
+
+  it('проверяет все выбранные записи до первого изменения', async () => {
+    const { useCase, session } = setup();
+    vi.mocked(session.assertRunDeletion).mockRejectedValue(new WorkspaceDeletionError('FORBIDDEN', 'denied'));
+    await expect(useCase.executeSelection({ runIds: ['20'], shipmentIds: ['100'] })).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    expect(session.detachShipments).not.toHaveBeenCalled();
+    expect(session.destroyShipments).not.toHaveBeenCalled();
   });
 });
