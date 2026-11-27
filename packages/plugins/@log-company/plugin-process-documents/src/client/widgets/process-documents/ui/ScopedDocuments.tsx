@@ -10,7 +10,7 @@
 import { LockOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useAPIClient } from '@nocobase/client';
 import { createPortal } from 'react-dom';
-import { Alert, Button, Input, Modal, Typography, message } from 'antd';
+import { Alert, Button, Modal, Typography, message } from 'antd';
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ProcessDocumentsApi,
@@ -23,7 +23,12 @@ import type {
   DocumentRequestScope,
   SelectedDocument,
 } from '../../../entities/process-document';
-import { DocumentBrowser, DocumentUploadMenu, openDocumentFolderDialog } from './DocumentBrowser';
+import {
+  DocumentBrowser,
+  DocumentUploadMenu,
+  openDocumentFolderDialog,
+  openDocumentRenameDialog,
+} from './DocumentBrowser';
 import { DocumentsList } from './DocumentsList';
 import { DocumentFolderAccessDialog } from './DocumentFolderAccessDialog';
 import { DocumentPreviewDialog, downloadDocument } from './DocumentPreviewDialog';
@@ -107,13 +112,13 @@ export function ScopedDocuments({
   const canWriteAtLocation = !uploadInsideFoldersOnly || !atRoot;
   const supportsDraftDestination =
     requestScope && (requestScope.shipmentId != null || ('runId' in requestScope && requestScope.runId != null));
-  const canUpload =
+  const canDrop =
     !readOnly &&
     allowUpload &&
-    canWriteAtLocation &&
     !loading &&
     effectiveCanWrite &&
     (!isVirtual || !virtualFolderWrite || virtualFolderWrite[emptyTrail[emptyTrail.length - 1]] === true);
+  const canUpload = canDrop && canWriteAtLocation;
   const destinationKey = JSON.stringify([requestScope, folderId, emptyTrail]);
   const activeDestination = useRef(destinationKey);
   activeDestination.current = destinationKey;
@@ -137,7 +142,7 @@ export function ScopedDocuments({
         | Promise<{ files: readonly SelectedDocument[]; emptyFolders?: readonly string[] }>,
       targetFolderId?: FolderItem['id'],
     ) => {
-      if (!requestScope || !canUpload || pendingUpload.current) return;
+      if (!requestScope || !canDrop || (targetFolderId == null && !canWriteAtLocation) || pendingUpload.current) return;
       pendingUpload.current = true;
       setUploading(true);
       try {
@@ -170,7 +175,18 @@ export function ScopedDocuments({
         }
       }
     },
-    [api, canUpload, destinationKey, emptyTrail, folderId, load, reportChange, requestScope, setFolderId],
+    [
+      api,
+      canDrop,
+      canWriteAtLocation,
+      destinationKey,
+      emptyTrail,
+      folderId,
+      load,
+      reportChange,
+      requestScope,
+      setFolderId,
+    ],
   );
 
   function uploadFiles(selected: FileList | null) {
@@ -223,36 +239,16 @@ export function ScopedDocuments({
 
   function renameEntry(kind: 'file' | 'folder', item: FolderItem | FileItem) {
     const original = 'original_filename' in item ? item.original_filename : undefined;
-    const dot = original?.lastIndexOf('.') ?? -1;
-    const suffix = dot > 0 ? original?.slice(dot) ?? '' : '';
-    let name = suffix && item.title.endsWith(suffix) ? item.title.slice(0, -suffix.length) : item.title;
-    modal.confirm({
-      title: kind === 'file' ? 'Переименовать файл' : 'Переименовать папку',
-      content: (
-        <Input
-          aria-label="Новое имя"
-          defaultValue={name}
-          addonAfter={suffix || undefined}
-          autoFocus
-          maxLength={200 - suffix.length}
-          onChange={(event) => {
-            name = event.target.value;
-          }}
-        />
-      ),
-      okText: 'Сохранить',
-      cancelText: 'Отмена',
-      onOk: async () => {
-        try {
-          await api.renameEntry(kind, item.id, name, requestScope?.draftToken);
-          reportChange?.();
-          if (kind === 'file') setPreview(undefined);
-          await load();
-        } catch (reason) {
-          message.error(getErrorText(reason, 'Не удалось сохранить имя.'));
-          throw reason;
-        }
-      },
+    openDocumentRenameDialog(modal, kind, item.title, original, async (name) => {
+      try {
+        await api.renameEntry(kind, item.id, name, requestScope?.draftToken);
+        reportChange?.();
+        if (kind === 'file') setPreview(undefined);
+        await load();
+      } catch (reason) {
+        message.error(getErrorText(reason, 'Не удалось сохранить имя.'));
+        throw reason;
+      }
     });
   }
 
@@ -451,14 +447,15 @@ export function ScopedDocuments({
       {!isVirtual && folderId === rootFolderId ? children : null}
       <DocumentsList
         compactActions={compact}
+        allowDropAtCurrentFolder={canWriteAtLocation}
         onDrop={
-          canUpload && !uploading
+          canDrop && !uploading
             ? (transfer, folder) => uploadSelection(() => readDroppedDocuments(transfer), folder?.id)
             : undefined
         }
         {...(supportsDraftDestination && {
           draftFolderId: folderId,
-          allowDraftDrop: canWriteAtLocation && !readOnly && !loading && effectiveCanWrite,
+          allowDraftDrop: !readOnly && !loading && effectiveCanWrite,
         })}
         loading={loading}
         files={isVirtual ? [] : files}

@@ -9,10 +9,12 @@
 
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { FlowContext, SingleRecordResource, type Collection } from '@nocobase/flow-engine';
+import { FlowContext, SingleRecordResource } from '@nocobase/flow-engine';
+import type { Collection } from '@nocobase/flow-engine';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProcessDocumentsBlock } from '../ProcessDocumentsBlock';
-import type { DocumentFormBinding } from '../FormFolderUpload';
+import { FormFolderUpload } from '../FormFolderUpload';
+import type { DocumentFormBinding, ShipmentDocumentDraftBinding } from '../FormFolderUpload';
 
 const { request, get } = vi.hoisted(() => ({ request: vi.fn(), get: vi.fn() }));
 const client = { request, resource: () => ({ get }) };
@@ -45,7 +47,7 @@ describe('Режимы документов в компании', () => {
           : url === 'processDocumentDrafts:shipmentPermissions'
             ? { data: { canRead: true, canWrite: true } }
             : url === 'processDocumentDrafts:stage'
-              ? { data: { token: 'batch', files: [{ name: 'Договор.txt', size: 4 }] } }
+              ? { data: { token: 'batch', files: [{ id: 'draft-file', name: 'Договор.txt', size: 4 }] } }
               : url === 'processDocumentDrafts:discard'
                 ? true
                 : {
@@ -216,7 +218,7 @@ describe('Режимы документов в компании', () => {
 
   it('отправляет черновик только со штатным сохранением нового рейса и оставляет его после ошибки', async () => {
     request.mockResolvedValueOnce({ data: { data: { canRead: true, canWrite: true } } }).mockResolvedValueOnce({
-      data: { data: { token: 'batch', files: [{ name: 'Машина/Документы/Договор.txt', size: 4 }] } },
+      data: { data: { token: 'batch', files: [{ id: 'draft-file', name: 'Машина/Документы/Договор.txt', size: 4 }] } },
     });
 
     const resource = new SingleRecordResource(new FlowContext()).setResourceName('transport_runs');
@@ -424,5 +426,77 @@ describe('Режимы документов в компании', () => {
       expect(staged?.data.get('emptyFolders')).toBe(JSON.stringify(['Пустая']));
     });
     expect(request.mock.calls.some(([config]) => config.url === 'processDocuments:uploadFiles')).toBe(false);
+  });
+
+  it.each(['transport_runs', 'shipments'] as const)(
+    'меняет файл черновика %s через ПКМ и меню троеточия',
+    async (collectionName) => {
+      const requestDefault = request.getMockImplementation();
+      request.mockImplementation((config) => {
+        if (config.url !== 'processDocumentDrafts:editFile') return requestDefault?.(config);
+        const batch =
+          config.data.title === null
+            ? null
+            : { token: 'batch', files: [{ id: 'draft-file', name: 'Новый.txt', size: 4 }] };
+        return Promise.resolve({ data: { data: { batch } } });
+      });
+      const resource = new SingleRecordResource(new FlowContext()).setResourceName(collectionName);
+      resource.isNewRecord = true;
+      const removeHeader = vi.spyOn(resource, 'removeRequestHeader');
+      const form = { resource, model: { emitter: { on: vi.fn(), off: vi.fn() } } };
+      render(
+        <ProcessDocumentsBlock
+          folderMode="upload"
+          modelContext={{ collection: collectionName }}
+          findForm={() => form as unknown as DocumentFormBinding}
+        />,
+      );
+      const list = await screen.findByRole('region', { name: 'Список документов' });
+      fireEvent.drop(list, {
+        dataTransfer: { items: [], types: ['Files'], files: [new File(['test'], 'Договор.txt')] },
+      });
+      fireEvent.contextMenu(await screen.findByRole('button', { name: 'Договор.txt' }));
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Переименовать' }));
+      const rename = await screen.findByRole('dialog');
+      expect(within(rename).getByLabelText('Новое имя')).toHaveValue('Договор');
+      fireEvent.change(within(rename).getByLabelText('Новое имя'), { target: { value: 'Новый' } });
+      fireEvent.click(within(rename).getByRole('button', { name: 'Сохранить' }));
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Действия: Новый.txt' }));
+      fireEvent.click(await screen.findByRole('menuitem', { name: 'Удалить' }));
+      await screen.findByText('Удалить файл «Новый.txt»?');
+      const confirmation = await screen.findByRole('dialog');
+      fireEvent.click(within(confirmation).getByRole('button', { name: 'Удалить' }));
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Новый.txt' })).not.toBeInTheDocument());
+      expect(
+        request.mock.calls
+          .filter(([config]) => config.url === 'processDocumentDrafts:editFile')
+          .map(([config]) => config.data),
+      ).toEqual([
+        { token: 'batch', fileId: 'draft-file', title: 'Новый' },
+        { token: 'batch', fileId: 'draft-file', title: null },
+      ]);
+      expect(request.mock.calls.some(([config]) => config.url === 'processDocuments:uploadFiles')).toBe(false);
+      expect(removeHeader).toHaveBeenCalledWith('X-Log-Company-Form-Documents');
+    },
+  );
+
+  it('принимает сброс прямо на папку новой поставки, но не в её корень', async () => {
+    const binding: ShipmentDocumentDraftBinding = {
+      form: {} as ShipmentDocumentDraftBinding['form'],
+      companyPath: () => ['company'],
+      setTokens: vi.fn(),
+    };
+    render(<FormFolderUpload resource="shipments" shipmentDraft={binding} draftCompany="10" />);
+    const folder = await screen.findByRole('button', { name: 'Менеджеры' });
+    const dataTransfer = { items: [], types: ['Files'], files: [new File(['test'], 'Договор.txt')] };
+    fireEvent.drop(screen.getByRole('region', { name: 'Список документов' }), { dataTransfer });
+    expect(request).not.toHaveBeenCalledWith(expect.objectContaining({ url: 'processDocumentDrafts:stage' }));
+    fireEvent.drop(folder, { dataTransfer });
+    await waitFor(() => {
+      const config = request.mock.calls.find(([call]) => call.url === 'processDocumentDrafts:stage')?.[0];
+      expect(JSON.parse(config?.data.get('filePaths'))).toEqual(['Менеджеры/Договор.txt']);
+      expect(config.params).toEqual({ resource: 'shipments', recordId: null, companyId: '10' });
+    });
   });
 });

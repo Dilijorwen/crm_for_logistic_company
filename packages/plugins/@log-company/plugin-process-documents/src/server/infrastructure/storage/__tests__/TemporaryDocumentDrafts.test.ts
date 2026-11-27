@@ -44,6 +44,32 @@ describe('Временные файлы формы', () => {
     expect(await readdir(root)).toEqual([]);
   });
 
+  it('переименовывает и удаляет только выбранный файл без смены папки или расширения', async () => {
+    const batch = await drafts.stage('1', form, async (directory) => {
+      const { files } = await staged(directory);
+      const secondPath = path.join(directory, 'second');
+      await writeFile(secondPath, 'other');
+      return { files: [...files, { ...files[0], path: secondPath, originalName: 'Контракты/Другой.txt' }] };
+    });
+    const [first, second] = batch.files;
+    await expect(drafts.editFile('2', batch.token, first.id, 'Новое')).rejects.toMatchObject({ code: 'DRAFT_ACCESS_DENIED' });
+    await expect(drafts.editFile('1', batch.token, first.id, '../новое')).rejects.toMatchObject({ code: 'INVALID_DOCUMENT_NAME' });
+    await expect(drafts.editFile('1', batch.token, first.id, 'Другой')).rejects.toMatchObject({ code: 'DOCUMENT_NAME_CONFLICT' });
+    const renamed = await drafts.editFile('1', batch.token, first.id, 'Новое');
+    expect(renamed?.files[0]).toMatchObject({ id: first.id, name: 'Контракты/Новое.txt' });
+    const session = drafts.acquire([batch.token], '1', form);
+    const [file] = session.destinations[0].files;
+    expect(file.originalName).toBe('Контракты/Новое.txt');
+    await expect(drafts.editFile('1', batch.token, first.id, null)).rejects.toMatchObject({ code: 'FORM_DRAFT_BUSY' });
+    await session.release();
+    const afterDelete = await drafts.editFile('1', batch.token, first.id, null);
+    expect(afterDelete?.files.map(({ id }) => id)).toEqual([second.id]);
+    await expect(readFile(file.path)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(drafts.editFile('1', batch.token, first.id, null)).rejects.toMatchObject({ code: 'DOCUMENT_NOT_FOUND' });
+    expect(await drafts.editFile('1', batch.token, second.id, null)).toBeNull();
+    expect(await readdir(root)).toEqual([]);
+  });
+
   it('разрешает завершить только сохранение той же записи и того же пользователя', async () => {
     const batch = await drafts.stage('1', form, staged);
     expect(() => drafts.acquire([batch.token], '2', form)).toThrow();

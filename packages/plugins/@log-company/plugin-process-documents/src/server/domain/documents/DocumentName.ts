@@ -23,6 +23,19 @@ export function isDocumentNameSegment(name: string): boolean {
   );
 }
 
+export function renamedDocumentFileTitle(title: string, originalFilename: string): string {
+  const name = title.trim();
+  if (!isDocumentNameSegment(name)) {
+    throw new ProcessDocumentsError('INVALID_DOCUMENT_NAME', 'Укажите допустимое имя файла.');
+  }
+  const dot = originalFilename.lastIndexOf('.');
+  const renamed = dot > 0 ? name + originalFilename.slice(dot) : name;
+  if (!isDocumentNameSegment(renamed)) {
+    throw new ProcessDocumentsError('INVALID_DOCUMENT_NAME', 'Слишком длинное имя файла.');
+  }
+  return renamed;
+}
+
 export function assertSafeUploadName(relativeName: string): void {
   const parts = relativeName.split(/[\\/]/);
   if (parts.length > MAX_DOCUMENT_UPLOAD_PATH_SEGMENTS || parts.some((part) => !isDocumentNameSegment(part.trim()))) {

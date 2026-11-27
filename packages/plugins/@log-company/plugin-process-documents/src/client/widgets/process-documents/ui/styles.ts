@@ -13,13 +13,22 @@ import type { CSSProperties } from 'react';
 
 export const blockClass = css`
   &.process-documents-scroll {
-    min-height: 320px;
-    max-height: 680px;
-    overflow: auto;
+    height: min(440px, 70dvh);
+    overflow: hidden;
   }
 
-  &.process-documents-scroll:has(.process-documents-form-controls) {
-    min-height: 0;
+  &.process-documents-scroll > .process-documents-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  &.process-documents-scroll > .process-documents-shell > :not(.process-documents-list) {
+    flex-shrink: 0;
+  }
+
+  &.process-documents-scroll > .process-documents-shell > .process-documents-list {
+    flex: 1;
   }
 
   .process-documents-shell {
@@ -52,11 +61,20 @@ export const blockClass = css`
   }
 
   .process-documents-list {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     container-type: inline-size;
     border: 1px solid var(--process-documents-border);
     border-radius: 6px;
     background: var(--process-documents-bg);
     overflow: hidden;
+  }
+
+  .process-documents-list-rows {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
   }
 
   .process-documents-list-dragging {
@@ -65,6 +83,7 @@ export const blockClass = css`
   }
 
   .process-documents-form-controls {
+    flex-shrink: 0;
     display: grid;
     gap: 8px;
     padding: 10px;
@@ -72,13 +91,13 @@ export const blockClass = css`
   }
 
   .process-documents-form-hint {
+    padding: 8px 10px 0;
     color: var(--process-documents-text-secondary);
     font-size: 13px;
   }
 
-  .process-documents-draft-files {
-    margin: 0;
-    padding-inline-start: 20px;
+  .process-documents-draft-folder {
+    padding: 8px 10px;
     overflow-wrap: anywhere;
   }
 

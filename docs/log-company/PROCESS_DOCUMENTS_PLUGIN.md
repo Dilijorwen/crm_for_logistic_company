@@ -68,6 +68,8 @@
 при перезапуске сервера файлы нужно выбрать заново. При закрытии вкладки без ответа сервера срабатывает очистка
 по истечении двух часов. Структура папок с файлами сохраняется. В черновиках рейсов и поставок при
 перетаскивании сохраняются и пустые папки; в остальных черновиках пустые папки не переносятся.
+Файл черновика можно переименовать или удалить через ПКМ или меню «…»; это не меняет файлы в MinIO.
+В окне документов прокручивается список, а высота окна при переходе между папками не меняется.
 В разрешительных документах вложенность показывается в блоке «Документы»; штатное поле по-прежнему содержит те же вложения.
 
 Блок «Документы» принимает до 500 МБ на файл, до 2500 МБ файлов и до 1000 файлов и пустых папок за одну загрузку.
@@ -188,7 +190,7 @@ export PLUGIN_PACKAGE_PREFIX=@nocobase/plugin-,@nocobase/preset-,@nocobase/plugi
 yarn build @log-company/plugin-file-storage @log-company/plugin-process-documents
 yarn tar @log-company/plugin-file-storage @log-company/plugin-process-documents
 docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-file-storage-2.0.61.tgz
-docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-process-documents-2.0.110.tgz
+docker compose exec -T app yarn pm update /app/nocobase/storage/tar/@log-company/plugin-process-documents-2.0.111.tgz
 docker compose exec -T app yarn nocobase upgrade
 docker compose restart app
 ```

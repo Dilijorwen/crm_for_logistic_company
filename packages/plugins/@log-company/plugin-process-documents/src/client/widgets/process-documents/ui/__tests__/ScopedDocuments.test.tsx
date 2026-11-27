@@ -201,12 +201,15 @@ describe('Доступ к открытой папке', () => {
   });
 
   it.each([
-    { destination: 'list', folderId: null, canWrite: true },
-    { destination: 'folder', folderId: folder.id, canWrite: true },
-    { destination: 'folder', folderId: folder.id, canWrite: false },
+    { destination: 'list', folderId: null, canWrite: true, foldersOnly: false, accepted: true },
+    { destination: 'folder', folderId: folder.id, canWrite: true, foldersOnly: false, accepted: true },
+    { destination: 'folder', folderId: folder.id, canWrite: false, foldersOnly: false, accepted: false },
+    { destination: 'folder', folderId: folder.id, canWrite: true, foldersOnly: true, accepted: true },
+    { destination: 'folder', folderId: folder.id, canWrite: false, foldersOnly: true, accepted: false },
+    { destination: 'list', folderId: null, canWrite: true, foldersOnly: true, accepted: false },
   ])(
-    'различает сброс в список поставки и на папку ($destination, право $canWrite)',
-    async ({ destination, folderId, canWrite }) => {
+    'различает сброс в список поставки и на папку ($destination, право $canWrite, только папки $foldersOnly)',
+    async ({ destination, folderId, canWrite, foldersOnly, accepted }) => {
       request.mockResolvedValue({
         data: {
           breadcrumbs: [],
@@ -215,13 +218,13 @@ describe('Доступ к открытой папке', () => {
           permissions: { canWrite: true, canDelete: false },
         },
       });
-      render(<ScopedDocuments requestScope={{ shipmentId: '38' }} />);
+      render(<ScopedDocuments requestScope={{ shipmentId: '38' }} uploadInsideFoldersOnly={foldersOnly} />);
       const row = await screen.findByRole('button', { name: folder.title });
       const target = destination === 'folder' ? row : screen.getByRole('region', { name: 'Список документов' });
       const file = new File(['копия'], 'Акт.txt');
       fireEvent.drop(target, { dataTransfer: { types: ['Files'], files: [file], items: [] } });
       const uploads = () => request.mock.calls.filter(([config]) => config.url === 'processDocuments:uploadFiles');
-      if (!canWrite) {
+      if (!accepted) {
         expect(uploads()).toHaveLength(0);
         return;
       }

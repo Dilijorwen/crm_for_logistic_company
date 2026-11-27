@@ -27,6 +27,7 @@ describe('Сохранение записи с временными докуме
   let drafts: TemporaryDocumentDrafts;
   let save: (context: Context, next: Next) => Promise<void>;
   let stageMultipart: (context: Context, next: Next) => Promise<void>;
+  let editFile: typeof stageMultipart;
   const upload = { execute: vi.fn() };
   const scopes = { assertShipmentFormAccess: vi.fn(), assertRunFormAccess: vi.fn() };
   let shipmentPermissions: typeof stageMultipart;
@@ -53,9 +54,14 @@ describe('Сохранение записи с временными докуме
           define: ({
             actions,
           }: {
-            actions: { stage: typeof stageMultipart; shipmentPermissions: typeof shipmentPermissions };
+            actions: {
+              stage: typeof stageMultipart;
+              editFile: typeof editFile;
+              shipmentPermissions: typeof shipmentPermissions;
+            };
           }) => {
             stageMultipart = actions.stage;
+            editFile = actions.editFile;
             shipmentPermissions = actions.shipmentPermissions;
           },
           use: (handler: typeof save) => {
@@ -99,6 +105,28 @@ describe('Сохранение записи с временными докуме
       },
     } as unknown as Context;
   }
+
+  it('проверяет владельца и параметры при изменении файла черновика', async () => {
+    const batch = await stage();
+    const data = { token: batch.token, fileId: batch.files[0].id, title: 'Новое имя' };
+    const edit = (body: unknown, userId = 1) =>
+      ({
+        ...context(''),
+        method: 'POST',
+        state: { currentUser: { id: userId }, currentRole: 'root' },
+        request: { body },
+      }) as unknown as Context;
+    await expect(editFile(edit(data, 2), vi.fn())).rejects.toMatchObject({ status: 403 });
+    await expect(editFile(edit({ ...data, fileId: '../test' }), vi.fn())).rejects.toMatchObject({ status: 400 });
+    const rename = edit(data);
+    await editFile(rename, vi.fn());
+    expect(rename.body).toMatchObject({ batch: { files: [{ name: 'Контракты/Новое имя.txt' }] } });
+    const remove = edit({ ...data, title: null });
+    await editFile(remove, vi.fn());
+    expect(remove.body).toEqual({ batch: null });
+    expect(await readdir(root)).toEqual([]);
+    expect(upload.execute).not.toHaveBeenCalled();
+  });
 
   it('скрывает папки и отклоняет загрузку до записи во временное хранилище при запрете ВЭД', async () => {
     scopes.assertShipmentFormAccess.mockRejectedValue(
@@ -170,7 +198,10 @@ describe('Сохранение записи с временными докуме
       can: () => true,
     } as unknown as Context;
     await stageMultipart(staged, vi.fn());
-    expect(staged.body).toEqual({ token: expect.any(String), files: [{ name: filename, size: 5 }] });
+    expect(staged.body).toEqual({
+      token: expect.any(String),
+      files: [{ id: expect.any(String), name: filename, size: 5 }],
+    });
   });
 
   it('принимает multipart с пустой папкой без файлов и сохраняет её только в черновике', async () => {

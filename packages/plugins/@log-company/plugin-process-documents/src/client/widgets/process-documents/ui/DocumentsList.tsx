@@ -26,21 +26,23 @@ import type {
   ProcessDocumentDto,
   DocumentsListResponse,
 } from '../../../entities/process-document';
-import { blockClass, useDocumentsTheme } from './styles';
+import { DocumentBrowser } from './DocumentBrowser';
 import { DocumentActionsButton } from './DocumentActionsButton';
 
 export const FormDocumentListContext = createContext<{
   controls: React.ReactNode;
-  hasDraftFiles: boolean;
+  files: ProcessDocumentDto[];
+  emptyFolders?: string[];
+  renameFile?: (file: ProcessDocumentDto) => void;
+  deleteFile?: (file: ProcessDocumentDto) => void;
   onDrop?: (transfer: DataTransfer, folderId?: FolderItem['id'] | null) => Promise<void>;
 } | null>(null);
 
 export function EmptyFormDocumentList() {
-  const style = useDocumentsTheme();
   return (
-    <div className={blockClass} style={style}>
+    <DocumentBrowser>
       <DocumentsList files={[]} />
-    </div>
+    </DocumentBrowser>
   );
 }
 
@@ -83,6 +85,7 @@ interface DocumentsListProps<FileItem extends ProcessDocumentDto> {
   onDrop?: (transfer: DataTransfer, folder?: FolderItem) => Promise<void>;
   draftFolderId?: FolderItem['id'] | null;
   allowDraftDrop?: boolean;
+  allowDropAtCurrentFolder?: boolean;
   hasOtherEntries?: boolean;
   extraFolders?: Array<{ id: string; title: string; open(): void; editAccess?(): void }>;
   showParentRow?: boolean;
@@ -93,6 +96,11 @@ interface DocumentsListProps<FileItem extends ProcessDocumentDto> {
   };
   fileKey?: (file: FileItem) => string;
 }
+
+type FileActions<Item extends ProcessDocumentDto> = Pick<
+  DocumentsListProps<Item>,
+  'previewFile' | 'renameFile' | 'deleteFile' | 'deleteDisabled' | 'downloadFile' | 'fileLocations' | 'fileKey'
+>;
 
 export function DocumentsList<FileItem extends ProcessDocumentDto>({
   loading,
@@ -107,6 +115,7 @@ export function DocumentsList<FileItem extends ProcessDocumentDto>({
   onDrop,
   draftFolderId,
   allowDraftDrop = true,
+  allowDropAtCurrentFolder = true,
   hasOtherEntries,
   extraFolders = [],
   showParentRow = false,
@@ -121,6 +130,8 @@ export function DocumentsList<FileItem extends ProcessDocumentDto>({
     ...folders.map((folder) => ({ folder, open: () => setFolderId?.(folder.id), system: false })),
   ];
   const draft = useContext(FormDocumentListContext);
+  const draftFiles = draft?.files ?? [];
+  const draftFolders = draft?.emptyFolders ?? [];
   const [isDragging, setDragging] = useState(false);
   const [dropRow, setDropRow] = useState<string>();
   const draftDrop = allowDraftDrop ? draft?.onDrop : undefined;
@@ -128,8 +139,8 @@ export function DocumentsList<FileItem extends ProcessDocumentDto>({
 
   function destination(target: EventTarget): FolderItem | null | undefined {
     const row = target instanceof Element ? target.closest<HTMLElement>('[data-document-drop-row]') : null;
-    if (!row) return undefined;
-    if (!onDrop && draftFolderId === undefined) return undefined;
+    if (!row) return allowDropAtCurrentFolder ? undefined : null;
+    if (!onDrop && draftFolderId === undefined) return allowDropAtCurrentFolder ? undefined : null;
     const entry = rows[Number(row.dataset.documentDropRow)];
     return entry && !entry.system && entry.folder.canWrite !== false ? entry.folder : null;
   }
@@ -162,6 +173,72 @@ export function DocumentsList<FileItem extends ProcessDocumentDto>({
       </Dropdown>
     ) : (
       row
+    );
+  }
+
+  function renderFile<Item extends ProcessDocumentDto>(
+    file: Item,
+    { previewFile, renameFile, deleteFile, deleteDisabled, downloadFile, fileLocations, fileKey }: FileActions<Item>,
+  ) {
+    const items: MenuProps['items'] = [];
+    if (previewFile)
+      items.push({
+        key: 'preview',
+        label: 'Открыть',
+        icon: <FileOutlined aria-hidden="true" />,
+        onClick: () => previewFile(file),
+      });
+    if (fileLocations)
+      items.push({
+        key: 'location',
+        label: 'Перейти в папку',
+        icon: <FolderOutlined aria-hidden="true" />,
+        onClick: () => fileLocations.open(file),
+      });
+    if (downloadFile)
+      items.push({
+        key: 'download',
+        label: 'Скачать',
+        icon: <DownloadOutlined aria-hidden="true" />,
+        onClick: () => downloadFile(file),
+      });
+    if (renameFile)
+      items.push({
+        key: 'rename',
+        label: 'Переименовать',
+        icon: <EditOutlined aria-hidden="true" />,
+        onClick: () => renameFile(file),
+      });
+    if (deleteFile)
+      items.push({
+        key: 'delete',
+        label: 'Удалить',
+        danger: true,
+        icon: <DeleteOutlined aria-hidden="true" />,
+        disabled: deleteDisabled,
+        onClick: () => deleteFile(file),
+      });
+    return withActions(
+      `file-${fileKey?.(file) ?? file.id}`,
+      file.title,
+      items,
+      <>
+        <button type="button" className="process-documents-name" onClick={() => previewFile?.(file)}>
+          <FileOutlined aria-hidden="true" />
+          <span className="process-documents-name-text" title={file.title}>
+            {file.title}
+          </span>
+        </button>
+        {fileLocations && (
+          <Button type="link" className="process-documents-file-location" onClick={() => fileLocations.open(file)}>
+            {fileLocations.label(file)}
+          </Button>
+        )}
+        <span className="process-documents-meta">{file.title.match(/\.([^./]+)$/)?.[1].toUpperCase() ?? 'Файл'}</span>
+        <span className="process-documents-meta">{file.file_size == null ? '' : formatSize(file.file_size)}</span>
+        <span className="process-documents-meta">{formatDate(file.createdAt)}</span>
+        <span className="process-documents-meta">{file.author}</span>
+      </>,
     );
   }
 
@@ -202,176 +279,140 @@ export function DocumentsList<FileItem extends ProcessDocumentDto>({
       }}
     >
       {draft && <div className="process-documents-form-controls">{draft.controls}</div>}
-      {loading && !rows.length && !files.length ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
-          <Spin indicator={<LoadingOutlined spin />} />
-        </div>
-      ) : null}
-      {rows.length || files.length ? (
-        <div className="process-documents-row process-documents-columns" aria-hidden="true">
-          <span>Имя</span>
-          {fileLocations && <span>Папка</span>}
-          <span className="process-documents-meta">Тип</span>
-          <span className="process-documents-meta">Размер</span>
-          <span className="process-documents-meta">Дата создания</span>
-          <span className="process-documents-meta">Кто создал</span>
-          <span />
-        </div>
-      ) : null}
-      {!loading && !rows.length && !files.length && !draft?.hasDraftFiles && !hasOtherEntries ? (
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyDescription} />
-      ) : null}
-      {showParentRow && folderId && (
-        <div className="process-documents-row">
-          <button
-            type="button"
-            className="process-documents-name"
-            onClick={() => setFolderId?.(breadcrumbs?.at(-2)?.id ?? null)}
-          >
-            <FolderOpenOutlined aria-hidden="true" />
-            <span>..</span>
-          </button>
-        </div>
-      )}
-      {rows.map(({ folder, system, open, editAccess: editVirtualAccess }, index) => {
-        const items: MenuProps['items'] = [];
-        if (!system && renameFolder && folder.canRename !== false)
-          items.push({
-            key: 'rename',
-            label: 'Переименовать',
-            icon: <EditOutlined aria-hidden="true" />,
-            onClick: () => renameFolder(folder),
-          });
-        if (!system && editAccess)
-          items.push({
-            key: 'access',
-            label: 'Права папки',
-            icon: <LockOutlined aria-hidden="true" />,
-            onClick: () => editAccess(folder),
-          });
-        if (editVirtualAccess)
-          items.push({
-            key: 'access',
-            label: 'Права папки',
-            icon: <LockOutlined aria-hidden="true" />,
-            onClick: editVirtualAccess,
-          });
-        if (!system && deleteFolder && folder.canDelete !== false)
-          items.push({
-            key: 'delete',
-            label: 'Удалить',
-            danger: true,
-            icon: <DeleteOutlined aria-hidden="true" />,
-            onClick: () => deleteFolder(folder),
-          });
-        return withActions(
-          `folder-${folder.id}`,
-          folder.title,
-          items,
-          <>
-            <button type="button" className="process-documents-name" onClick={open}>
-              <FolderOutlined aria-hidden="true" />
-              <span className="process-documents-name-text" title={folder.title}>
-                {folder.title}
-              </span>
+      <div className="process-documents-list-rows" role="group" tabIndex={0} aria-label="Содержимое папки">
+        {loading && !rows.length && !files.length && !draftFiles.length ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
+            <Spin indicator={<LoadingOutlined spin />} />
+          </div>
+        ) : null}
+        {rows.length || files.length || draftFiles.length ? (
+          <div className="process-documents-row process-documents-columns" aria-hidden="true">
+            <span>Имя</span>
+            {fileLocations && <span>Папка</span>}
+            <span className="process-documents-meta">Тип</span>
+            <span className="process-documents-meta">Размер</span>
+            <span className="process-documents-meta">Дата создания</span>
+            <span className="process-documents-meta">Кто создал</span>
+            <span />
+          </div>
+        ) : null}
+        {!loading && !rows.length && !files.length && !draftFiles.length && !draftFolders.length && !hasOtherEntries ? (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyDescription} />
+        ) : null}
+        {showParentRow && folderId && (
+          <div className="process-documents-row">
+            <button
+              type="button"
+              className="process-documents-name"
+              onClick={() => setFolderId?.(breadcrumbs?.at(-2)?.id ?? null)}
+            >
+              <FolderOpenOutlined aria-hidden="true" />
+              <span>..</span>
             </button>
-            <span className="process-documents-meta">Папка</span>
-            <span className="process-documents-meta">—</span>
-            <span className="process-documents-meta">{formatDate(folder.createdAt) || '—'}</span>
-            <span className="process-documents-meta">{system ? 'Система' : folder.author || '—'}</span>
-          </>,
-          compactActions ? undefined : (
+          </div>
+        )}
+        {rows.map(({ folder, system, open, editAccess: editVirtualAccess }, index) => {
+          const items: MenuProps['items'] = [];
+          if (!system && renameFolder && folder.canRename !== false)
+            items.push({
+              key: 'rename',
+              label: 'Переименовать',
+              icon: <EditOutlined aria-hidden="true" />,
+              onClick: () => renameFolder(folder),
+            });
+          if (!system && editAccess)
+            items.push({
+              key: 'access',
+              label: 'Права папки',
+              icon: <LockOutlined aria-hidden="true" />,
+              onClick: () => editAccess(folder),
+            });
+          if (editVirtualAccess)
+            items.push({
+              key: 'access',
+              label: 'Права папки',
+              icon: <LockOutlined aria-hidden="true" />,
+              onClick: editVirtualAccess,
+            });
+          if (!system && deleteFolder && folder.canDelete !== false)
+            items.push({
+              key: 'delete',
+              label: 'Удалить',
+              danger: true,
+              icon: <DeleteOutlined aria-hidden="true" />,
+              onClick: () => deleteFolder(folder),
+            });
+          return withActions(
+            `folder-${folder.id}`,
+            folder.title,
+            items,
             <>
-              {editAccess && !system ? (
-                <Tooltip title="Настроить доступ">
-                  <Button
-                    aria-label="Настроить доступ"
-                    size="small"
-                    icon={<LockOutlined />}
-                    onClick={() => editAccess(folder)}
-                  />
-                </Tooltip>
-              ) : null}
-              {deleteFolder && !system && folder.canDelete !== false ? (
-                <Tooltip title="Удалить папку">
-                  <Button
-                    aria-label={`Удалить папку «${folder.title}»`}
-                    size="small"
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={() => deleteFolder(folder)}
-                  />
-                </Tooltip>
-              ) : null}
-            </>
-          ),
-          index,
-        );
-      })}
-      {files.map((file) => {
-        const items: MenuProps['items'] = [];
-        if (previewFile)
-          items.push({
-            key: 'preview',
-            label: 'Открыть',
-            icon: <FileOutlined aria-hidden="true" />,
-            onClick: () => previewFile(file),
-          });
-        if (fileLocations)
-          items.push({
-            key: 'location',
-            label: 'Перейти в папку',
-            icon: <FolderOutlined aria-hidden="true" />,
-            onClick: () => fileLocations.open(file),
-          });
-        if (downloadFile)
-          items.push({
-            key: 'download',
-            label: 'Скачать',
-            icon: <DownloadOutlined aria-hidden="true" />,
-            onClick: () => downloadFile(file),
-          });
-        if (renameFile)
-          items.push({
-            key: 'rename',
-            label: 'Переименовать',
-            icon: <EditOutlined aria-hidden="true" />,
-            onClick: () => renameFile(file),
-          });
-        if (deleteFile)
-          items.push({
-            key: 'delete',
-            label: 'Удалить',
-            danger: true,
-            icon: <DeleteOutlined aria-hidden="true" />,
-            disabled: deleteDisabled,
-            onClick: () => deleteFile(file),
-          });
-        return withActions(
-          `file-${fileKey?.(file) ?? file.id}`,
-          file.title,
-          items,
-          <>
-            <button type="button" className="process-documents-name" onClick={() => previewFile?.(file)}>
-              <FileOutlined aria-hidden="true" />
-              <span className="process-documents-name-text" title={file.title}>
-                {file.title}
-              </span>
-            </button>
-            {fileLocations && (
-              <Button type="link" className="process-documents-file-location" onClick={() => fileLocations.open(file)}>
-                {fileLocations.label(file)}
-              </Button>
-            )}
-            <span className="process-documents-meta">
-              {file.title.match(/\.([^./]+)$/)?.[1].toUpperCase() ?? 'Файл'}
-            </span>
-            <span className="process-documents-meta">{file.file_size == null ? '' : formatSize(file.file_size)}</span>
-            <span className="process-documents-meta">{formatDate(file.createdAt)}</span>
-            <span className="process-documents-meta">{file.author}</span>
-          </>,
-        );
-      })}
+              <button type="button" className="process-documents-name" onClick={open}>
+                <FolderOutlined aria-hidden="true" />
+                <span className="process-documents-name-text" title={folder.title}>
+                  {folder.title}
+                </span>
+              </button>
+              <span className="process-documents-meta">Папка</span>
+              <span className="process-documents-meta">—</span>
+              <span className="process-documents-meta">{formatDate(folder.createdAt) || '—'}</span>
+              <span className="process-documents-meta">{system ? 'Система' : folder.author || '—'}</span>
+            </>,
+            compactActions ? undefined : (
+              <>
+                {editAccess && !system ? (
+                  <Tooltip title="Настроить доступ">
+                    <Button
+                      aria-label="Настроить доступ"
+                      size="small"
+                      icon={<LockOutlined />}
+                      onClick={() => editAccess(folder)}
+                    />
+                  </Tooltip>
+                ) : null}
+                {deleteFolder && !system && folder.canDelete !== false ? (
+                  <Tooltip title="Удалить папку">
+                    <Button
+                      aria-label={`Удалить папку «${folder.title}»`}
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => deleteFolder(folder)}
+                    />
+                  </Tooltip>
+                ) : null}
+              </>
+            ),
+            index,
+          );
+        })}
+        {files.map((file) =>
+          renderFile(file, {
+            previewFile,
+            renameFile,
+            deleteFile,
+            deleteDisabled,
+            downloadFile,
+            fileLocations,
+            fileKey,
+          }),
+        )}
+        {(draftFiles.length > 0 || draftFolders.length > 0) && (
+          <div role="list" aria-label="Файлы, ожидающие сохранения">
+            <div className="process-documents-form-hint">Ожидают сохранения</div>
+            {draftFiles.map((file) => (
+              <div role="listitem" key={file.id}>
+                {renderFile(file, { renameFile: draft?.renameFile, deleteFile: draft?.deleteFile })}
+              </div>
+            ))}
+            {draftFolders.map((name, index) => (
+              <div className="process-documents-draft-folder" role="listitem" key={`${name}:${index}`}>
+                {name}/
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

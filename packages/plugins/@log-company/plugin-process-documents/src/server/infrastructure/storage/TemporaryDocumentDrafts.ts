@@ -11,9 +11,10 @@ import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { processDocumentUpload, validateUploadBatch } from '@log-company/plugin-file-storage';
-import { MAX_DOCUMENT_UPLOAD_ENTRIES, type FormDocumentSaveTarget } from '../../../contracts/processDocuments';
+import { MAX_DOCUMENT_UPLOAD_ENTRIES, type FormDocumentBatch, type FormDocumentSaveTarget } from '../../../contracts/processDocuments';
 import type { UploadedDocumentFile } from '../../application/UploadProcessDocuments';
 import { ProcessDocumentsError } from '../../domain/documents/DocumentErrors';
+import { renamedDocumentFileTitle, splitRelativeDocumentName } from '../../domain/documents/DocumentName';
 
 const lifetime = 2 * 60 * 60 * 1_000;
 const concurrentUploads = 4;
@@ -29,6 +30,7 @@ interface DraftDestination extends DraftSelection {
 }
 
 interface Draft extends DraftDestination {
+  files: (UploadedDocumentFile & { id: string })[];
   actor: string;
   form: FormDocumentSaveTarget;
   directory: string;
@@ -92,13 +94,10 @@ export class TemporaryDocumentDrafts {
         throw new ProcessDocumentsError('FORM_DRAFT_BUSY', 'Временное хранилище занято. Повторите позже.');
       }
       const token = randomUUID();
-      this.drafts.set(token, { actor, form, folderId, directory, files, emptyFolders, expires: Date.now() + lifetime });
+      const draft = { actor, form, folderId, directory, files: files.map((file) => ({ ...file, id: randomUUID() })), emptyFolders, expires: Date.now() + lifetime };
+      this.drafts.set(token, draft);
       retained = true;
-      return {
-        token,
-        files: files.map(({ originalName, size }) => ({ name: originalName, size })),
-        ...(emptyFolders?.length && { emptyFolders }),
-      };
+      return this.describe(token, draft);
     } finally {
       this.staging.delete(actor);
       if (directory) {
@@ -106,6 +105,47 @@ export class TemporaryDocumentDrafts {
         if (!retained) await this.remove(directory);
       }
     }
+  }
+
+  async editFile(actor: string, token: string, fileId: string, title: string | null): Promise<FormDocumentBatch | null> {
+    const draft = this.drafts.get(token);
+    if (!draft || draft.discarded || draft.expires <= Date.now()) throw expired();
+    if (draft.actor !== actor) {
+      throw new ProcessDocumentsError('DRAFT_ACCESS_DENIED', 'Нет доступа к временным файлам.');
+    }
+    if (draft.active) throw new ProcessDocumentsError('FORM_DRAFT_BUSY', 'Файлы уже сохраняются.');
+    const file = draft.files.find(({ id }) => id === fileId);
+    if (!file) throw new ProcessDocumentsError('DOCUMENT_NOT_FOUND', 'Временный файл не найден.');
+
+    if (title !== null) {
+      const { folders, filename } = splitRelativeDocumentName(file.originalName);
+      const nextName = [...folders, renamedDocumentFileTitle(title, filename)].join('/');
+      if (draft.files.some((other) => other.id !== fileId && other.originalName === nextName)) {
+        throw new ProcessDocumentsError('DOCUMENT_NAME_CONFLICT', 'Такое имя уже используется в этой папке.');
+      }
+      file.originalName = nextName;
+      return this.describe(token, draft);
+    }
+
+    draft.active = true;
+    try {
+      await rm(file.path, { force: true });
+      draft.files = draft.files.filter(({ id }) => id !== fileId);
+    } finally {
+      draft.active = false;
+      if (draft.discarded || (!draft.files.length && !draft.emptyFolders?.length)) {
+        await this.discard([token], actor);
+      }
+    }
+    return this.drafts.get(token) === draft ? this.describe(token, draft) : null;
+  }
+
+  private describe(token: string, { files, emptyFolders }: Draft): FormDocumentBatch {
+    return {
+      token,
+      files: files.map(({ id, originalName, size }) => ({ id, name: originalName, size })),
+      ...(emptyFolders?.length && { emptyFolders }),
+    };
   }
 
   acquire(tokens: string[], actor: string, form: FormDocumentSaveTarget) {

@@ -9,7 +9,7 @@
 
 import { companyRequestFolderTypes, isCompanyRequestFolder } from '../../contracts/processDocuments';
 import { ProcessDocumentsError } from '../domain/documents/DocumentErrors';
-import { isDocumentNameSegment } from '../domain/documents/DocumentName';
+import { isDocumentNameSegment, renamedDocumentFileTitle } from '../domain/documents/DocumentName';
 import { DocumentScopeService } from './DocumentScopeService';
 import type { DocumentActor, ProcessDocumentsRepository } from './ports/ProcessDocumentsRepository';
 
@@ -55,11 +55,7 @@ export class RenameProcessDocumentEntry {
         const file = await this.scopes.requireDocument(input.id, transaction);
         const scope = await this.scopes.resolveForDocument(file, input.draftToken, 'rename', input.actor);
         existingTitle = file.title;
-        const dot = file.originalFilename.lastIndexOf('.');
-        if (dot > 0) nextTitle += file.originalFilename.slice(dot);
-        if (!isDocumentNameSegment(nextTitle)) {
-          throw new ProcessDocumentsError('INVALID_DOCUMENT_NAME', 'Слишком длинное имя файла.');
-        }
+        nextTitle = renamedDocumentFileTitle(title, file.originalFilename);
         siblingTitles = await this.repository.listDocumentTitles(scope, file.folderId, transaction);
       }
 

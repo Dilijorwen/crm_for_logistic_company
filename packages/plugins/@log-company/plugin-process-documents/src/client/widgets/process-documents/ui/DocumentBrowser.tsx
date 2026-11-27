@@ -95,3 +95,33 @@ export function openDocumentFolderDialog(
     },
   });
 }
+
+export function openDocumentRenameDialog(
+  modal: ReturnType<typeof Modal.useModal>[0],
+  kind: 'file' | 'folder',
+  title: string,
+  originalName: string | undefined,
+  save: (name: string) => Promise<void>,
+) {
+  const dot = originalName?.lastIndexOf('.') ?? -1;
+  const suffix = dot > 0 ? originalName?.slice(dot) ?? '' : '';
+  let name = suffix && title.endsWith(suffix) ? title.slice(0, -suffix.length) : title;
+  modal.confirm({
+    title: kind === 'file' ? 'Переименовать файл' : 'Переименовать папку',
+    content: (
+      <Input
+        aria-label="Новое имя"
+        defaultValue={name}
+        addonAfter={suffix || undefined}
+        autoFocus
+        maxLength={200 - suffix.length}
+        onChange={(event) => {
+          name = event.target.value;
+        }}
+      />
+    ),
+    okText: 'Сохранить',
+    cancelText: 'Отмена',
+    onOk: () => save(name),
+  });
+}

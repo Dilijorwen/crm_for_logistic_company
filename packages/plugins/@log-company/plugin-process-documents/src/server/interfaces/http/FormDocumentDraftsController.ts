@@ -71,9 +71,14 @@ export class FormDocumentDraftsController {
   register(): void {
     this.plugin.app.resourceManager.define({
       name: RESOURCE,
-      actions: { stage: this.stage, discard: this.discard, shipmentPermissions: this.shipmentPermissions },
+      actions: {
+        stage: this.stage,
+        discard: this.discard,
+        editFile: this.editFile,
+        shipmentPermissions: this.shipmentPermissions,
+      },
     });
-    this.plugin.app.acl.allow(RESOURCE, ['stage', 'discard', 'shipmentPermissions'], 'loggedIn');
+    this.plugin.app.acl.allow(RESOURCE, ['stage', 'discard', 'editFile', 'shipmentPermissions'], 'loggedIn');
     this.plugin.db.on(
       'shipments.afterCreate',
       (
@@ -217,6 +222,30 @@ export class FormDocumentDraftsController {
       const tokens = body && typeof body === 'object' && 'tokens' in body ? body.tokens : undefined;
       await this.drafts.discard(this.tokens(tokens), actor.userId);
       context.body = true;
+      await next();
+    });
+  };
+
+  private readonly editFile = async (context: Context, next: Next) => {
+    this.assertPost(context);
+    await this.handle(context, async (actor) => {
+      const body = context.request.body;
+      if (!body || typeof body !== 'object' || !('token' in body) || !('fileId' in body) || !('title' in body)) {
+        return context.throw(400, 'Не удалось определить временный файл.');
+      }
+      const { token, fileId, title } = body;
+      if (
+        typeof token !== 'string' ||
+        !tokenPattern.test(token) ||
+        typeof fileId !== 'string' ||
+        !tokenPattern.test(fileId) ||
+        (title !== null && (typeof title !== 'string' || title.length > 200))
+      ) {
+        return context.throw(400, 'Недопустимые параметры временного файла.');
+      }
+      context.body = {
+        batch: await this.drafts.editFile(actor.userId, token, fileId, typeof title === 'string' ? title : null),
+      };
       await next();
     });
   };

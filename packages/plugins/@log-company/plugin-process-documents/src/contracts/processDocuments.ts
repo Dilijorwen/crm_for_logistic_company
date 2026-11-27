@@ -52,6 +52,12 @@ export interface FormDocumentSaveTarget {
   recordId: string | null;
 }
 
+export interface FormDocumentBatch {
+  token: string;
+  files: { id: string; name: string; size: number }[];
+  emptyFolders?: string[];
+}
+
 export function supportsFormFolderUploads(resource: DocumentFormResource): boolean {
   return resource === 'shipments' || resource === 'transport_runs';
 }

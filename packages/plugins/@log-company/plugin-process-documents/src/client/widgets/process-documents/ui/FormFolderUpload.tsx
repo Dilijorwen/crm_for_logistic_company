@@ -11,7 +11,8 @@ import { FolderOpenOutlined, UploadOutlined } from '@ant-design/icons';
 import { observer } from '@formily/react';
 import { useAPIClient } from '@nocobase/client';
 import type { FlowModel, SingleRecordResource } from '@nocobase/flow-engine';
-import { Alert, Button, Form, Modal, Spin, Typography, type FormInstance } from 'antd';
+import { Alert, Button, Form, Modal, Spin, Typography, message } from 'antd';
+import type { FormInstance } from 'antd';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FORM_DOCUMENT_DRAFT_HEADER,
@@ -19,14 +20,18 @@ import {
   documentRecordId,
   isDocumentFormResource,
   supportsFormFolderUploads,
-  type DocumentIdentifier,
-  type DocumentFormResource,
 } from '../../../../contracts/processDocuments';
+import type { DocumentIdentifier, DocumentFormResource } from '../../../../contracts/processDocuments';
 import { FormDocumentDraftsApi, getDocumentErrorText } from '../../../entities/process-document';
-import type { FormDocumentBatch, SelectedDocument } from '../../../entities/process-document';
+import type { FormDocumentBatch, ProcessDocumentDto, SelectedDocument } from '../../../entities/process-document';
 import { readDroppedDocuments } from '../model/droppedDocuments';
 import { DocumentsList, EmptyFormDocumentList, FormDocumentListContext } from './DocumentsList';
-import { DocumentBrowser, DocumentUploadMenu, openDocumentFolderDialog } from './DocumentBrowser';
+import {
+  DocumentBrowser,
+  DocumentUploadMenu,
+  openDocumentFolderDialog,
+  openDocumentRenameDialog,
+} from './DocumentBrowser';
 
 export interface DocumentFormBinding {
   model: FlowModel;
@@ -178,9 +183,10 @@ function FormFolderUploadComponent({
   async function stage(
     select: () => Promise<{ files: SelectedDocument[]; emptyFolders?: string[] }>,
     folderId?: DocumentIdentifier | null,
+    targetPath = folder,
   ) {
     const current = session.current;
-    if (current.busy || !canStage || (shipmentDraft && folder === null)) return;
+    if (current.busy || !canStage || (shipmentDraft && targetPath === null)) return;
     const generation = current.generation;
     current.busy = true;
     setBusy(true);
@@ -204,7 +210,7 @@ function FormFolderUploadComponent({
       }
       shipmentDraft?.setTokens([FORM_DOCUMENT_DRAFT_PENDING]);
       const { files, emptyFolders } = await select();
-      const prefix = isCreatingDocuments && folder ? `${folder}/` : '';
+      const prefix = isCreatingDocuments && targetPath ? `${targetPath}/` : '';
       const folders = supportsFormFolderUploads(resource) ? emptyFolders?.map((name) => prefix + name) : undefined;
       if (!current.mounted || current.generation !== generation) return;
       if (!files.length && !folders?.length) throw new Error('В выбранной папке нет файлов.');
@@ -237,27 +243,75 @@ function FormFolderUploadComponent({
     }
   }
 
-  async function clearDraft() {
-    if (session.current.busy) return;
+  async function updateDraft(change: (batches: FormDocumentBatch[]) => Promise<FormDocumentBatch[]>) {
     const current = session.current;
+    if (current.busy) throw new Error('Временные файлы уже изменяются.');
+    const generation = current.generation;
     current.busy = true;
     if (current.binding) updateHeader(current.binding, true);
     shipmentDraft?.setTokens([FORM_DOCUMENT_DRAFT_PENDING]);
     setBusy(true);
     try {
-      await api.discard(current.batches.map(({ token }) => token));
-      current.batches = [];
-      setBatches([]);
+      const next = await change(current.batches);
+      if (!current.mounted || current.generation !== generation) return;
+      current.batches = next;
+      setBatches(next);
       setError(undefined);
-    } catch (error) {
-      setError(getDocumentErrorText(error, 'Не удалось удалить временные файлы.'));
     } finally {
       current.busy = false;
-      if (current.binding) updateHeader(current.binding);
-      if (current.mounted) shipmentDraft?.setTokens(current.batches.map(({ token }) => token));
-      setBusy(false);
+      if (current.mounted) {
+        if (current.binding) updateHeader(current.binding);
+        shipmentDraft?.setTokens(current.batches.map(({ token }) => token));
+        setBusy(false);
+      }
     }
   }
+
+  async function clearDraft() {
+    try {
+      await updateDraft(async (current) => {
+        await api.discard(current.map(({ token }) => token));
+        return [];
+      });
+    } catch (reason) {
+      setError(getDocumentErrorText(reason, 'Не удалось удалить временные файлы.'));
+    }
+  }
+
+  async function editDraftFile(file: ProcessDocumentDto, title: string | null) {
+    try {
+      await updateDraft(async (current) => {
+        const batch = current.find(({ files }) => files.some(({ id }) => id === file.id));
+        if (!batch) return current;
+        const next = await api.editFile(batch.token, String(file.id), title);
+        return current.flatMap((item) => (item === batch ? (next ? [next] : []) : [item]));
+      });
+    } catch (reason) {
+      message.error(
+        getDocumentErrorText(reason, title === null ? 'Не удалось удалить файл.' : 'Не удалось сохранить имя.'),
+      );
+      throw reason;
+    }
+  }
+
+  function renameDraftFile(file: ProcessDocumentDto) {
+    openDocumentRenameDialog(modal, 'file', file.title, file.original_filename, (name) => editDraftFile(file, name));
+  }
+
+  function deleteDraftFile(file: ProcessDocumentDto) {
+    modal.confirm({
+      title: `Удалить файл «${file.title}»?`,
+      content: 'Файл будет удалён из черновика и не попадёт в хранилище.',
+      okText: 'Удалить',
+      okButtonProps: { danger: true },
+      cancelText: 'Отмена',
+      onOk: () => editDraftFile(file, null),
+    });
+  }
+  const draftActions = {
+    renameFile: busy ? undefined : renameDraftFile,
+    deleteFile: busy ? undefined : deleteDraftFile,
+  };
 
   function onFileSelection(event: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(event.currentTarget.files ?? [], (file) => ({
@@ -271,7 +325,7 @@ function FormFolderUploadComponent({
   const canShowUpload = canStage && (!shipmentDraft || folder !== null);
   const clearDraftButton = batches.length > 0 && (
     <Button disabled={busy} onClick={clearDraft}>
-      {isCreatingDocuments ? 'Убрать все вложения' : 'Очистить черновик'}
+      Очистить черновик
     </Button>
   );
 
@@ -294,7 +348,7 @@ function FormFolderUploadComponent({
         if (path.startsWith(prefix) && path.length > prefix.length)
           folderNames.add(path.slice(prefix.length).split('/')[0]);
       }
-      return batch.files.flatMap((file, index) => {
+      return batch.files.flatMap((file) => {
         if (!file.name.startsWith(prefix)) return [];
         const name = file.name.slice(prefix.length);
         const slash = name.indexOf('/');
@@ -302,7 +356,7 @@ function FormFolderUploadComponent({
           folderNames.add(name.slice(0, slash));
           return [];
         }
-        return [{ id: `${batch.token}-${index}`, title: name, file_size: file.size }];
+        return [draftFileRow(file, name)];
       });
     });
     const createFolder = () =>
@@ -346,13 +400,20 @@ function FormFolderUploadComponent({
         )}
         <DocumentsList
           files={files}
+          {...draftActions}
           folderNavigation={{
             folders: [...folderNames].map((title) => ({ id: prefix + title, title })),
             folderId: folder,
             breadcrumbs,
             setFolderId: (id) => setFolder(id === null ? null : String(id)),
           }}
-          onDrop={canShowUpload && !busy ? (transfer) => stage(() => readDroppedDocuments(transfer)) : undefined}
+          allowDropAtCurrentFolder={canShowUpload}
+          onDrop={
+            canStage && !busy
+              ? (transfer, destination) =>
+                  stage(() => readDroppedDocuments(transfer), undefined, destination ? String(destination.id) : folder)
+              : undefined
+          }
         />
       </DocumentBrowser>
     );
@@ -360,6 +421,7 @@ function FormFolderUploadComponent({
 
   const controls = (
     <>
+      {modalHolder}
       {error && <Alert type="error" showIcon message={error} />}
       {canShowUpload ? (
         <>
@@ -392,25 +454,15 @@ function FormFolderUploadComponent({
       ) : (
         <Alert type="info" showIcon message="Добавьте блок загрузки рядом со штатной формой записи." />
       )}
-      {batches.length > 0 && (
-        <div>
-          <div className="process-documents-form-hint">Ожидают сохранения</div>
-          <ul className="process-documents-draft-files" aria-label="Файлы, ожидающие сохранения">
-            {batches.map((batch) =>
-              [...batch.files.map((file) => file.name), ...(batch.emptyFolders ?? []).map((name) => `${name}/`)].map(
-                (name, index) => <li key={`${batch.token}:${index}`}>{name}</li>,
-              ),
-            )}
-          </ul>
-        </div>
-      )}
     </>
   );
   return (
     <FormDocumentListContext.Provider
       value={{
         controls,
-        hasDraftFiles: batches.length > 0,
+        files: batches.flatMap(({ files }) => files.map((file) => draftFileRow(file))),
+        emptyFolders: batches.flatMap(({ emptyFolders }) => emptyFolders ?? []),
+        ...draftActions,
         onDrop:
           canStage && !busy ? (transfer, folderId) => stage(() => readDroppedDocuments(transfer), folderId) : undefined,
       }}
@@ -418,6 +470,10 @@ function FormFolderUploadComponent({
       <React.Fragment key={revision}>{children ?? <EmptyFormDocumentList />}</React.Fragment>
     </FormDocumentListContext.Provider>
   );
+}
+
+function draftFileRow(file: FormDocumentBatch['files'][number], name = file.name): ProcessDocumentDto {
+  return { id: file.id, title: name, file_size: file.size, original_filename: file.name.split('/').at(-1) };
 }
 
 export const FormFolderUpload = observer(FormFolderUploadComponent);

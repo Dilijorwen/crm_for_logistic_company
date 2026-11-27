@@ -8,17 +8,12 @@
  */
 
 import type { APIClient } from '@nocobase/client';
-import type { FormDocumentSaveTarget } from '../../../../contracts/processDocuments';
+import type { FormDocumentBatch, FormDocumentSaveTarget } from '../../../../contracts/processDocuments';
+export type { FormDocumentBatch } from '../../../../contracts/processDocuments';
 
 export interface SelectedDocument {
   file: File;
   name: string;
-}
-
-export interface FormDocumentBatch {
-  token: string;
-  files: { name: string; size: number }[];
-  emptyFolders?: string[];
 }
 
 export function appendDocumentFiles(data: FormData, files: readonly SelectedDocument[]) {
@@ -64,5 +59,14 @@ export class FormDocumentDraftsApi {
   async discard(tokens: string[]): Promise<void> {
     if (!tokens.length) return;
     await this.client.request({ url: 'processDocumentDrafts:discard', method: 'post', data: { tokens } });
+  }
+
+  async editFile(token: string, fileId: string, title: string | null): Promise<FormDocumentBatch | null> {
+    const response = await this.client.request<{ data: { batch: FormDocumentBatch | null } }>({
+      url: 'processDocumentDrafts:editFile',
+      method: 'post',
+      data: { token, fileId, title },
+    });
+    return response.data.data.batch;
   }
 }
